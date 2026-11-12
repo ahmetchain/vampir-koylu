@@ -1,0 +1,16 @@
+# Render "Blueprint" dosyası: Render panelinde New > Blueprint seçip bu depoyu bağlayınca
+# oyun sunucusu (arayüz dahil) tek bir web servisi olarak kurulur.
+services:
+  - type: web
+    name: vampir-koylu
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # Arayüzü ayrıca Netlify'da yayınlıyorsan Netlify adresini buraya yaz (virgülle birden fazla).
+      - key: CLIENT_ORIGIN
+        sync: false

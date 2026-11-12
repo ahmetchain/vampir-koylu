@@ -1,0 +1,11 @@
+# İsteğe bağlı: arayüzü Netlify'da, oyun sunucusunu Render'da çalıştırmak için.
+# Önce public/config.js içindeki serverUrl alanına Render adresini yaz,
+# Render'da da CLIENT_ORIGIN ortam değişkenine Netlify adresini ekle.
+[build]
+  publish = "public"
+  command = ""
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=300"

@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0a12">
+  <title>Vampir Köylü</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧛</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="scene.css">
+</head>
+<body data-phase="menu">
+  <div class="sky" aria-hidden="true"></div>
+  <div class="conn-banner" id="conn-banner" hidden>Bağlantı koptu, yeniden bağlanılıyor…</div>
+
+  <main id="app">
+    <!-- ANA MENÜ -->
+    <section class="screen screen-menu" id="screen-menu">
+      <div class="bats" aria-hidden="true"><span>🦇</span><span>🦇</span><span>🦇</span></div>
+      <div class="menu-box">
+        <div class="moon" aria-hidden="true"></div>
+        <h1 class="title">
+          <span class="title-main">Vampir Köylü</span>
+          <span class="title-sub">Oyununa Hoş Geldiniz</span>
+        </h1>
+        <p class="tagline">Köyde vampirler var. Gündüz onları bulun, gece hayatta kalın.</p>
+        <div class="menu-actions">
+          <button class="btn btn-primary btn-lg" data-go="play">Oyna</button>
+          <button class="btn btn-ghost btn-lg" data-go="howto">Nasıl Oynanır?</button>
+        </div>
+      </div>
+      <footer class="credit">Ehlil Basiret tarafından yapılmıştır</footer>
+    </section>
+
+    <!-- NASIL OYNANIR -->
+    <section class="screen" id="screen-howto" hidden>
+      <header class="screen-head">
+        <button class="btn-back" data-go="menu">← Geri</button>
+        <h2>Nasıl Oynanır?</h2>
+      </header>
+      <div class="howto">
+        <section class="howto-block">
+          <h3>Amaç</h3>
+          <p>Köyün içine vampirler sızmış. <strong>Köylüler</strong> (doktor dahil) gündüz tartışıp oy vererek vampirleri asmaya çalışır. <strong>Vampirler</strong> ise her gece birini öldürerek köyü ele geçirmeye çalışır.</p>
+        </section>
+
+        <section class="howto-block">
+          <h3>Roller</h3>
+          <div class="role-cards" id="howto-roles"></div>
+          <p class="muted small-note">Vampir sayısı oyuncu sayısına göre belirlenir: 5–9 kişide 1, 10–14 kişide 2, 15 ve üstünde 3 vampir. Oda sahibi hangi özel rollerin oyunda olacağını seçer. Özel roller listedeki sırayla eklenir ve her oyunda en az bir sade köylü kalır.</p>
+        </section>
+
+        <section class="howto-block">
+          <h3>Oyun Akışı</h3>
+          <ol class="steps">
+            <li><strong>Roller dağıtılır.</strong> Herkes sadece kendi kartını görür. Rolünü kimseye söyleme!</li>
+            <li><strong>🌙 Gece (varsayılan 30 sn).</strong> Köy meydanda uyur, köylüler konuşamaz. Gece rolü olanlar (vampir, doktor, kahin, cadı) bir karaktere dokunur ve karakterleri o kişinin yanına yürür. Bunu sadece seçen kişi görür. Vampirler birbirinin seçimini de görür.</li>
+            <li><strong>🌅 Sabah.</strong> Gece ne olduğu duyurulur: biri öldü ya da kimse ölmedi. Kahin baktığı kişinin sonucunu gizlice öğrenir. Ölen kişi avcıysa 20 saniye içinde birini vurabilir.</li>
+            <li><strong>☀️ Gündüz (varsayılan 120 sn).</strong> Herkes tartışır ve şüphelendiği kişinin karakterine dokunarak oy verir. Kimin kime oy verdiği karakterin üstünde renkli noktalarla görünür. Oylar herkese açıktır. Süre bitince en çok oyu alan kişi asılır. Oylar eşitse kimse asılmaz. Herkes oy verdiyse süre 10 saniyeye iner.</li>
+            <li><strong>😴 Hızlı Uyu.</strong> Kimseyi asmak istemiyorsanız <em>Hızlı Uyu</em>'ya basın. Yaşayan herkes basarsa kimse asılmadan hemen geceye geçilir. Hızlı Uyu, "kimseyi asmayalım" oyu da sayılır: en çok oy alan kişiyle eşit ya da fazlaysa kimse asılmaz.</li>
+            <li>Gece ve gündüz, oyun bitene kadar sırayla devam eder.</li>
+          </ol>
+        </section>
+
+        <section class="howto-block">
+          <h3>Kim Kazanır?</h3>
+          <ul class="wins">
+            <li><span>🧑‍🌾</span><p><strong>Köylüler</strong>, son vampir de öldüğünde kazanır.</p></li>
+            <li><span>🧛</span><p><strong>Vampirler</strong>, sayıları yaşayan diğer oyunculara eşit olduğunda kazanır. Örneğin 1 vampir ve 1 köylü kaldığında.</p></li>
+            <li><span>🩺</span><p>1 vampir, 1 doktor ve 1 köylü kaldığında oyun bitmez. O gece her şey doktorun doğru kişiyi korumasına bağlıdır.</p></li>
+            <li><span>🃏</span><p><strong>Soytarı</strong>, köy onu gündüz asarsa tek başına kazanır ve oyun biter.</p></li>
+          </ul>
+        </section>
+
+        <section class="howto-block">
+          <h3>Ölüler ve Kurallar</h3>
+          <ul class="tips">
+            <li>Ölen oyuncular oyunu izlemeye devam eder ama sadece diğer ölülerle yazışabilir. Sesli konuşuyorsanız ölüler ipucu vermesin!</li>
+            <li>Oda sahibi ayarlarda açtıysa ölen kişinin rolü herkese açıklanır.</li>
+            <li>Oyundan ayrılan oyuncu ölmüş sayılır. Sayfayı yenilersen ya da bağlantın koparsa aynı sekmeden geri dönebilirsin.</li>
+            <li>Oyun bitince herkesin rolü açılır ve oda sahibi yeni oyun başlatabilir.</li>
+          </ul>
+        </section>
+
+        <button class="btn btn-primary btn-lg howto-cta" data-go="play">Hadi Oynayalım</button>
+      </div>
+    </section>
+
+    <!-- OYNA -->
+    <section class="screen" id="screen-play" hidden>
+      <header class="screen-head">
+        <button class="btn-back" data-go="menu">← Geri</button>
+        <h2>Oyna</h2>
+      </header>
+      <div class="choice-grid">
+        <button class="choice" data-go="rooms">
+          <span class="choice-icon">⚡</span>
+          <strong>Hızlı Katıl</strong>
+          <small>Açık odaları gör ve birine katıl</small>
+        </button>
+        <button class="choice" data-go="create">
+          <span class="choice-icon">🏰</span>
+          <strong>Oda Oluştur</strong>
+          <small>Kendi odanı kur, arkadaşlarını davet et</small>
+        </button>
+      </div>
+    </section>
+
+    <!-- ODA LİSTESİ -->
+    <section class="screen" id="screen-rooms" hidden>
+      <header class="screen-head">
+        <button class="btn-back" data-go="play">← Geri</button>
+        <h2>Odalar</h2>
+      </header>
+      <form class="code-form" id="code-form" autocomplete="off">
+        <input id="code-input" placeholder="Oda kodu (ör. K7QZP)" maxlength="5" aria-label="Oda kodu">
+        <button class="btn btn-ghost" type="submit">Kodla Katıl</button>
+      </form>
+      <div class="room-list" id="room-list"></div>
+    </section>
+
+    <!-- ODA OLUŞTUR -->
+    <section class="screen" id="screen-create" hidden>
+      <header class="screen-head">
+        <button class="btn-back" data-go="play">← Geri</button>
+        <h2>Oda Oluştur</h2>
+      </header>
+      <form class="panel form" id="create-form" autocomplete="off">
+        <label>Oda adı
+          <input id="create-room" maxlength="24" placeholder="ör. Cuma Gecesi" required>
+        </label>
+        <label>Kullanıcı adın
+          <input id="create-name" maxlength="16" placeholder="Oyunda görünecek adın" required>
+        </label>
+        <label>Oda şifresi <small>(isteğe bağlı)</small>
+          <input id="create-pass" maxlength="20" placeholder="Boş bırakırsan herkes katılabilir">
+        </label>
+        <fieldset class="role-pick">
+          <legend>Oyundaki özel roller</legend>
+          <div class="role-toggles" id="create-roles"></div>
+        </fieldset>
+        <details class="advanced">
+          <summary>Gelişmiş ayarlar</summary>
+          <div class="advanced-grid">
+            <label>🌙 Gece süresi (sn)
+              <input id="create-night" type="number" min="15" max="120" value="30">
+            </label>
+            <label>☀️ Gündüz süresi (sn)
+              <input id="create-day" type="number" min="30" max="300" value="120">
+            </label>
+            <label class="check">
+              <input id="create-reveal" type="checkbox" checked>
+              Ölen oyuncunun rolü herkese açıklansın
+            </label>
+          </div>
+        </details>
+        <p class="form-error" id="create-error"></p>
+        <button class="btn btn-primary btn-lg" type="submit">Odayı Oluştur</button>
+      </form>
+    </section>
+
+    <!-- ODA: LOBİ + OYUN -->
+    <section class="screen screen-room" id="screen-room" hidden>
+      <header class="room-bar">
+        <div class="room-title">
+          <strong id="room-name"></strong>
+          <span class="code-chip" id="room-code"></span>
+        </div>
+        <div class="room-status">
+          <span class="phase-chip" id="phase-chip"></span>
+          <span class="timer" id="timer" hidden></span>
+        </div>
+        <div class="room-actions">
+          <button class="role-chip" id="role-chip" hidden>🂠 Rolüm</button>
+          <button class="btn btn-small btn-ghost" id="leave-btn">Ayrıl</button>
+        </div>
+      </header>
+
+      <div class="room-layout">
+        <div class="room-main">
+          <div class="banner" id="banner"></div>
+
+          <div class="witch-bar" id="witch-bar" hidden>
+            <button class="btn btn-small" data-witch="heal" id="witch-heal">🧪 Hayat iksiri</button>
+            <button class="btn btn-small" data-witch="poison" id="witch-poison">☠️ Zehir</button>
+          </div>
+
+          <div class="reveal-panel" id="reveal-panel" hidden>
+            <button class="flip-card" id="flip-card">
+              <span class="flip-inner">
+                <span class="flip-face flip-back">
+                  <span class="flip-sigil">🂠</span>
+                  <span>Kartını çevirmek için dokun</span>
+                </span>
+                <span class="flip-face flip-front" id="flip-front"></span>
+              </span>
+            </button>
+          </div>
+
+          <div class="end-panel panel" id="end-panel" hidden></div>
+
+          <div class="stage" id="stage" data-phase="lobby">
+            <div class="stage-sky">
+              <div class="st-stars"></div>
+              <div class="st-moon"></div>
+              <div class="st-sun"></div>
+            </div>
+            <svg class="stage-village" viewBox="0 0 1000 260" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+              <g class="hills"><path d="M0 200 Q160 120 330 190 Q500 110 680 185 Q850 120 1000 190 L1000 260 L0 260 Z"/></g>
+              <g class="trees">
+                <path d="M60 230 L90 150 L120 230 Z"/><path d="M880 232 L910 140 L940 232 Z"/>
+                <path d="M470 226 L490 170 L510 226 Z"/><path d="M965 236 L985 180 L1005 236 Z"/>
+              </g>
+              <g class="houses">
+                <g transform="translate(140 150)"><rect class="wall" x="0" y="30" width="90" height="70"/><path class="roof" d="M-10 34 L45 -8 L100 34 Z"/><rect class="win" x="14" y="46" width="18" height="16"/><rect class="win" x="58" y="46" width="18" height="16"/><rect class="door" x="36" y="68" width="18" height="32"/></g>
+                <g transform="translate(300 128)"><rect class="wall" x="0" y="30" width="110" height="92"/><path class="roof" d="M-12 34 L55 -16 L122 34 Z"/><rect class="win" x="16" y="48" width="20" height="18"/><rect class="win" x="74" y="48" width="20" height="18"/><rect class="win" x="45" y="12" width="20" height="14"/><rect class="door" x="44" y="84" width="22" height="38"/></g>
+                <g transform="translate(560 140)"><rect class="wall" x="0" y="30" width="96" height="80"/><path class="roof" d="M-10 34 L48 -10 L106 34 Z"/><rect class="win" x="14" y="48" width="18" height="16"/><rect class="win" x="64" y="48" width="18" height="16"/><rect class="door" x="38" y="76" width="20" height="34"/></g>
+                <g transform="translate(730 160)"><rect class="wall" x="0" y="26" width="80" height="64"/><path class="roof" d="M-8 30 L40 -6 L88 30 Z"/><rect class="win" x="12" y="42" width="16" height="14"/><rect class="door" x="46" y="58" width="18" height="32"/></g>
+              </g>
+            </svg>
+            <div class="stage-ground"><div class="plaza"></div></div>
+            <div class="campfire" aria-hidden="true">
+              <span class="glow"></span><span class="logs"></span>
+              <span class="flame f1"></span><span class="flame f2"></span><span class="flame f3"></span>
+              <span class="spark s1"></span><span class="spark s2"></span><span class="spark s3"></span>
+            </div>
+            <div class="fireflies" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="stage-chars"></div>
+            <p class="stage-hint" id="stage-hint"></p>
+          </div>
+
+          <div class="day-actions" id="day-actions" hidden>
+            <button class="btn btn-sleep" id="sleep-btn"></button>
+            <p id="day-hint"></p>
+          </div>
+
+          <div class="lobby-panel panel" id="lobby-panel" hidden>
+            <div class="invite">
+              <span>Davet linki</span>
+              <div class="invite-row">
+                <input id="invite-link" readonly aria-label="Davet linki">
+                <button class="btn btn-small btn-ghost" id="copy-btn">Kopyala</button>
+              </div>
+            </div>
+            <p class="lobby-info" id="lobby-info"></p>
+            <div class="role-toggles" id="lobby-roles"></div>
+            <p class="lobby-settings" id="lobby-settings"></p>
+            <div class="lobby-buttons">
+              <button class="btn btn-ghost" id="look-btn">🎨 Karakterini Özelleştir</button>
+              <button class="btn btn-primary btn-lg" id="start-btn" hidden>Oyunu Başlat</button>
+            </div>
+          </div>
+        </div>
+
+        <aside class="room-side panel">
+          <div class="tabs" role="tablist">
+            <button class="tab active" data-tab="chat" role="tab">Sohbet <span class="badge" id="chat-badge" hidden></span></button>
+            <button class="tab" data-tab="log" role="tab">Olaylar</button>
+          </div>
+          <div class="tab-pane" id="pane-chat">
+            <div class="chat-list" id="chat-list"></div>
+            <form class="chat-form" id="chat-form" autocomplete="off">
+              <input id="chat-input" maxlength="300" placeholder="Mesaj yaz…" aria-label="Mesaj">
+              <button class="btn btn-small btn-primary" type="submit">Gönder</button>
+            </form>
+            <p class="chat-hint" id="chat-hint"></p>
+          </div>
+          <div class="tab-pane" id="pane-log" hidden>
+            <ol class="log-list" id="log-list"></ol>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <!-- Odaya katılma penceresi -->
+  <div class="modal" id="join-modal" hidden>
+    <form class="modal-card" id="join-form" autocomplete="off">
+      <h3>Odaya Katıl</h3>
+      <p class="muted" id="join-room-label"></p>
+      <label>Kullanıcı adın
+        <input id="join-name" maxlength="16" placeholder="Oyunda görünecek adın" required>
+      </label>
+      <label id="join-pass-wrap">Oda şifresi
+        <input id="join-pass" maxlength="20">
+      </label>
+      <p class="form-error" id="join-error"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Vazgeç</button>
+        <button type="submit" class="btn btn-primary">Katıl</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Karakter özelleştirme penceresi -->
+  <div class="modal" id="look-modal" hidden>
+    <div class="modal-card look-card">
+      <h3>Karakterin</h3>
+      <div class="look-preview" id="look-preview"></div>
+      <span class="look-label">Renk</span>
+      <div class="swatches" id="color-swatches"></div>
+      <span class="look-label">Şapka</span>
+      <div class="hat-options" id="hat-options"></div>
+      <div class="modal-actions"><button type="button" class="btn btn-primary" data-close>Tamam</button></div>
+    </div>
+  </div>
+
+  <!-- Rol kartı penceresi -->
+  <div class="modal" id="role-modal" hidden>
+    <div class="modal-card role-modal-card" id="role-modal-card"></div>
+  </div>
+
+  <!-- Onay penceresi -->
+  <div class="modal" id="confirm-modal" hidden>
+    <div class="modal-card">
+      <h3 id="confirm-title"></h3>
+      <p class="muted" id="confirm-text"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Vazgeç</button>
+        <button type="button" class="btn btn-danger" id="confirm-ok">Evet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Duyurular -->
+  <div class="announce" id="announce" hidden>
+    <div class="announce-card" id="announce-card">
+      <div class="announce-cine" id="announce-cine" hidden></div>
+      <div class="announce-icon" id="announce-icon"></div>
+      <h3 id="announce-title"></h3>
+      <p id="announce-text"></p>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="config.js"></script>
+  <script src="avatar.js"></script>
+  <script src="scene.js"></script>
+  <script src="cine.js"></script>
+  <script>
+    // Sunucu başka bir adresteyse (ör. arayüz Netlify'da, sunucu Render'da) config.js içindeki adres kullanılır.
+    (function () {
+      var base = String((window.VK_CONFIG && window.VK_CONFIG.serverUrl) || '').replace(/\/$/, '');
+      var io = document.createElement('script');
+      io.src = base + '/socket.io/socket.io.js';
+      io.onload = function () {
+        var app = document.createElement('script');
+        app.src = 'app.js';
+        document.body.appendChild(app);
+      };
+      io.onerror = function () {
+        var b = document.getElementById('conn-banner');
+        b.textContent = 'Oyun sunucusuna ulaşılamadı. Sunucu uyanıyor olabilir, birazdan sayfayı yenile.';
+        b.hidden = false;
+      };
+      document.body.appendChild(io);
+    })();
+  </script>
+</body>
+</html>
