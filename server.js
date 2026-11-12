@@ -272,6 +272,14 @@ function lanAddresses() {
     .map((i) => i.address);
 }
 
+// Beklenmeyen bir hata tüm odaları kapatmasın: hatayı kaydet, sunucu çalışmaya devam etsin.
+process.on('uncaughtException', (err) => {
+  console.error(`[${new Date().toISOString()}] Beklenmeyen hata:`, err);
+});
+process.on('unhandledRejection', (err) => {
+  console.error(`[${new Date().toISOString()}] Yakalanmamış söz (promise) hatası:`, err);
+});
+
 server.listen(PORT, () => {
   console.log(`Vampir Köylü sunucusu çalışıyor.`);
   console.log(`  Bu bilgisayardan:     http://localhost:${PORT}`);
