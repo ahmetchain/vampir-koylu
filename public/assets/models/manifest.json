@@ -1,0 +1,8351 @@
+{
+ "version": 1,
+ "generated": "2026-11-12",
+ "conventions": {
+  "units": "metre. Tüm Kenney modelleri 2.5 katsayısıyla metreye çevrildi (karakter boyu ~1.7 m, kapı ~2 m, duvar 2.5 m).",
+  "up": "+Y",
+  "forward": "+Z (karakterler ve evlerin ön yüzü +Z’ye bakar; three.js’te rotation.y = atan2(dx, dz) ile hedefe döndür)",
+  "origin": "Karakterler: ayak ortası (0,0,0). Prop paketleri: alt-merkez (x,z bbox ortası, y=0) — keepOrigin:true olanlar hariç. Evler: taban merkezi, ön duvar z=+2.5 (kütük ev z=+2.875).",
+  "suggestedScale": 1,
+  "textures": "Harici PNG: textures/<paket>.png (512x512 palet/colormap, gradyan şeritler). tint.png = 8x128 nötr gri gradyan (oyuncu rengi malzemeleri).",
+  "tintMaterials": "Adı cloth / tint* ile başlayan malzemeler beyaz-gri tint.png kullanır; oyuncu rengi için material.clone().color.set(hex)."
+ },
+ "textures": {
+  "castle": {
+   "path": "textures/castle.png",
+   "bytes": 7529
+  },
+  "fantasy-town-b": {
+   "path": "textures/fantasy-town-b.png",
+   "bytes": 11243
+  },
+  "fantasy-town": {
+   "path": "textures/fantasy-town.png",
+   "bytes": 11143
+  },
+  "food": {
+   "path": "textures/food.png",
+   "bytes": 10715
+  },
+  "graveyard": {
+   "path": "textures/graveyard.png",
+   "bytes": 10965
+  },
+  "holiday": {
+   "path": "textures/holiday.png",
+   "bytes": 12777
+  },
+  "mini-characters": {
+   "path": "textures/mini-characters.png",
+   "bytes": 10852
+  },
+  "mini-dungeon": {
+   "path": "textures/mini-dungeon.png",
+   "bytes": 10838
+  },
+  "mini-forest": {
+   "path": "textures/mini-forest.png",
+   "bytes": 10659
+  },
+  "pirate": {
+   "path": "textures/pirate.png",
+   "bytes": 10061
+  },
+  "survival": {
+   "path": "textures/survival.png",
+   "bytes": 7440
+  },
+  "tint": {
+   "path": "textures/tint.png",
+   "bytes": 232
+  }
+ },
+ "skeletons": {
+  "kenney-mini-7bone": {
+   "bones": [
+    "root",
+    "leg-left",
+    "leg-right",
+    "torso",
+    "arm-left",
+    "arm-right",
+    "head"
+   ],
+   "hierarchy": "villager(scale 2.5) > root > [leg-left, leg-right, torso > [arm-left, arm-right, head]]",
+   "head": "head",
+   "spine": "torso",
+   "hands": "el kemiği yok: arm-left / arm-right ucuna ekle (kol-yerel ofset ~[0,-0.13,0] birim ≈ 0.33 m aşağı)",
+   "restPose": "Bind pozu T-poz (kollar yana). Her zaman bir klip oynat (en az idle).",
+   "bindHeadOrigin": [
+    0,
+    0.343,
+    -0.003
+   ]
+  },
+  "kenney-graveyard-rigid": {
+   "bones": [
+    "root",
+    "torso",
+    "arm-left",
+    "arm-right",
+    "head",
+    "leg-left",
+    "leg-right"
+   ],
+   "note": "Deri (skin) yok: her kemik düğümü kendi mesh parçasını taşır. Aynı klip isimleri, ama kendi dosyasındaki klipleri kullan (bacak yüksekliği farklı)."
+  }
+ },
+ "characters": {
+  "skins": [
+   {
+    "skin": 0,
+    "id": "villager-00",
+    "path": "characters/villager-00.glb",
+    "description": "Yeşil gömlekli, gözlüklü",
+    "bytes": 53676,
+    "triangles": 771,
+    "heightM": 1.68,
+    "clothMaterial": "cloth",
+    "headTopLocal": 0.328,
+    "hatYOffset": 0
+   },
+   {
+    "skin": 1,
+    "id": "villager-01",
+    "path": "characters/villager-01.glb",
+    "description": "Sarı tişörtlü, topuzlu",
+    "bytes": 53064,
+    "triangles": 790,
+    "heightM": 1.81,
+    "clothMaterial": "cloth",
+    "headTopLocal": 0.38,
+    "hatYOffset": 0.052
+   },
+   {
+    "skin": 2,
+    "id": "villager-02",
+    "path": "characters/villager-02.glb",
+    "description": "Kel, sakallı",
+    "bytes": 48292,
+    "triangles": 686,
+    "heightM": 1.65,
+    "clothMaterial": "cloth",
+    "headTopLocal": 0.318,
+    "hatYOffset": -0.01
+   },
+   {
+    "skin": 3,
+    "id": "villager-03",
+    "path": "characters/villager-03.glb",
+    "description": "Bereli, mavi gömlekli",
+    "bytes": 53988,
+    "triangles": 780,
+    "heightM": 1.94,
+    "clothMaterial": "cloth",
+    "headTopLocal": 0.433,
+    "hatYOffset": 0.105
+   },
+   {
+    "skin": 4,
+    "id": "villager-04",
+    "path": "characters/villager-04.glb",
+    "description": "Kısa saçlı, yelekli",
+    "bytes": 54324,
+    "triangles": 749,
+    "heightM": 1.68,
+    "clothMaterial": "cloth",
+    "headTopLocal": 0.328,
+    "hatYOffset": 0
+   },
+   {
+    "skin": 5,
+    "id": "villager-05",
+    "path": "characters/villager-05.glb",
+    "description": "Kızıl topuzlu, ceketli",
+    "bytes": 57480,
+    "triangles": 845,
+    "heightM": 1.94,
+    "clothMaterial": "cloth",
+    "headTopLocal": 0.433,
+    "hatYOffset": 0.105
+   },
+   {
+    "skin": 6,
+    "id": "villager-06",
+    "path": "characters/villager-06.glb",
+    "description": "Göz bantlı, sakallı",
+    "bytes": 60916,
+    "triangles": 877,
+    "heightM": 1.68,
+    "clothMaterial": "cloth",
+    "headTopLocal": 0.328,
+    "hatYOffset": 0
+   },
+   {
+    "skin": 7,
+    "id": "villager-07",
+    "path": "characters/villager-07.glb",
+    "description": "Uzun siyah saçlı, önlüklü",
+    "bytes": 54932,
+    "triangles": 804,
+    "heightM": 1.79,
+    "clothMaterial": "cloth",
+    "headTopLocal": 0.373,
+    "hatYOffset": 0.045
+   },
+   {
+    "skin": 8,
+    "id": "villager-08",
+    "path": "characters/villager-08.glb",
+    "description": "Kızıl saçlı, takım elbiseli",
+    "bytes": 52928,
+    "triangles": 759,
+    "heightM": 1.8,
+    "clothMaterial": "cloth",
+    "headTopLocal": 0.379,
+    "hatYOffset": 0.051
+   },
+   {
+    "skin": 9,
+    "id": "villager-09",
+    "path": "characters/villager-09.glb",
+    "description": "Kızıl uzun saçlı",
+    "bytes": 59052,
+    "triangles": 836,
+    "heightM": 1.68,
+    "clothMaterial": "cloth",
+    "headTopLocal": 0.328,
+    "hatYOffset": 0
+   },
+   {
+    "skin": 10,
+    "id": "villager-10",
+    "path": "characters/villager-10.glb",
+    "description": "Gözlüklü, önlüklü",
+    "bytes": 54320,
+    "triangles": 758,
+    "heightM": 1.69,
+    "clothMaterial": "cloth",
+    "headTopLocal": 0.333,
+    "hatYOffset": 0.005
+   },
+   {
+    "skin": 11,
+    "id": "villager-11",
+    "path": "characters/villager-11.glb",
+    "description": "At kuyruklu, askılı",
+    "bytes": 60764,
+    "triangles": 880,
+    "heightM": 1.79,
+    "clothMaterial": "cloth",
+    "headTopLocal": 0.373,
+    "hatYOffset": 0.045
+   }
+  ],
+  "animations": {
+   "path": "characters/villager-anims.glb",
+   "bytes": 39372,
+   "clips": [
+    {
+     "name": "idle",
+     "duration": 1.333,
+     "endsWhereItStarts": true,
+     "use": "loop",
+     "note": "durma (plaza, lobi)"
+    },
+    {
+     "name": "walk",
+     "duration": 0.667,
+     "endsWhereItStarts": true,
+     "use": "loop",
+     "note": "yürüme ~1.6 m/s"
+    },
+    {
+     "name": "sprint",
+     "duration": 0.5,
+     "endsWhereItStarts": true,
+     "use": "loop",
+     "note": "koşma / sinsi hızlı hareket (gece)"
+    },
+    {
+     "name": "jump",
+     "duration": 0.5,
+     "endsWhereItStarts": true,
+     "use": "once",
+     "note": "zıplama / sevinç"
+    },
+    {
+     "name": "fall",
+     "duration": 0.333,
+     "endsWhereItStarts": true,
+     "use": "once",
+     "note": "düşme"
+    },
+    {
+     "name": "crouch",
+     "duration": 0.167,
+     "endsWhereItStarts": true,
+     "use": "pose",
+     "note": "çömelme — gece sinsi yürüyüşte walk ile karıştır veya pencereden bakarken"
+    },
+    {
+     "name": "sit",
+     "duration": 0.167,
+     "endsWhereItStarts": true,
+     "use": "pose",
+     "note": "oturma (kütük/sandalye). Kök ~0.4 m aşağı iner"
+    },
+    {
+     "name": "die",
+     "duration": 0.333,
+     "endsWhereItStarts": false,
+     "use": "once-clamp",
+     "note": "sırtüstü düşer; son kare = yatakta uyuma pozu (bkz. sleepPose)"
+    },
+    {
+     "name": "pick-up",
+     "duration": 0.333,
+     "endsWhereItStarts": false,
+     "use": "once",
+     "note": "yerden alma / arama"
+    },
+    {
+     "name": "emote-yes",
+     "duration": 0.667,
+     "endsWhereItStarts": true,
+     "use": "loop",
+     "note": "evet / onay / tezahürat"
+    },
+    {
+     "name": "emote-no",
+     "duration": 0.667,
+     "endsWhereItStarts": true,
+     "use": "loop",
+     "note": "hayır / itiraz"
+    },
+    {
+     "name": "holding-right",
+     "duration": 0.167,
+     "endsWhereItStarts": true,
+     "use": "pose",
+     "note": "sağ elde fener/meşale tutma (üst gövde katmanı)"
+    },
+    {
+     "name": "holding-left",
+     "duration": 0.167,
+     "endsWhereItStarts": true,
+     "use": "pose",
+     "note": "sol elde tutma"
+    },
+    {
+     "name": "holding-both",
+     "duration": 0.167,
+     "endsWhereItStarts": true,
+     "use": "pose",
+     "note": "iki elle tutma (sandık, fener)"
+    },
+    {
+     "name": "attack-melee-right",
+     "duration": 0.417,
+     "endsWhereItStarts": true,
+     "use": "once",
+     "note": "ısırma/saldırı jesti, avcı"
+    },
+    {
+     "name": "attack-melee-left",
+     "duration": 0.417,
+     "endsWhereItStarts": true,
+     "use": "once",
+     "note": "saldırı sol"
+    },
+    {
+     "name": "attack-kick-right",
+     "duration": 0.533,
+     "endsWhereItStarts": true,
+     "use": "once",
+     "note": "tekme (kapı kırma?)"
+    },
+    {
+     "name": "interact-right",
+     "duration": 0.667,
+     "endsWhereItStarts": true,
+     "use": "once",
+     "note": "kapı çalma / arama / iksir dökme"
+    },
+    {
+     "name": "interact-left",
+     "duration": 0.667,
+     "endsWhereItStarts": true,
+     "use": "once",
+     "note": "aynı, sol el"
+    }
+   ],
+   "sleepPose": "die klibinin son karesi (t=duration, clampWhenFinished): sırtüstü yatar, ayaklar orijinde, baş -Z yönünde 1.68 m, en alt nokta y=-0.18. Yatakta: karakteri yatağın ayak ucundan 0.85 m içeri, y = şilte üstü (+0.66 m \"bed\" için), rotY = yatakla aynı (baş yastığa = -Z).",
+   "walkSpeed": "walk klibi 0.667 s döngü; adım ~0.5 m → ~1.5–1.8 m/s’de kayma olmaz. sprint 0.5 s → ~3 m/s."
+  },
+  "extras": [
+   {
+    "id": "vampire",
+    "path": "characters/vampire.glb",
+    "bytes": 88408,
+    "triangles": 990,
+    "heightM": 2.01,
+    "clips": [
+     "idle",
+     "walk",
+     "sprint",
+     "jump",
+     "fall",
+     "crouch",
+     "sit",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "interact-right",
+     "interact-left"
+    ]
+   },
+   {
+    "id": "ghost",
+    "path": "characters/ghost.glb",
+    "bytes": 43356,
+    "triangles": 413,
+    "heightM": 1.93,
+    "clips": [
+     "idle",
+     "walk",
+     "sprint",
+     "jump",
+     "fall",
+     "crouch",
+     "sit",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "interact-right",
+     "interact-left"
+    ],
+    "tint": "tint-ghost (gövde; oyuncu rengi + transparent opacity önerilir)"
+   },
+   {
+    "id": "skeleton",
+    "path": "characters/skeleton.glb",
+    "bytes": 71352,
+    "triangles": 580,
+    "heightM": 1.8,
+    "clips": [
+     "idle",
+     "walk",
+     "sprint",
+     "jump",
+     "fall",
+     "crouch",
+     "sit",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "interact-right",
+     "interact-left"
+    ]
+   },
+   {
+    "id": "zombie",
+    "path": "characters/zombie.glb",
+    "bytes": 86808,
+    "triangles": 968,
+    "heightM": 2.12,
+    "clips": [
+     "idle",
+     "walk",
+     "sprint",
+     "jump",
+     "fall",
+     "crouch",
+     "sit",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "interact-right",
+     "interact-left"
+    ]
+   },
+   {
+    "id": "keeper",
+    "path": "characters/keeper.glb",
+    "bytes": 90920,
+    "triangles": 1031,
+    "heightM": 2.21,
+    "clips": [
+     "idle",
+     "walk",
+     "sprint",
+     "jump",
+     "fall",
+     "crouch",
+     "sit",
+     "die",
+     "pick-up",
+     "emote-yes",
+     "emote-no",
+     "holding-right",
+     "holding-left",
+     "holding-both",
+     "attack-melee-right",
+     "attack-melee-left",
+     "attack-kick-right",
+     "interact-right",
+     "interact-left"
+    ]
+   },
+   {
+    "id": "bat",
+    "path": "characters/bat.glb",
+    "bytes": 7156,
+    "triangles": 64,
+    "procedural": true
+   }
+  ]
+ },
+ "houses": [
+  {
+   "id": "house-0",
+   "path": "houses/house-0.glb",
+   "bytes": 102508,
+   "triangles": 1924,
+   "style": "sıvalı + ahşap çerçeve, yeşil çatı, baca",
+   "footprint": [
+    5.336,
+    5,
+    5.113
+   ],
+   "kit": "fantasy-town",
+   "nodes": [
+    "body",
+    "door",
+    "banner"
+   ],
+   "door": {
+    "piece": "wall-door",
+    "side": "front",
+    "center": [
+     1.25,
+     0,
+     2.5
+    ],
+    "facing": [
+     0,
+     0,
+     1
+    ],
+    "approachPoint": [
+     1.25,
+     0,
+     3.5
+    ],
+    "leafCenter": [
+     1.25,
+     0.938,
+     2.376
+    ],
+    "node": "door",
+    "hingeAt": [
+     1.75,
+     0,
+     2.375
+    ],
+    "openOutward": "+rotation.y (≈ +1.4 rad)",
+    "openInward": "-rotation.y",
+    "tintMaterial": "tint-owner (kapı kanadı + afiş aynı malzeme)"
+   },
+   "windows": [
+    {
+     "piece": "wall-window-shutters",
+     "side": "front",
+     "center": [
+      -1.25,
+      1.35,
+      2.5
+     ],
+     "facing": [
+      0,
+      0,
+      1
+     ],
+     "peekPoint": [
+      -1.25,
+      0,
+      3.3
+     ]
+    },
+    {
+     "piece": "wall-window-small",
+     "side": "back",
+     "center": [
+      1.25,
+      1.35,
+      -2.5
+     ],
+     "facing": [
+      0,
+      0,
+      -1
+     ],
+     "peekPoint": [
+      1.25,
+      0,
+      -3.3
+     ]
+    },
+    {
+     "piece": "wall-window-shutters",
+     "side": "right(+X)",
+     "center": [
+      2.5,
+      1.35,
+      1.25
+     ],
+     "facing": [
+      1,
+      0,
+      0
+     ],
+     "peekPoint": [
+      3.3,
+      0,
+      1.25
+     ]
+    },
+    {
+     "piece": "wall-window-shutters",
+     "side": "left(-X)",
+     "center": [
+      -2.5,
+      1.35,
+      -1.25
+     ],
+     "facing": [
+      -1,
+      0,
+      0
+     ],
+     "peekPoint": [
+      -3.3,
+      0,
+      -1.25
+     ]
+    }
+   ],
+   "banner": {
+    "node": "banner",
+    "tintMaterial": "tint-owner",
+    "at": [
+     0,
+     0.8,
+     1.869
+    ]
+   },
+   "windowGlow": {
+    "material": "window",
+    "how": "iç kutu; gece emissive = #ffc46b, emissiveIntensity ~1.2; gündüz koyu (0.16,0.11,0.08)"
+   },
+   "roofTexture": {
+    "default": "textures/fantasy-town.png",
+    "alt": "textures/fantasy-town-b.png (kırmızı çatı→mavi, yeşil çatı→mor)"
+   },
+   "chimney": true
+  },
+  {
+   "id": "house-1",
+   "path": "houses/house-1.glb",
+   "bytes": 79760,
+   "triangles": 1544,
+   "style": "ahşap, kırmızı yüksek çatı",
+   "footprint": [
+    5.354,
+    5.352,
+    5.238
+   ],
+   "kit": "fantasy-town",
+   "nodes": [
+    "body",
+    "door",
+    "banner"
+   ],
+   "door": {
+    "piece": "wall-wood-door",
+    "side": "front",
+    "center": [
+     1.25,
+     0,
+     2.5
+    ],
+    "facing": [
+     0,
+     0,
+     1
+    ],
+    "approachPoint": [
+     1.25,
+     0,
+     3.5
+    ],
+    "leafCenter": [
+     1.25,
+     0.938,
+     2.376
+    ],
+    "node": "door",
+    "hingeAt": [
+     1.75,
+     0,
+     2.375
+    ],
+    "openOutward": "+rotation.y (≈ +1.4 rad)",
+    "openInward": "-rotation.y",
+    "tintMaterial": "tint-owner (kapı kanadı + afiş aynı malzeme)"
+   },
+   "windows": [
+    {
+     "piece": "wall-wood-window-shutters",
+     "side": "front",
+     "center": [
+      -1.25,
+      1.35,
+      2.5
+     ],
+     "facing": [
+      0,
+      0,
+      1
+     ],
+     "peekPoint": [
+      -1.25,
+      0,
+      3.3
+     ]
+    },
+    {
+     "piece": "wall-wood-window-round",
+     "side": "back",
+     "center": [
+      1.25,
+      1.35,
+      -2.5
+     ],
+     "facing": [
+      0,
+      0,
+      -1
+     ],
+     "peekPoint": [
+      1.25,
+      0,
+      -3.3
+     ]
+    },
+    {
+     "piece": "wall-wood-window-shutters",
+     "side": "right(+X)",
+     "center": [
+      2.5,
+      1.35,
+      1.25
+     ],
+     "facing": [
+      1,
+      0,
+      0
+     ],
+     "peekPoint": [
+      3.3,
+      0,
+      1.25
+     ]
+    },
+    {
+     "piece": "wall-wood-window-shutters",
+     "side": "left(-X)",
+     "center": [
+      -2.5,
+      1.35,
+      -1.25
+     ],
+     "facing": [
+      -1,
+      0,
+      0
+     ],
+     "peekPoint": [
+      -3.3,
+      0,
+      -1.25
+     ]
+    }
+   ],
+   "banner": {
+    "node": "banner",
+    "tintMaterial": "tint-owner",
+    "at": [
+     0,
+     0.8,
+     1.869
+    ]
+   },
+   "windowGlow": {
+    "material": "window",
+    "how": "iç kutu; gece emissive = #ffc46b, emissiveIntensity ~1.2; gündüz koyu (0.16,0.11,0.08)"
+   },
+   "roofTexture": {
+    "default": "textures/fantasy-town.png",
+    "alt": "textures/fantasy-town-b.png (kırmızı çatı→mavi, yeşil çatı→mor)"
+   },
+   "chimney": false
+  },
+  {
+   "id": "house-2",
+   "path": "houses/house-2.glb",
+   "bytes": 145204,
+   "triangles": 2936,
+   "style": "kütük ev, yeşil çatı, baca",
+   "footprint": [
+    6.724,
+    5.707,
+    6.724
+   ],
+   "kit": "holiday",
+   "nodes": [
+    "body",
+    "door",
+    "banner"
+   ],
+   "door": {
+    "piece": "cabin-door-rotate",
+    "side": "front",
+    "center": [
+     1.25,
+     0,
+     2.875
+    ],
+    "facing": [
+     0,
+     0,
+     1
+    ],
+    "approachPoint": [
+     1.25,
+     0,
+     3.875
+    ],
+    "leafCenter": [
+     1.25,
+     1,
+     2.688
+    ],
+    "node": "door",
+    "hingeAt": [
+     0.625,
+     0,
+     2.688
+    ],
+    "openOutward": "-rotation.y (≈ -1.4 rad)",
+    "openInward": "+rotation.y",
+    "tintMaterial": "tint-owner (kapı kanadı + afiş aynı malzeme)"
+   },
+   "windows": [
+    {
+     "piece": "cabin-window-a",
+     "side": "front",
+     "center": [
+      -1.25,
+      1.35,
+      2.875
+     ],
+     "facing": [
+      0,
+      0,
+      1
+     ],
+     "peekPoint": [
+      -1.25,
+      0,
+      3.675
+     ]
+    },
+    {
+     "piece": "cabin-window-b",
+     "side": "back",
+     "center": [
+      -1.25,
+      1.35,
+      -2.875
+     ],
+     "facing": [
+      0,
+      0,
+      -1
+     ],
+     "peekPoint": [
+      -1.25,
+      0,
+      -3.675
+     ]
+    },
+    {
+     "piece": "cabin-window-c",
+     "side": "right(+X)",
+     "center": [
+      2.875,
+      1.35,
+      1.25
+     ],
+     "facing": [
+      1,
+      0,
+      0
+     ],
+     "peekPoint": [
+      3.675,
+      0,
+      1.25
+     ]
+    },
+    {
+     "piece": "cabin-window-c",
+     "side": "left(-X)",
+     "center": [
+      -2.875,
+      1.35,
+      -1.25
+     ],
+     "facing": [
+      -1,
+      0,
+      0
+     ],
+     "peekPoint": [
+      -3.675,
+      0,
+      -1.25
+     ]
+    }
+   ],
+   "banner": {
+    "node": "banner",
+    "tintMaterial": "tint-owner",
+    "at": [
+     0,
+     0.8,
+     2.244
+    ]
+   },
+   "windowGlow": {
+    "material": "window",
+    "how": "iç kutu; gece emissive = #ffc46b, emissiveIntensity ~1.2; gündüz koyu (0.16,0.11,0.08)"
+   },
+   "roofTexture": {
+    "default": "textures/holiday.png"
+   },
+   "chimney": true
+  },
+  {
+   "id": "house-3",
+   "path": "houses/house-3.glb",
+   "bytes": 94288,
+   "triangles": 1816,
+   "style": "sıvalı, kırmızı yüksek çatı, baca",
+   "footprint": [
+    5.354,
+    5.625,
+    5.113
+   ],
+   "kit": "fantasy-town",
+   "nodes": [
+    "body",
+    "door",
+    "banner"
+   ],
+   "door": {
+    "piece": "wall-door",
+    "side": "front",
+    "center": [
+     1.25,
+     0,
+     2.5
+    ],
+    "facing": [
+     0,
+     0,
+     1
+    ],
+    "approachPoint": [
+     1.25,
+     0,
+     3.5
+    ],
+    "leafCenter": [
+     1.25,
+     0.938,
+     2.376
+    ],
+    "node": "door",
+    "hingeAt": [
+     1.75,
+     0,
+     2.375
+    ],
+    "openOutward": "+rotation.y (≈ +1.4 rad)",
+    "openInward": "-rotation.y",
+    "tintMaterial": "tint-owner (kapı kanadı + afiş aynı malzeme)"
+   },
+   "windows": [
+    {
+     "piece": "wall-window-round",
+     "side": "front",
+     "center": [
+      -1.25,
+      1.35,
+      2.5
+     ],
+     "facing": [
+      0,
+      0,
+      1
+     ],
+     "peekPoint": [
+      -1.25,
+      0,
+      3.3
+     ]
+    },
+    {
+     "piece": "wall-window-shutters",
+     "side": "back",
+     "center": [
+      1.25,
+      1.35,
+      -2.5
+     ],
+     "facing": [
+      0,
+      0,
+      -1
+     ],
+     "peekPoint": [
+      1.25,
+      0,
+      -3.3
+     ]
+    },
+    {
+     "piece": "wall-window-glass",
+     "side": "right(+X)",
+     "center": [
+      2.5,
+      1.35,
+      1.25
+     ],
+     "facing": [
+      1,
+      0,
+      0
+     ],
+     "peekPoint": [
+      3.3,
+      0,
+      1.25
+     ]
+    },
+    {
+     "piece": "wall-window-glass",
+     "side": "left(-X)",
+     "center": [
+      -2.5,
+      1.35,
+      -1.25
+     ],
+     "facing": [
+      -1,
+      0,
+      0
+     ],
+     "peekPoint": [
+      -3.3,
+      0,
+      -1.25
+     ]
+    }
+   ],
+   "banner": {
+    "node": "banner",
+    "tintMaterial": "tint-owner",
+    "at": [
+     0,
+     0.8,
+     1.869
+    ]
+   },
+   "windowGlow": {
+    "material": "window",
+    "how": "iç kutu; gece emissive = #ffc46b, emissiveIntensity ~1.2; gündüz koyu (0.16,0.11,0.08)"
+   },
+   "roofTexture": {
+    "default": "textures/fantasy-town.png",
+    "alt": "textures/fantasy-town-b.png (kırmızı çatı→mavi, yeşil çatı→mor)"
+   },
+   "chimney": true
+  }
+ ],
+ "hats": {
+  "path": "hats/hats.glb",
+  "bytes": 157176,
+  "attach": "Düğümü klonla ve köylünün 'head' kemiğine child olarak ekle, transform sıfır (koordinatlar kafa-yerel, mini-character birimi; ebeveyndeki 2.5 ölçeği otomatik uygulanır). Saçı yüksek skinlerde skins[i].hatYOffset kadar yukarı kaydır.",
+  "list": [
+   {
+    "look": 1,
+    "node": "hat-1-hasir",
+    "name": "Hasır şapka",
+    "from": "procedural (bu depoda üretildi)",
+    "bboxHeadLocal": {
+     "min": [
+      -0.314,
+      0.27,
+      -0.33
+     ],
+     "max": [
+      0.314,
+      0.44,
+      0.33
+     ]
+    },
+    "tintable": true
+   },
+   {
+    "look": 2,
+    "node": "hat-2-bere",
+    "name": "Bere",
+    "from": "mini-characters/character-soldier",
+    "bboxHeadLocal": {
+     "min": [
+      -0.229,
+      0.062,
+      -0.283
+     ],
+     "max": [
+      0.227,
+      0.412,
+      0.309
+     ]
+    },
+    "tintable": true
+   },
+   {
+    "look": 3,
+    "node": "hat-3-cicek",
+    "name": "Çiçek",
+    "from": "nature/flower_redA",
+    "bboxHeadLocal": {
+     "min": [
+      0.046,
+      0.318,
+      -0.102
+     ],
+     "max": [
+      0.226,
+      0.648,
+      0.102
+     ]
+    },
+    "tintable": false
+   },
+   {
+    "look": 4,
+    "node": "hat-4-silindir",
+    "name": "Silindir",
+    "from": "holiday/snowman-hat",
+    "bboxHeadLocal": {
+     "min": [
+      -0.238,
+      0.268,
+      -0.238
+     ],
+     "max": [
+      0.238,
+      0.625,
+      0.238
+     ]
+    },
+    "tintable": false
+   },
+   {
+    "look": 5,
+    "node": "hat-5-bandana",
+    "name": "Bandana",
+    "from": "procedural (bu depoda üretildi)",
+    "bboxHeadLocal": {
+     "min": [
+      -0.25,
+      0.095,
+      -0.23
+     ],
+     "max": [
+      0.25,
+      0.28,
+      0.193
+     ]
+    },
+    "tintable": true
+   },
+   {
+    "look": 6,
+    "node": "hat-6-filiz",
+    "name": "Filiz",
+    "from": "mini-forest/plant",
+    "bboxHeadLocal": {
+     "min": [
+      -0.104,
+      0.318,
+      -0.113
+     ],
+     "max": [
+      0.104,
+      0.419,
+      0.113
+     ]
+    },
+    "tintable": false
+   },
+   {
+    "look": 7,
+    "node": "hat-7-kasket",
+    "name": "Kasket",
+    "from": "mini-characters/character-male-c",
+    "bboxHeadLocal": {
+     "min": [
+      -0.174,
+      0.268,
+      -0.185
+     ],
+     "max": [
+      0.174,
+      0.45,
+      0.141
+     ]
+    },
+    "tintable": true
+   },
+   {
+    "look": 8,
+    "node": "hat-8-kulaklik",
+    "name": "Kulaklık",
+    "from": "procedural (bu depoda üretildi)",
+    "bboxHeadLocal": {
+     "min": [
+      -0.295,
+      0.095,
+      -0.075
+     ],
+     "max": [
+      0.295,
+      0.368,
+      0.075
+     ]
+    },
+    "tintable": true
+   },
+   {
+    "look": null,
+    "node": "hat-extra-baret",
+    "name": "Baret (yedek)",
+    "from": "mini-characters/character-worker",
+    "bboxHeadLocal": {
+     "min": [
+      -0.2,
+      0.214,
+      -0.195
+     ],
+     "max": [
+      0.2,
+      0.481,
+      0.269
+     ]
+    },
+    "tintable": false
+   }
+  ]
+ },
+ "bundles": [
+  {
+   "id": "village",
+   "path": "props/village.glb",
+   "group": "props",
+   "bytes": 857336,
+   "triangles": 18680,
+   "items": [
+    {
+     "id": "campfire-pit",
+     "source": "survival/campfire-pit",
+     "triangles": 305,
+     "bbox": {
+      "min": [
+       -1.042,
+       0,
+       -1.01
+      ],
+      "max": [
+       1.042,
+       0.818,
+       1.01
+      ],
+      "size": [
+       2.083,
+       0.818,
+       2.019
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x3"
+    },
+    {
+     "id": "campfire-stand",
+     "source": "survival/campfire-stand",
+     "triangles": 76,
+     "bbox": {
+      "min": [
+       -1.281,
+       0,
+       -0.389
+      ],
+      "max": [
+       1.281,
+       1.756,
+       0.389
+      ],
+      "size": [
+       2.563,
+       1.756,
+       0.778
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x2.5"
+    },
+    {
+     "id": "log",
+     "source": "survival/tree-log",
+     "triangles": 88,
+     "bbox": {
+      "min": [
+       -0.312,
+       0,
+       -1.25
+      ],
+      "max": [
+       0.312,
+       0.693,
+       1.25
+      ],
+      "size": [
+       0.624,
+       0.693,
+       2.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ]
+    },
+    {
+     "id": "log-small",
+     "source": "survival/tree-log-small",
+     "triangles": 88,
+     "bbox": {
+      "min": [
+       -0.312,
+       0,
+       -0.813
+      ],
+      "max": [
+       0.312,
+       0.693,
+       0.813
+      ],
+      "size": [
+       0.624,
+       0.693,
+       1.625
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ]
+    },
+    {
+     "id": "stump",
+     "source": "survival/tree-trunk",
+     "triangles": 52,
+     "bbox": {
+      "min": [
+       -0.375,
+       0,
+       -0.375
+      ],
+      "max": [
+       0.375,
+       0.978,
+       0.375
+      ],
+      "size": [
+       0.75,
+       0.978,
+       0.75
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x1.5"
+    },
+    {
+     "id": "tree-round",
+     "source": "fantasy-town/tree-high-round",
+     "triangles": 126,
+     "bbox": {
+      "min": [
+       -1.273,
+       0,
+       -1.273
+      ],
+      "max": [
+       1.273,
+       6.877,
+       1.273
+      ],
+      "size": [
+       2.546,
+       6.877,
+       2.546
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "tree-pine",
+     "source": "fantasy-town/tree",
+     "triangles": 168,
+     "bbox": {
+      "min": [
+       -1.279,
+       0,
+       -1.279
+      ],
+      "max": [
+       1.279,
+       6.032,
+       1.279
+      ],
+      "size": [
+       2.557,
+       6.032,
+       2.557
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "tree-pine-tall",
+     "source": "fantasy-town/tree-high",
+     "triangles": 200,
+     "bbox": {
+      "min": [
+       -1.279,
+       0,
+       -1.279
+      ],
+      "max": [
+       1.279,
+       7.432,
+       1.279
+      ],
+      "size": [
+       2.557,
+       7.432,
+       2.557
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "tree-crooked",
+     "source": "fantasy-town/tree-crooked",
+     "triangles": 178,
+     "bbox": {
+      "min": [
+       -1.279,
+       0,
+       -1.279
+      ],
+      "max": [
+       1.279,
+       6.031,
+       1.279
+      ],
+      "size": [
+       2.557,
+       6.031,
+       2.557
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "tree-autumn",
+     "source": "survival/tree-autumn",
+     "triangles": 198,
+     "bbox": {
+      "min": [
+       -1.037,
+       0,
+       -0.987
+      ],
+      "max": [
+       1.037,
+       5.291,
+       0.987
+      ],
+      "size": [
+       2.073,
+       5.291,
+       1.973
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x1.5"
+    },
+    {
+     "id": "tree-autumn-tall",
+     "source": "survival/tree-autumn-tall",
+     "triangles": 198,
+     "bbox": {
+      "min": [
+       -1.037,
+       0,
+       -0.987
+      ],
+      "max": [
+       1.037,
+       6.416,
+       0.987
+      ],
+      "size": [
+       2.073,
+       6.416,
+       1.973
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x1.5"
+    },
+    {
+     "id": "tree-forest",
+     "source": "mini-forest/tree",
+     "triangles": 182,
+     "bbox": {
+      "min": [
+       -1.159,
+       0,
+       -1.103
+      ],
+      "max": [
+       1.159,
+       4.21,
+       1.103
+      ],
+      "size": [
+       2.319,
+       4.21,
+       2.207
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-forest"
+     ]
+    },
+    {
+     "id": "tree-forest-tall",
+     "source": "mini-forest/tree-high",
+     "triangles": 266,
+     "bbox": {
+      "min": [
+       -1.159,
+       0,
+       -1.103
+      ],
+      "max": [
+       1.159,
+       5.71,
+       1.103
+      ],
+      "size": [
+       2.319,
+       5.71,
+       2.207
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-forest"
+     ]
+    },
+    {
+     "id": "bush",
+     "source": "mini-forest/plant",
+     "triangles": 156,
+     "bbox": {
+      "min": [
+       -0.495,
+       0,
+       -0.538
+      ],
+      "max": [
+       0.495,
+       0.48,
+       0.538
+      ],
+      "size": [
+       0.991,
+       0.48,
+       1.076
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-forest"
+     ]
+    },
+    {
+     "id": "grass",
+     "source": "survival/grass",
+     "triangles": 36,
+     "bbox": {
+      "min": [
+       -0.293,
+       0,
+       -0.322
+      ],
+      "max": [
+       0.293,
+       0.356,
+       0.322
+      ],
+      "size": [
+       0.586,
+       0.356,
+       0.643
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ]
+    },
+    {
+     "id": "grass-large",
+     "source": "survival/grass-large",
+     "triangles": 144,
+     "bbox": {
+      "min": [
+       -0.595,
+       0,
+       -0.609
+      ],
+      "max": [
+       0.595,
+       0.356,
+       0.609
+      ],
+      "size": [
+       1.19,
+       0.356,
+       1.218
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ]
+    },
+    {
+     "id": "hedge",
+     "source": "fantasy-town/hedge",
+     "triangles": 54,
+     "bbox": {
+      "min": [
+       -0.313,
+       0,
+       -1.25
+      ],
+      "max": [
+       0.313,
+       0.625,
+       1.25
+      ],
+      "size": [
+       0.625,
+       0.625,
+       2.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "hedge-large",
+     "source": "fantasy-town/hedge-large",
+     "triangles": 90,
+     "bbox": {
+      "min": [
+       -0.5,
+       0,
+       -1.25
+      ],
+      "max": [
+       0.5,
+       1.5,
+       1.25
+      ],
+      "size": [
+       1,
+       1.5,
+       2.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "rock-large",
+     "source": "fantasy-town/rock-large",
+     "triangles": 200,
+     "bbox": {
+      "min": [
+       -2.088,
+       0,
+       -1.936
+      ],
+      "max": [
+       2.088,
+       2.907,
+       1.936
+      ],
+      "size": [
+       4.175,
+       2.907,
+       3.871
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "rock-small",
+     "source": "fantasy-town/rock-small",
+     "triangles": 128,
+     "bbox": {
+      "min": [
+       -1.248,
+       0,
+       -1.658
+      ],
+      "max": [
+       1.248,
+       2.55,
+       1.658
+      ],
+      "size": [
+       2.496,
+       2.55,
+       3.316
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "rock-wide",
+     "source": "fantasy-town/rock-wide",
+     "triangles": 156,
+     "bbox": {
+      "min": [
+       -1.367,
+       0,
+       -1.959
+      ],
+      "max": [
+       1.367,
+       2.55,
+       1.959
+      ],
+      "size": [
+       2.734,
+       2.55,
+       3.919
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "rocks-low",
+     "source": "mini-forest/rocks-low",
+     "triangles": 342,
+     "bbox": {
+      "min": [
+       -1.25,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       1.307,
+       1.25
+      ],
+      "size": [
+       2.5,
+       1.307,
+       2.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-forest"
+     ]
+    },
+    {
+     "id": "stones",
+     "source": "mini-forest/stones",
+     "triangles": 236,
+     "bbox": {
+      "min": [
+       -1.13,
+       0,
+       -1.065
+      ],
+      "max": [
+       1.13,
+       1.135,
+       1.065
+      ],
+      "size": [
+       2.26,
+       1.135,
+       2.13
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-forest"
+     ]
+    },
+    {
+     "id": "rock-flat",
+     "source": "survival/rock-flat",
+     "triangles": 274,
+     "bbox": {
+      "min": [
+       -2.233,
+       0,
+       -1.81
+      ],
+      "max": [
+       2.233,
+       0.487,
+       1.81
+      ],
+      "size": [
+       4.466,
+       0.487,
+       3.62
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ]
+    },
+    {
+     "id": "patch-grass",
+     "source": "survival/patch-grass",
+     "triangles": 33,
+     "bbox": {
+      "min": [
+       -1.5,
+       0,
+       -1.5
+      ],
+      "max": [
+       1.5,
+       0,
+       1.5
+      ],
+      "size": [
+       3,
+       0,
+       3
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ]
+    },
+    {
+     "id": "patch-dirt",
+     "source": "mini-forest/patch-dirt",
+     "triangles": 108,
+     "bbox": {
+      "min": [
+       -1.25,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       0.25,
+       1.25
+      ],
+      "size": [
+       2.5,
+       0.25,
+       2.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-forest"
+     ]
+    },
+    {
+     "id": "fence",
+     "source": "fantasy-town/fence",
+     "triangles": 84,
+     "bbox": {
+      "min": [
+       1.063,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       0.95,
+       1.25
+      ],
+      "size": [
+       0.188,
+       0.95,
+       2.5
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "fence-gate",
+     "source": "fantasy-town/fence-gate",
+     "triangles": 560,
+     "bbox": {
+      "min": [
+       1.063,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       0.95,
+       1.25
+      ],
+      "size": [
+       0.188,
+       0.95,
+       2.5
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "fence-curved",
+     "source": "fantasy-town/fence-curved",
+     "triangles": 308,
+     "bbox": {
+      "min": [
+       -1.25,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       0.95,
+       1.25
+      ],
+      "size": [
+       2.5,
+       0.95,
+       2.5
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "fence-broken",
+     "source": "fantasy-town/fence-broken",
+     "triangles": 124,
+     "bbox": {
+      "min": [
+       0.613,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       0.95,
+       1.25
+      ],
+      "size": [
+       0.637,
+       0.95,
+       2.5
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "fence-rope",
+     "source": "mini-forest/fence",
+     "triangles": 330,
+     "bbox": {
+      "min": [
+       -1.37,
+       0,
+       -0.307
+      ],
+      "max": [
+       1.37,
+       1,
+       0.307
+      ],
+      "size": [
+       2.74,
+       1,
+       0.615
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-forest"
+     ]
+    },
+    {
+     "id": "lamp-post",
+     "source": "fantasy-town/lantern",
+     "triangles": 158,
+     "bbox": {
+      "min": [
+       -0.271,
+       0,
+       -0.28
+      ],
+      "max": [
+       0.271,
+       3.89,
+       0.28
+      ],
+      "size": [
+       0.541,
+       3.89,
+       0.561
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "lamp-post-iron",
+     "source": "graveyard/lightpost-single",
+     "triangles": 352,
+     "bbox": {
+      "min": [
+       -0.261,
+       0,
+       -0.581
+      ],
+      "max": [
+       0.261,
+       3.166,
+       0.581
+      ],
+      "size": [
+       0.522,
+       3.166,
+       1.162
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "lamp-post-double",
+     "source": "graveyard/lightpost-double",
+     "triangles": 572,
+     "bbox": {
+      "min": [
+       -0.261,
+       0,
+       -0.908
+      ],
+      "max": [
+       0.261,
+       3.166,
+       0.908
+      ],
+      "size": [
+       0.522,
+       3.166,
+       1.816
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "lantern-post-cabin",
+     "source": "holiday/lantern",
+     "triangles": 172,
+     "bbox": {
+      "min": [
+       -0.525,
+       0,
+       -0.455
+      ],
+      "max": [
+       0.525,
+       3.475,
+       0.455
+      ],
+      "size": [
+       1.05,
+       3.475,
+       0.91
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "holiday"
+     ],
+     "scaleNote": "kaynak x0.8"
+    },
+    {
+     "id": "lantern-hanging",
+     "source": "holiday/lantern-hanging",
+     "triangles": 152,
+     "bbox": {
+      "min": [
+       -0.532,
+       -1.418,
+       0
+      ],
+      "max": [
+       0.532,
+       0.25,
+       1.041
+      ],
+      "size": [
+       1.064,
+       1.668,
+       1.041
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "holiday"
+     ]
+    },
+    {
+     "id": "lantern",
+     "source": "graveyard/lantern-candle",
+     "triangles": 224,
+     "bbox": {
+      "min": [
+       -0.3,
+       0,
+       -0.3
+      ],
+      "max": [
+       0.3,
+       0.969,
+       0.3
+      ],
+      "size": [
+       0.6,
+       0.969,
+       0.6
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "fire-basket",
+     "source": "graveyard/fire-basket",
+     "triangles": 196,
+     "bbox": {
+      "min": [
+       -0.521,
+       0,
+       -0.521
+      ],
+      "max": [
+       0.521,
+       0.419,
+       0.521
+      ],
+      "size": [
+       1.041,
+       0.419,
+       1.041
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "barrel",
+     "source": "mini-dungeon/barrel",
+     "triangles": 148,
+     "bbox": {
+      "min": [
+       -0.647,
+       0,
+       -0.647
+      ],
+      "max": [
+       0.647,
+       1.19,
+       0.647
+      ],
+      "size": [
+       1.294,
+       1.19,
+       1.294
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-dungeon"
+     ]
+    },
+    {
+     "id": "crate",
+     "source": "pirate/crate",
+     "triangles": 76,
+     "bbox": {
+      "min": [
+       -0.606,
+       0,
+       -0.736
+      ],
+      "max": [
+       0.606,
+       0.866,
+       0.736
+      ],
+      "size": [
+       1.213,
+       0.866,
+       1.473
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "pirate"
+     ],
+     "scaleNote": "kaynak x0.45"
+    },
+    {
+     "id": "crate-bottles",
+     "source": "pirate/crate-bottles",
+     "triangles": 572,
+     "bbox": {
+      "min": [
+       -0.606,
+       0,
+       -0.736
+      ],
+      "max": [
+       0.606,
+       1.189,
+       0.736
+      ],
+      "size": [
+       1.213,
+       1.189,
+       1.473
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "pirate"
+     ],
+     "scaleNote": "kaynak x0.45"
+    },
+    {
+     "id": "cart",
+     "source": "fantasy-town/cart",
+     "triangles": 608,
+     "bbox": {
+      "min": [
+       -1.116,
+       0,
+       -1.675
+      ],
+      "max": [
+       1.116,
+       1.339,
+       1.675
+      ],
+      "size": [
+       2.233,
+       1.339,
+       3.35
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "cart-hay",
+     "source": "fantasy-town/cart-high",
+     "triangles": 1028,
+     "bbox": {
+      "min": [
+       -1.116,
+       0,
+       -1.737
+      ],
+      "max": [
+       1.116,
+       2.151,
+       1.737
+      ],
+      "size": [
+       2.233,
+       2.151,
+       3.475
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "stall",
+     "source": "fantasy-town/stall-red",
+     "triangles": 270,
+     "bbox": {
+      "min": [
+       -1.25,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       3.092,
+       1.25
+      ],
+      "size": [
+       2.5,
+       3.092,
+       2.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "stall-green",
+     "source": "fantasy-town/stall-green",
+     "triangles": 322,
+     "bbox": {
+      "min": [
+       -1.25,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       3.092,
+       1.25
+      ],
+      "size": [
+       2.5,
+       3.092,
+       2.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "stall-table",
+     "source": "fantasy-town/stall",
+     "triangles": 106,
+     "bbox": {
+      "min": [
+       -0.813,
+       0,
+       -1.25
+      ],
+      "max": [
+       0.813,
+       0.914,
+       1.25
+      ],
+      "size": [
+       1.625,
+       0.914,
+       2.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "bench",
+     "source": "holiday/bench",
+     "triangles": 160,
+     "bbox": {
+      "min": [
+       -0.981,
+       0,
+       -0.553
+      ],
+      "max": [
+       0.981,
+       1.278,
+       0.553
+      ],
+      "size": [
+       1.962,
+       1.278,
+       1.106
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "holiday"
+     ],
+     "scaleNote": "kaynak x0.7"
+    },
+    {
+     "id": "bench-stone",
+     "source": "graveyard/bench",
+     "triangles": 160,
+     "bbox": {
+      "min": [
+       -1.009,
+       0,
+       -0.569
+      ],
+      "max": [
+       1.009,
+       1.315,
+       0.569
+      ],
+      "size": [
+       2.018,
+       1.315,
+       1.138
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "stool",
+     "source": "fantasy-town/stall-stool",
+     "triangles": 180,
+     "bbox": {
+      "min": [
+       -0.325,
+       0,
+       -0.325
+      ],
+      "max": [
+       0.325,
+       0.564,
+       0.325
+      ],
+      "size": [
+       0.65,
+       0.564,
+       0.65
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "hay-bale",
+     "source": "graveyard/hay-bale",
+     "triangles": 180,
+     "bbox": {
+      "min": [
+       -0.758,
+       0,
+       -0.502
+      ],
+      "max": [
+       0.758,
+       0.885,
+       0.502
+      ],
+      "size": [
+       1.516,
+       0.885,
+       1.005
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "pumpkin",
+     "source": "graveyard/pumpkin",
+     "triangles": 348,
+     "bbox": {
+      "min": [
+       -0.472,
+       0,
+       -0.472
+      ],
+      "max": [
+       0.472,
+       0.803,
+       0.472
+      ],
+      "size": [
+       0.944,
+       0.803,
+       0.944
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "bucket",
+     "source": "survival/bucket",
+     "triangles": 68,
+     "bbox": {
+      "min": [
+       -0.36,
+       0,
+       -0.36
+      ],
+      "max": [
+       0.36,
+       0.96,
+       0.36
+      ],
+      "size": [
+       0.721,
+       0.96,
+       0.721
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x2"
+    },
+    {
+     "id": "wheel",
+     "source": "fantasy-town/wheel",
+     "triangles": 192,
+     "bbox": {
+      "min": [
+       -0.298,
+       0,
+       -0.585
+      ],
+      "max": [
+       0.298,
+       1.208,
+       0.585
+      ],
+      "size": [
+       0.596,
+       1.208,
+       1.169
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "signpost",
+     "source": "survival/signpost",
+     "triangles": 44,
+     "bbox": {
+      "min": [
+       -0.535,
+       0,
+       -0.107
+      ],
+      "max": [
+       0.535,
+       2.3,
+       0.107
+      ],
+      "size": [
+       1.071,
+       2.3,
+       0.215
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x2"
+    },
+    {
+     "id": "signpost-single",
+     "source": "survival/signpost-single",
+     "triangles": 28,
+     "bbox": {
+      "min": [
+       -0.522,
+       0,
+       -0.107
+      ],
+      "max": [
+       0.522,
+       2.3,
+       0.107
+      ],
+      "size": [
+       1.043,
+       2.3,
+       0.215
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x2"
+    },
+    {
+     "id": "banner-pole",
+     "source": "mini-forest/flag",
+     "triangles": 162,
+     "bbox": {
+      "min": [
+       -0.54,
+       0,
+       -0.196
+      ],
+      "max": [
+       0.54,
+       1.875,
+       0.196
+      ],
+      "size": [
+       1.081,
+       1.875,
+       0.391
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-forest",
+      "tint"
+     ],
+     "tint": "tint"
+    },
+    {
+     "id": "banner-wall",
+     "source": "fantasy-town/banner-red",
+     "triangles": 98,
+     "bbox": {
+      "min": [
+       0.938,
+       0.402,
+       -0.625
+      ],
+      "max": [
+       1.063,
+       2.5,
+       0.625
+      ],
+      "size": [
+       0.125,
+       2.098,
+       1.25
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "fantasy-town",
+      "tint"
+     ],
+     "tint": "tint"
+    },
+    {
+     "id": "fountain",
+     "source": "fantasy-town/fountain-round-detail",
+     "triangles": 1628,
+     "bbox": {
+      "min": [
+       -2.5,
+       0,
+       -2.5
+      ],
+      "max": [
+       2.5,
+       1.2,
+       2.5
+      ],
+      "size": [
+       5,
+       1.2,
+       5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town",
+      "Water"
+     ]
+    },
+    {
+     "id": "well-basin",
+     "source": "fantasy-town/fountain-round",
+     "triangles": 1002,
+     "bbox": {
+      "min": [
+       -1.375,
+       0,
+       -1.375
+      ],
+      "max": [
+       1.375,
+       0.385,
+       1.375
+      ],
+      "size": [
+       2.75,
+       0.385,
+       2.75
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town",
+      "Water"
+     ],
+     "scaleNote": "kaynak x0.55"
+    },
+    {
+     "id": "pillar-wood",
+     "source": "fantasy-town/pillar-wood",
+     "triangles": 44,
+     "bbox": {
+      "min": [
+       -0.2,
+       0,
+       -0.2
+      ],
+      "max": [
+       0.2,
+       2.5,
+       0.2
+      ],
+      "size": [
+       0.4,
+       2.5,
+       0.4
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "frame-wood",
+     "source": "mini-dungeon/wood-structure",
+     "triangles": 256,
+     "bbox": {
+      "min": [
+       -1.36,
+       0,
+       -1.36
+      ],
+      "max": [
+       1.36,
+       2.5,
+       1.36
+      ],
+      "size": [
+       2.72,
+       2.5,
+       2.72
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-dungeon"
+     ]
+    },
+    {
+     "id": "frame-wood-support",
+     "source": "mini-dungeon/wood-support",
+     "triangles": 104,
+     "bbox": {
+      "min": [
+       -1.36,
+       0,
+       -0.298
+      ],
+      "max": [
+       1.36,
+       2.5,
+       0.298
+      ],
+      "size": [
+       2.72,
+       2.5,
+       0.595
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-dungeon"
+     ]
+    },
+    {
+     "id": "gate-barred",
+     "source": "mini-dungeon/gate",
+     "triangles": 76,
+     "bbox": {
+      "min": [
+       -1,
+       0,
+       -0.25
+      ],
+      "max": [
+       1,
+       1.875,
+       0.25
+      ],
+      "size": [
+       2,
+       1.875,
+       0.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-dungeon"
+     ]
+    },
+    {
+     "id": "gate-metal",
+     "source": "castle/metal-gate",
+     "triangles": 190,
+     "bbox": {
+      "min": [
+       -0.089,
+       0,
+       -0.869
+      ],
+      "max": [
+       0.089,
+       1.825,
+       0.869
+      ],
+      "size": [
+       0.179,
+       1.825,
+       1.738
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "castle"
+     ]
+    },
+    {
+     "id": "gate-castle",
+     "source": "castle/gate",
+     "triangles": 146,
+     "bbox": {
+      "min": [
+       -0.19,
+       0,
+       -0.828
+      ],
+      "max": [
+       0.19,
+       2.276,
+       0.828
+      ],
+      "size": [
+       0.379,
+       2.276,
+       1.655
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "castle"
+     ]
+    },
+    {
+     "id": "trapdoor",
+     "source": "survival/floor-hole",
+     "triangles": 144,
+     "bbox": {
+      "min": [
+       -1.25,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       0.334,
+       1.25
+      ],
+      "size": [
+       2.5,
+       0.334,
+       2.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x2"
+    },
+    {
+     "id": "cellar-stairs",
+     "source": "mini-dungeon/stairs",
+     "triangles": 124,
+     "bbox": {
+      "min": [
+       -1.25,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       2.25,
+       1.25
+      ],
+      "size": [
+       2.5,
+       2.25,
+       2.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-dungeon"
+     ]
+    },
+    {
+     "id": "hedge-gate",
+     "source": "fantasy-town/hedge-gate",
+     "triangles": 76,
+     "bbox": {
+      "min": [
+       -0.313,
+       0,
+       -1.25
+      ],
+      "max": [
+       0.313,
+       0.625,
+       1.25
+      ],
+      "size": [
+       0.625,
+       0.625,
+       2.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "arch-stone",
+     "source": "fantasy-town/wall-arch",
+     "triangles": 32,
+     "bbox": {
+      "min": [
+       1,
+       0,
+       0.5
+      ],
+      "max": [
+       1.25,
+       2.5,
+       1.25
+      ],
+      "size": [
+       0.25,
+       2.5,
+       0.75
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "pitchfork-hoe",
+     "source": "survival/tool-hoe",
+     "triangles": 58,
+     "bbox": {
+      "min": [
+       -0.265,
+       0,
+       -0.222
+      ],
+      "max": [
+       0.265,
+       1.5,
+       0.222
+      ],
+      "size": [
+       0.53,
+       1.5,
+       0.443
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x2.5"
+    },
+    {
+     "id": "pickaxe",
+     "source": "survival/tool-pickaxe",
+     "triangles": 74,
+     "bbox": {
+      "min": [
+       -0.558,
+       0,
+       -0.121
+      ],
+      "max": [
+       0.558,
+       1.5,
+       0.121
+      ],
+      "size": [
+       1.116,
+       1.5,
+       0.242
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x2.5"
+    },
+    {
+     "id": "tool-shovel",
+     "source": "survival/tool-shovel",
+     "triangles": 124,
+     "bbox": {
+      "min": [
+       -0.222,
+       0,
+       -0.097
+      ],
+      "max": [
+       0.222,
+       1.813,
+       0.097
+      ],
+      "size": [
+       0.443,
+       1.813,
+       0.193
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x2.5"
+    },
+    {
+     "id": "axe",
+     "source": "survival/tool-axe",
+     "triangles": 84,
+     "bbox": {
+      "min": [
+       -0.358,
+       0,
+       -0.097
+      ],
+      "max": [
+       0.358,
+       1.6,
+       0.097
+      ],
+      "size": [
+       0.716,
+       1.6,
+       0.193
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x2.5"
+    },
+    {
+     "id": "spike-trap",
+     "source": "mini-dungeon/trap",
+     "triangles": 408,
+     "bbox": {
+      "min": [
+       -0.987,
+       0,
+       -0.987
+      ],
+      "max": [
+       0.987,
+       0.708,
+       0.987
+      ],
+      "size": [
+       1.974,
+       0.708,
+       1.974
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-dungeon"
+     ]
+    },
+    {
+     "id": "flag-castle",
+     "source": "castle/flag",
+     "triangles": 144,
+     "bbox": {
+      "min": [
+       -0.133,
+       0,
+       -0.54
+      ],
+      "max": [
+       0.133,
+       2.164,
+       0.54
+      ],
+      "size": [
+       0.266,
+       2.164,
+       1.081
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "castle",
+      "tint"
+     ],
+     "tint": "tint"
+    },
+    {
+     "id": "platform-wood",
+     "source": "mini-forest/platform",
+     "triangles": 651,
+     "bbox": {
+      "min": [
+       -1.25,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       1.174,
+       1.25
+      ],
+      "size": [
+       2.5,
+       1.174,
+       2.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-forest"
+     ]
+    },
+    {
+     "id": "ladder",
+     "source": "mini-forest/ladder",
+     "triangles": 216,
+     "bbox": {
+      "min": [
+       -0.631,
+       0,
+       -0.172
+      ],
+      "max": [
+       0.631,
+       2.5,
+       0.172
+      ],
+      "size": [
+       1.262,
+       2.5,
+       0.344
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-forest"
+     ]
+    },
+    {
+     "id": "tent",
+     "source": "mini-forest/tent",
+     "triangles": 847,
+     "bbox": {
+      "min": [
+       -1.577,
+       0,
+       -1.343
+      ],
+      "max": [
+       1.577,
+       2.5,
+       1.343
+      ],
+      "size": [
+       3.155,
+       2.5,
+       2.687
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-forest"
+     ]
+    },
+    {
+     "id": "target",
+     "source": "mini-forest/target",
+     "triangles": 188,
+     "bbox": {
+      "min": [
+       -0.688,
+       0,
+       -0.589
+      ],
+      "max": [
+       0.688,
+       1.451,
+       0.589
+      ],
+      "size": [
+       1.375,
+       1.451,
+       1.178
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-forest"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "graveyard",
+   "path": "props/graveyard.glb",
+   "group": "props",
+   "bytes": 346808,
+   "triangles": 7758,
+   "items": [
+    {
+     "id": "gravestone-round",
+     "source": "graveyard/gravestone-round",
+     "triangles": 178,
+     "bbox": {
+      "min": [
+       -0.563,
+       0,
+       -0.313
+      ],
+      "max": [
+       0.563,
+       1.438,
+       0.313
+      ],
+      "size": [
+       1.125,
+       1.438,
+       0.625
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "gravestone-cross",
+     "source": "graveyard/gravestone-cross",
+     "triangles": 222,
+     "bbox": {
+      "min": [
+       -0.563,
+       0,
+       -0.412
+      ],
+      "max": [
+       0.563,
+       2.287,
+       0.412
+      ],
+      "size": [
+       1.125,
+       2.287,
+       0.825
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "gravestone-wide",
+     "source": "graveyard/gravestone-wide",
+     "triangles": 266,
+     "bbox": {
+      "min": [
+       -1.063,
+       0,
+       -0.375
+      ],
+      "max": [
+       1.063,
+       1.426,
+       0.375
+      ],
+      "size": [
+       2.125,
+       1.426,
+       0.75
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "gravestone-roof",
+     "source": "graveyard/gravestone-roof",
+     "triangles": 172,
+     "bbox": {
+      "min": [
+       -0.608,
+       0,
+       -0.313
+      ],
+      "max": [
+       0.608,
+       1.519,
+       0.313
+      ],
+      "size": [
+       1.216,
+       1.519,
+       0.625
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "gravestone-bevel",
+     "source": "graveyard/gravestone-bevel",
+     "triangles": 174,
+     "bbox": {
+      "min": [
+       -0.563,
+       0,
+       -0.313
+      ],
+      "max": [
+       0.563,
+       1.323,
+       0.313
+      ],
+      "size": [
+       1.125,
+       1.323,
+       0.625
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "gravestone-broken",
+     "source": "graveyard/gravestone-broken",
+     "triangles": 134,
+     "bbox": {
+      "min": [
+       -0.636,
+       0,
+       -0.489
+      ],
+      "max": [
+       0.636,
+       0.853,
+       0.489
+      ],
+      "size": [
+       1.273,
+       0.853,
+       0.979
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "gravestone-decorative",
+     "source": "graveyard/gravestone-decorative",
+     "triangles": 92,
+     "bbox": {
+      "min": [
+       -0.638,
+       0,
+       -0.313
+      ],
+      "max": [
+       0.638,
+       1.486,
+       0.313
+      ],
+      "size": [
+       1.275,
+       1.486,
+       0.625
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "cross-wood",
+     "source": "graveyard/cross-wood",
+     "triangles": 126,
+     "bbox": {
+      "min": [
+       -0.538,
+       0,
+       -0.538
+      ],
+      "max": [
+       0.538,
+       2.612,
+       0.538
+      ],
+      "size": [
+       1.075,
+       2.612,
+       1.075
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "cross",
+     "source": "graveyard/cross",
+     "triangles": 158,
+     "bbox": {
+      "min": [
+       -0.836,
+       0,
+       -0.313
+      ],
+      "max": [
+       0.836,
+       2.624,
+       0.313
+      ],
+      "size": [
+       1.673,
+       2.624,
+       0.625
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "grave-dirt",
+     "source": "graveyard/grave",
+     "triangles": 256,
+     "bbox": {
+      "min": [
+       -0.905,
+       0,
+       -1.551
+      ],
+      "max": [
+       0.905,
+       0.285,
+       1.551
+      ],
+      "size": [
+       1.81,
+       0.285,
+       3.102
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "grave-border",
+     "source": "graveyard/grave-border",
+     "triangles": 600,
+     "bbox": {
+      "min": [
+       -0.952,
+       0,
+       -1.736
+      ],
+      "max": [
+       0.952,
+       0.279,
+       1.736
+      ],
+      "size": [
+       1.904,
+       0.279,
+       3.472
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "coffin",
+     "source": "graveyard/coffin",
+     "triangles": 256,
+     "bbox": {
+      "min": [
+       -0.717,
+       0,
+       -1.047
+      ],
+      "max": [
+       0.717,
+       0.813,
+       1.047
+      ],
+      "size": [
+       1.435,
+       0.813,
+       2.095
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "coffin-old",
+     "source": "graveyard/coffin-old",
+     "triangles": 216,
+     "bbox": {
+      "min": [
+       -0.717,
+       0,
+       -1.047
+      ],
+      "max": [
+       0.717,
+       0.5,
+       1.047
+      ],
+      "size": [
+       1.435,
+       0.5,
+       2.095
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "iron-fence",
+     "source": "graveyard/iron-fence",
+     "triangles": 376,
+     "bbox": {
+      "min": [
+       -1.25,
+       0,
+       -0.95
+      ],
+      "max": [
+       1.25,
+       2.197,
+       -0.675
+      ],
+      "size": [
+       2.5,
+       2.197,
+       0.275
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "iron-fence-gate",
+     "source": "graveyard/iron-fence-border-gate",
+     "triangles": 256,
+     "bbox": {
+      "min": [
+       -1.25,
+       0,
+       -1.089
+      ],
+      "max": [
+       1.25,
+       1.9,
+       -0.536
+      ],
+      "size": [
+       2.5,
+       1.9,
+       0.554
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "iron-fence-curve",
+     "source": "graveyard/iron-fence-curve",
+     "triangles": 472,
+     "bbox": {
+      "min": [
+       -0.95,
+       0,
+       -0.95
+      ],
+      "max": [
+       1.25,
+       2.197,
+       1.25
+      ],
+      "size": [
+       2.2,
+       2.197,
+       2.2
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "picket-fence",
+     "source": "graveyard/fence",
+     "triangles": 432,
+     "bbox": {
+      "min": [
+       -1.25,
+       0,
+       -0.23
+      ],
+      "max": [
+       1.25,
+       1.55,
+       0.23
+      ],
+      "size": [
+       2.5,
+       1.55,
+       0.46
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "pine-crooked",
+     "source": "graveyard/pine-crooked",
+     "triangles": 336,
+     "bbox": {
+      "min": [
+       -1.472,
+       0,
+       -1.668
+      ],
+      "max": [
+       1.472,
+       5.27,
+       1.668
+      ],
+      "size": [
+       2.945,
+       5.27,
+       3.336
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "pine",
+     "source": "graveyard/pine",
+     "triangles": 336,
+     "bbox": {
+      "min": [
+       -1.472,
+       0,
+       -1.668
+      ],
+      "max": [
+       1.472,
+       5.756,
+       1.668
+      ],
+      "size": [
+       2.945,
+       5.756,
+       3.336
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "pine-autumn",
+     "source": "graveyard/pine-fall",
+     "triangles": 336,
+     "bbox": {
+      "min": [
+       -1.472,
+       0,
+       -1.668
+      ],
+      "max": [
+       1.472,
+       5.756,
+       1.668
+      ],
+      "size": [
+       2.945,
+       5.756,
+       3.336
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "pumpkin-carved",
+     "source": "graveyard/pumpkin-carved",
+     "triangles": 486,
+     "bbox": {
+      "min": [
+       -0.472,
+       0,
+       -0.472
+      ],
+      "max": [
+       0.472,
+       0.803,
+       0.472
+      ],
+      "size": [
+       0.944,
+       0.803,
+       0.944
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "urn",
+     "source": "graveyard/urn-round",
+     "triangles": 230,
+     "bbox": {
+      "min": [
+       -0.331,
+       0,
+       -0.331
+      ],
+      "max": [
+       0.331,
+       0.96,
+       0.331
+      ],
+      "size": [
+       0.661,
+       0.96,
+       0.661
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "candles",
+     "source": "graveyard/candle-multiple",
+     "triangles": 162,
+     "bbox": {
+      "min": [
+       -0.319,
+       0,
+       -0.333
+      ],
+      "max": [
+       0.319,
+       0.5,
+       0.333
+      ],
+      "size": [
+       0.638,
+       0.5,
+       0.667
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "shovel",
+     "source": "graveyard/shovel-dirt",
+     "triangles": 280,
+     "bbox": {
+      "min": [
+       -0.778,
+       0,
+       -0.655
+      ],
+      "max": [
+       0.778,
+       1.652,
+       0.655
+      ],
+      "size": [
+       1.556,
+       1.652,
+       1.31
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "debris",
+     "source": "graveyard/debris",
+     "triangles": 240,
+     "bbox": {
+      "min": [
+       -0.67,
+       0,
+       -0.684
+      ],
+      "max": [
+       0.67,
+       0.4,
+       0.684
+      ],
+      "size": [
+       1.341,
+       0.4,
+       1.368
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "rocks-grave",
+     "source": "graveyard/rocks",
+     "triangles": 364,
+     "bbox": {
+      "min": [
+       -1.345,
+       0,
+       -1.206
+      ],
+      "max": [
+       1.345,
+       0.944,
+       1.206
+      ],
+      "size": [
+       2.69,
+       0.944,
+       2.411
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "trunk-dead",
+     "source": "graveyard/trunk",
+     "triangles": 274,
+     "bbox": {
+      "min": [
+       -0.674,
+       0,
+       -0.693
+      ],
+      "max": [
+       0.674,
+       1.125,
+       0.693
+      ],
+      "size": [
+       1.348,
+       1.125,
+       1.386
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "pillar-obelisk",
+     "source": "graveyard/pillar-obelisk",
+     "triangles": 76,
+     "bbox": {
+      "min": [
+       -0.438,
+       0,
+       -0.438
+      ],
+      "max": [
+       0.438,
+       2.53,
+       0.438
+      ],
+      "size": [
+       0.875,
+       2.53,
+       0.875
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "crypt",
+     "source": "graveyard/crypt",
+     "triangles": 252,
+     "bbox": {
+      "min": [
+       -0.9,
+       0,
+       -1.395
+      ],
+      "max": [
+       0.9,
+       1.829,
+       1.395
+      ],
+      "size": [
+       1.8,
+       1.829,
+       2.79
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "furniture",
+   "path": "interior/furniture.glb",
+   "group": "interior",
+   "bytes": 279456,
+   "triangles": 5666,
+   "items": [
+    {
+     "id": "bed",
+     "source": "furniture/bedSingle",
+     "triangles": 214,
+     "bbox": {
+      "min": [
+       -0.714,
+       0,
+       -1.406
+      ],
+      "max": [
+       0.714,
+       0.938,
+       1.406
+      ],
+      "size": [
+       1.427,
+       0.938,
+       2.813
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "carpetWhite",
+      "wood",
+      "metal",
+      "carpet"
+     ]
+    },
+    {
+     "id": "bed-double",
+     "source": "furniture/bedDouble",
+     "triangles": 264,
+     "bbox": {
+      "min": [
+       -1.195,
+       0,
+       -1.406
+      ],
+      "max": [
+       1.195,
+       0.938,
+       1.406
+      ],
+      "size": [
+       2.39,
+       0.938,
+       2.813
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "carpetWhite",
+      "wood",
+      "metal",
+      "carpet"
+     ]
+    },
+    {
+     "id": "bedroll",
+     "source": "survival/bedroll",
+     "triangles": 144,
+     "bbox": {
+      "min": [
+       -0.543,
+       0,
+       -1.063
+      ],
+      "max": [
+       0.543,
+       0.437,
+       1.063
+      ],
+      "size": [
+       1.086,
+       0.437,
+       2.127
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x1.4"
+    },
+    {
+     "id": "table",
+     "source": "mini-dungeon/table",
+     "triangles": 150,
+     "bbox": {
+      "min": [
+       -1.094,
+       0,
+       -0.813
+      ],
+      "max": [
+       1.094,
+       0.786,
+       0.813
+      ],
+      "size": [
+       2.188,
+       0.786,
+       1.625
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-dungeon"
+     ]
+    },
+    {
+     "id": "table-cloth",
+     "source": "furniture/tableCloth",
+     "triangles": 144,
+     "bbox": {
+      "min": [
+       -1.052,
+       0,
+       -0.559
+      ],
+      "max": [
+       1.052,
+       0.817,
+       0.559
+      ],
+      "size": [
+       2.104,
+       0.817,
+       1.118
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "wood",
+      "carpet"
+     ]
+    },
+    {
+     "id": "table-round",
+     "source": "furniture/tableRound",
+     "triangles": 80,
+     "bbox": {
+      "min": [
+       -0.866,
+       0,
+       -1
+      ],
+      "max": [
+       0.866,
+       0.917,
+       1
+      ],
+      "size": [
+       1.732,
+       0.917,
+       2
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "wood"
+     ]
+    },
+    {
+     "id": "chair",
+     "source": "mini-dungeon/chair",
+     "triangles": 208,
+     "bbox": {
+      "min": [
+       -0.433,
+       0,
+       -0.469
+      ],
+      "max": [
+       0.433,
+       1.193,
+       0.469
+      ],
+      "size": [
+       0.866,
+       1.193,
+       0.938
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-dungeon"
+     ]
+    },
+    {
+     "id": "chair-wood",
+     "source": "furniture/chair",
+     "triangles": 170,
+     "bbox": {
+      "min": [
+       -0.25,
+       0,
+       -0.25
+      ],
+      "max": [
+       0.25,
+       1.175,
+       0.25
+      ],
+      "size": [
+       0.5,
+       1.175,
+       0.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "wood"
+     ]
+    },
+    {
+     "id": "stool",
+     "source": "fantasy-town/stall-stool",
+     "triangles": 180,
+     "bbox": {
+      "min": [
+       -0.325,
+       0,
+       -0.325
+      ],
+      "max": [
+       0.325,
+       0.564,
+       0.325
+      ],
+      "size": [
+       0.65,
+       0.564,
+       0.65
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "chest",
+     "source": "mini-dungeon/chest",
+     "triangles": 288,
+     "bbox": {
+      "min": [
+       -0.625,
+       0,
+       -0.625
+      ],
+      "max": [
+       0.625,
+       1.125,
+       0.625
+      ],
+      "size": [
+       1.25,
+       1.125,
+       1.25
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-dungeon"
+     ]
+    },
+    {
+     "id": "chest-small",
+     "source": "survival/chest",
+     "triangles": 322,
+     "bbox": {
+      "min": [
+       -0.488,
+       0,
+       -0.51
+      ],
+      "max": [
+       0.488,
+       0.964,
+       0.51
+      ],
+      "size": [
+       0.976,
+       0.964,
+       1.02
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x1.5"
+    },
+    {
+     "id": "bookcase",
+     "source": "furniture/bookcaseOpen",
+     "triangles": 320,
+     "bbox": {
+      "min": [
+       -0.5,
+       0,
+       -0.313
+      ],
+      "max": [
+       0.5,
+       2.2,
+       0.313
+      ],
+      "size": [
+       1,
+       2.2,
+       0.625
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "wood"
+     ]
+    },
+    {
+     "id": "bookcase-low",
+     "source": "furniture/bookcaseOpenLow",
+     "triangles": 184,
+     "bbox": {
+      "min": [
+       -0.5,
+       0,
+       -0.313
+      ],
+      "max": [
+       0.5,
+       1,
+       0.313
+      ],
+      "size": [
+       1,
+       1,
+       0.625
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "wood"
+     ]
+    },
+    {
+     "id": "cabinet",
+     "source": "furniture/bookcaseClosedDoors",
+     "triangles": 296,
+     "bbox": {
+      "min": [
+       -0.5,
+       0,
+       -0.313
+      ],
+      "max": [
+       0.5,
+       2.125,
+       0.313
+      ],
+      "size": [
+       1,
+       2.125,
+       0.625
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "wood",
+      "metal"
+     ]
+    },
+    {
+     "id": "side-table",
+     "source": "furniture/sideTableDrawers",
+     "triangles": 238,
+     "bbox": {
+      "min": [
+       -0.668,
+       0,
+       -0.278
+      ],
+      "max": [
+       0.668,
+       0.961,
+       0.278
+      ],
+      "size": [
+       1.336,
+       0.961,
+       0.556
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "wood",
+      "_defaultMat",
+      "metal"
+     ]
+    },
+    {
+     "id": "rug-round",
+     "source": "furniture/rugRound",
+     "triangles": 188,
+     "bbox": {
+      "min": [
+       -1.15,
+       0,
+       -1.15
+      ],
+      "max": [
+       1.15,
+       0.025,
+       1.15
+      ],
+      "size": [
+       2.3,
+       0.025,
+       2.3
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "carpet",
+      "carpetDarker"
+     ]
+    },
+    {
+     "id": "rug",
+     "source": "furniture/rugRectangle",
+     "triangles": 28,
+     "bbox": {
+      "min": [
+       -1.962,
+       0,
+       -1.15
+      ],
+      "max": [
+       1.962,
+       0.025,
+       1.15
+      ],
+      "size": [
+       3.925,
+       0.025,
+       2.3
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "carpet",
+      "carpetDarker"
+     ]
+    },
+    {
+     "id": "doormat",
+     "source": "furniture/rugDoormat",
+     "triangles": 204,
+     "bbox": {
+      "min": [
+       -0.537,
+       0,
+       -0.296
+      ],
+      "max": [
+       0.537,
+       0.025,
+       0.296
+      ],
+      "size": [
+       1.073,
+       0.025,
+       0.593
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "wood"
+     ]
+    },
+    {
+     "id": "coat-rack",
+     "source": "furniture/coatRackStanding",
+     "triangles": 190,
+     "bbox": {
+      "min": [
+       -0.341,
+       0,
+       -0.341
+      ],
+      "max": [
+       0.341,
+       1.925,
+       0.341
+      ],
+      "size": [
+       0.682,
+       1.925,
+       0.682
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "wood"
+     ]
+    },
+    {
+     "id": "pillow",
+     "source": "furniture/pillow",
+     "triangles": 50,
+     "bbox": {
+      "min": [
+       -0.287,
+       0,
+       -0.111
+      ],
+      "max": [
+       0.287,
+       0.555,
+       0.111
+      ],
+      "size": [
+       0.575,
+       0.555,
+       0.221
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "carpet"
+     ]
+    },
+    {
+     "id": "plant-pot",
+     "source": "furniture/pottedPlant",
+     "triangles": 60,
+     "bbox": {
+      "min": [
+       -0.265,
+       0,
+       -0.302
+      ],
+      "max": [
+       0.265,
+       1.635,
+       0.302
+      ],
+      "size": [
+       0.53,
+       1.635,
+       0.604
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "wood",
+      "woodDark",
+      "plant"
+     ]
+    },
+    {
+     "id": "books",
+     "source": "furniture/books",
+     "triangles": 62,
+     "bbox": {
+      "min": [
+       -0.188,
+       0,
+       -0.118
+      ],
+      "max": [
+       0.188,
+       0.26,
+       0.118
+      ],
+      "size": [
+       0.376,
+       0.26,
+       0.236
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "carpetDarker",
+      "carpetWhite",
+      "plant",
+      "metal"
+     ]
+    },
+    {
+     "id": "barrel",
+     "source": "mini-dungeon/barrel",
+     "triangles": 148,
+     "bbox": {
+      "min": [
+       -0.647,
+       0,
+       -0.647
+      ],
+      "max": [
+       0.647,
+       1.19,
+       0.647
+      ],
+      "size": [
+       1.294,
+       1.19,
+       1.294
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-dungeon"
+     ]
+    },
+    {
+     "id": "pot",
+     "source": "mini-dungeon/pot",
+     "triangles": 284,
+     "bbox": {
+      "min": [
+       -0.45,
+       0,
+       -0.304
+      ],
+      "max": [
+       0.45,
+       0.646,
+       0.304
+      ],
+      "size": [
+       0.899,
+       0.646,
+       0.609
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-dungeon"
+     ],
+     "scaleNote": "kaynak x0.6"
+    },
+    {
+     "id": "candle",
+     "source": "graveyard/candle",
+     "triangles": 54,
+     "bbox": {
+      "min": [
+       -0.17,
+       0,
+       -0.17
+      ],
+      "max": [
+       0.17,
+       0.5,
+       0.17
+      ],
+      "size": [
+       0.34,
+       0.5,
+       0.34
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "candles",
+     "source": "graveyard/candle-multiple",
+     "triangles": 162,
+     "bbox": {
+      "min": [
+       -0.319,
+       0,
+       -0.333
+      ],
+      "max": [
+       0.319,
+       0.5,
+       0.333
+      ],
+      "size": [
+       0.638,
+       0.5,
+       0.667
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "lantern",
+     "source": "graveyard/lantern-candle",
+     "triangles": 224,
+     "bbox": {
+      "min": [
+       -0.3,
+       0,
+       -0.3
+      ],
+      "max": [
+       0.3,
+       0.969,
+       0.3
+      ],
+      "size": [
+       0.6,
+       0.969,
+       0.6
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "lantern-hanging",
+     "source": "holiday/lantern-hanging",
+     "triangles": 152,
+     "bbox": {
+      "min": [
+       -0.532,
+       -1.418,
+       0
+      ],
+      "max": [
+       0.532,
+       0.25,
+       1.041
+      ],
+      "size": [
+       1.064,
+       1.668,
+       1.041
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "holiday"
+     ]
+    },
+    {
+     "id": "floor-planks",
+     "source": "fantasy-town/planks",
+     "triangles": 96,
+     "bbox": {
+      "min": [
+       -1.25,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       0.15,
+       1.25
+      ],
+      "size": [
+       2.5,
+       0.15,
+       2.5
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "wall-wood",
+     "source": "fantasy-town/wall-wood",
+     "triangles": 32,
+     "bbox": {
+      "min": [
+       1,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       2.5,
+       1.25
+      ],
+      "size": [
+       0.25,
+       2.5,
+       2.5
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "wall-wood-window",
+     "source": "fantasy-town/wall-wood-window-shutters",
+     "triangles": 122,
+     "bbox": {
+      "min": [
+       1,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       2.5,
+       1.25
+      ],
+      "size": [
+       0.25,
+       2.5,
+       2.5
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "wall-wood-door",
+     "source": "fantasy-town/wall-wood-door",
+     "triangles": 376,
+     "bbox": {
+      "min": [
+       1,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       2.5,
+       1.25
+      ],
+      "size": [
+       0.25,
+       2.5,
+       2.5
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "fantasy-town"
+     ]
+    },
+    {
+     "id": "wall-plaster",
+     "source": "fantasy-town/wall",
+     "triangles": 32,
+     "bbox": {
+      "min": [
+       1,
+       0,
+       -1.25
+      ],
+      "max": [
+       1.25,
+       2.5,
+       1.25
+      ],
+      "size": [
+       0.25,
+       2.5,
+       2.5
+      ]
+     },
+     "origin": "kaynak orijini (modüler kit karosu: 2.5 m karonun merkezi)",
+     "materials": [
+      "fantasy-town"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "clues",
+   "path": "interior/clues.glb",
+   "group": "interior",
+   "bytes": 189576,
+   "triangles": 4192,
+   "items": [
+    {
+     "id": "coffin",
+     "source": "graveyard/coffin",
+     "triangles": 256,
+     "bbox": {
+      "min": [
+       -0.717,
+       0,
+       -1.047
+      ],
+      "max": [
+       0.717,
+       0.813,
+       1.047
+      ],
+      "size": [
+       1.435,
+       0.813,
+       2.095
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "potion",
+     "source": "mini-dungeon/potion",
+     "triangles": 120,
+     "bbox": {
+      "min": [
+       -0.246,
+       0,
+       -0.246
+      ],
+      "max": [
+       0.246,
+       0.603,
+       0.246
+      ],
+      "size": [
+       0.492,
+       0.603,
+       0.492
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-dungeon"
+     ],
+     "scaleNote": "kaynak x0.6"
+    },
+    {
+     "id": "bottle",
+     "source": "survival/bottle",
+     "triangles": 96,
+     "bbox": {
+      "min": [
+       -0.066,
+       0,
+       -0.076
+      ],
+      "max": [
+       0.066,
+       0.385,
+       0.076
+      ],
+      "size": [
+       0.132,
+       0.385,
+       0.152
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ]
+    },
+    {
+     "id": "bottle-large",
+     "source": "survival/bottle-large",
+     "triangles": 96,
+     "bbox": {
+      "min": [
+       -0.091,
+       0,
+       -0.105
+      ],
+      "max": [
+       0.091,
+       0.36,
+       0.105
+      ],
+      "size": [
+       0.181,
+       0.36,
+       0.209
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ]
+    },
+    {
+     "id": "cauldron",
+     "source": "food/pot-stew",
+     "triangles": 370,
+     "bbox": {
+      "min": [
+       -0.657,
+       0,
+       -0.822
+      ],
+      "max": [
+       0.657,
+       0.722,
+       0.822
+      ],
+      "size": [
+       1.315,
+       0.722,
+       1.644
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "food"
+     ],
+     "scaleNote": "kaynak x0.8"
+    },
+    {
+     "id": "mortar",
+     "source": "food/mortar-pestle",
+     "triangles": 56,
+     "bbox": {
+      "min": [
+       -0.171,
+       0,
+       -0.198
+      ],
+      "max": [
+       0.171,
+       1.02,
+       0.198
+      ],
+      "size": [
+       0.342,
+       1.02,
+       0.395
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "food"
+     ],
+     "scaleNote": "kaynak x1.2"
+    },
+    {
+     "id": "garlic",
+     "source": "food/onion",
+     "triangles": 68,
+     "bbox": {
+      "min": [
+       -0.133,
+       0,
+       -0.154
+      ],
+      "max": [
+       0.133,
+       0.313,
+       0.154
+      ],
+      "size": [
+       0.266,
+       0.313,
+       0.308
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "food"
+     ],
+     "scaleNote": "kaynak x0.5"
+    },
+    {
+     "id": "mushroom",
+     "source": "food/mushroom",
+     "triangles": 80,
+     "bbox": {
+      "min": [
+       -0.094,
+       0,
+       -0.108
+      ],
+      "max": [
+       0.094,
+       0.209,
+       0.108
+      ],
+      "size": [
+       0.187,
+       0.209,
+       0.216
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "food"
+     ],
+     "scaleNote": "kaynak x0.6"
+    },
+    {
+     "id": "bread",
+     "source": "food/loaf-round",
+     "triangles": 116,
+     "bbox": {
+      "min": [
+       -0.241,
+       0,
+       -0.161
+      ],
+      "max": [
+       0.241,
+       0.183,
+       0.161
+      ],
+      "size": [
+       0.482,
+       0.183,
+       0.322
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "food"
+     ],
+     "scaleNote": "kaynak x0.25"
+    },
+    {
+     "id": "cheese",
+     "source": "food/cheese",
+     "triangles": 576,
+     "bbox": {
+      "min": [
+       -0.255,
+       0,
+       -0.255
+      ],
+      "max": [
+       0.255,
+       0.165,
+       0.255
+      ],
+      "size": [
+       0.51,
+       0.165,
+       0.51
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "food"
+     ],
+     "scaleNote": "kaynak x0.3"
+    },
+    {
+     "id": "apple",
+     "source": "food/apple",
+     "triangles": 136,
+     "bbox": {
+      "min": [
+       -0.147,
+       0,
+       -0.147
+      ],
+      "max": [
+       0.147,
+       0.286,
+       0.147
+      ],
+      "size": [
+       0.294,
+       0.286,
+       0.294
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "food"
+     ],
+     "scaleNote": "kaynak x0.6"
+    },
+    {
+     "id": "mug",
+     "source": "food/mug",
+     "triangles": 232,
+     "bbox": {
+      "min": [
+       -0.15,
+       0,
+       -0.125
+      ],
+      "max": [
+       0.15,
+       0.239,
+       0.125
+      ],
+      "size": [
+       0.301,
+       0.239,
+       0.249
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "food"
+     ],
+     "scaleNote": "kaynak x0.35"
+    },
+    {
+     "id": "wine",
+     "source": "food/wine-red",
+     "triangles": 132,
+     "bbox": {
+      "min": [
+       -0.083,
+       0,
+       -0.072
+      ],
+      "max": [
+       0.083,
+       0.612,
+       0.072
+      ],
+      "size": [
+       0.167,
+       0.612,
+       0.145
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "food"
+     ],
+     "scaleNote": "kaynak x0.35"
+    },
+    {
+     "id": "plate",
+     "source": "food/plate",
+     "triangles": 140,
+     "bbox": {
+      "min": [
+       -0.39,
+       0,
+       -0.39
+      ],
+      "max": [
+       0.39,
+       0.079,
+       0.39
+      ],
+      "size": [
+       0.78,
+       0.079,
+       0.78
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "food"
+     ],
+     "scaleNote": "kaynak x0.35"
+    },
+    {
+     "id": "chalice",
+     "source": "graveyard/detail-chalice",
+     "triangles": 136,
+     "bbox": {
+      "min": [
+       -0.123,
+       0,
+       -0.123
+      ],
+      "max": [
+       0.123,
+       0.374,
+       0.123
+      ],
+      "size": [
+       0.246,
+       0.374,
+       0.246
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ],
+     "scaleNote": "kaynak x0.6"
+    },
+    {
+     "id": "bowl",
+     "source": "graveyard/detail-bowl",
+     "triangles": 176,
+     "bbox": {
+      "min": [
+       -0.151,
+       0,
+       -0.151
+      ],
+      "max": [
+       0.151,
+       0.195,
+       0.151
+      ],
+      "size": [
+       0.301,
+       0.195,
+       0.301
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ],
+     "scaleNote": "kaynak x0.6"
+    },
+    {
+     "id": "doctor-bag",
+     "source": "mini-characters/item-luggage",
+     "triangles": 80,
+     "bbox": {
+      "min": [
+       -0.155,
+       0,
+       -0.405
+      ],
+      "max": [
+       0.155,
+       0.66,
+       0.405
+      ],
+      "size": [
+       0.31,
+       0.66,
+       0.81
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-characters"
+     ],
+     "scaleNote": "kaynak x1.2"
+    },
+    {
+     "id": "bow",
+     "source": "mini-characters/weapon-bow",
+     "triangles": 80,
+     "bbox": {
+      "min": [
+       -0.149,
+       0,
+       -0.261
+      ],
+      "max": [
+       0.149,
+       1.197,
+       0.261
+      ],
+      "size": [
+       0.297,
+       1.197,
+       0.522
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-characters"
+     ]
+    },
+    {
+     "id": "arrow",
+     "source": "mini-characters/weapon-arrow",
+     "triangles": 58,
+     "bbox": {
+      "min": [
+       -0.149,
+       0,
+       -0.57
+      ],
+      "max": [
+       0.149,
+       0.297,
+       0.57
+      ],
+      "size": [
+       0.297,
+       0.297,
+       1.14
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-characters"
+     ]
+    },
+    {
+     "id": "sword",
+     "source": "mini-characters/weapon-sword",
+     "triangles": 80,
+     "bbox": {
+      "min": [
+       -0.291,
+       0,
+       -0.135
+      ],
+      "max": [
+       0.291,
+       1.12,
+       0.135
+      ],
+      "size": [
+       0.582,
+       1.12,
+       0.27
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-characters"
+     ]
+    },
+    {
+     "id": "spear",
+     "source": "mini-characters/weapon-spear",
+     "triangles": 58,
+     "bbox": {
+      "min": [
+       -0.183,
+       0,
+       -0.149
+      ],
+      "max": [
+       0.183,
+       1.5,
+       0.149
+      ],
+      "size": [
+       0.366,
+       1.5,
+       0.297
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-characters"
+     ]
+    },
+    {
+     "id": "shield",
+     "source": "mini-characters/shield-round",
+     "triangles": 160,
+     "bbox": {
+      "min": [
+       -0.475,
+       0,
+       -0.133
+      ],
+      "max": [
+       0.475,
+       0.949,
+       0.133
+      ],
+      "size": [
+       0.949,
+       0.949,
+       0.266
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-characters"
+     ]
+    },
+    {
+     "id": "key",
+     "source": "mini-dungeon/key",
+     "triangles": 176,
+     "bbox": {
+      "min": [
+       -0.222,
+       0,
+       -0.059
+      ],
+      "max": [
+       0.222,
+       0.267,
+       0.059
+      ],
+      "size": [
+       0.443,
+       0.267,
+       0.118
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-dungeon"
+     ],
+     "scaleNote": "kaynak x0.3"
+    },
+    {
+     "id": "coin",
+     "source": "mini-dungeon/coin",
+     "triangles": 252,
+     "bbox": {
+      "min": [
+       -0.208,
+       0,
+       -0.083
+      ],
+      "max": [
+       0.208,
+       0.417,
+       0.083
+      ],
+      "size": [
+       0.415,
+       0.417,
+       0.167
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "mini-dungeon"
+     ],
+     "scaleNote": "kaynak x0.4"
+    },
+    {
+     "id": "shovel",
+     "source": "graveyard/shovel",
+     "triangles": 148,
+     "bbox": {
+      "min": [
+       -0.24,
+       0,
+       -0.119
+      ],
+      "max": [
+       0.24,
+       1.531,
+       0.119
+      ],
+      "size": [
+       0.48,
+       1.531,
+       0.238
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ]
+    },
+    {
+     "id": "axe",
+     "source": "survival/tool-axe",
+     "triangles": 84,
+     "bbox": {
+      "min": [
+       -0.358,
+       0,
+       -0.097
+      ],
+      "max": [
+       0.358,
+       1.6,
+       0.097
+      ],
+      "size": [
+       0.716,
+       1.6,
+       0.193
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "survival"
+     ],
+     "scaleNote": "kaynak x2.5"
+    },
+    {
+     "id": "urn",
+     "source": "graveyard/urn-round",
+     "triangles": 230,
+     "bbox": {
+      "min": [
+       -0.198,
+       0,
+       -0.198
+      ],
+      "max": [
+       0.198,
+       0.576,
+       0.198
+      ],
+      "size": [
+       0.397,
+       0.576,
+       0.397
+      ]
+     },
+     "origin": "alt-merkez",
+     "materials": [
+      "graveyard"
+     ],
+     "scaleNote": "kaynak x0.6"
+    }
+   ]
+  }
+ ],
+ "files": [
+  {
+   "path": "characters/villager-00.glb",
+   "group": "characters",
+   "bytes": 53676,
+   "triangles": 771,
+   "bbox": {
+    "min": [
+     -0.959,
+     0,
+     -0.431
+    ],
+    "max": [
+     0.959,
+     1.678,
+     0.419
+    ],
+    "size": [
+     1.918,
+     1.678,
+     0.85
+    ]
+   },
+   "materials": [
+    {
+     "name": "villager",
+     "texture": "../textures/mini-characters.png"
+    },
+    {
+     "name": "cloth",
+     "texture": "../textures/tint.png"
+    }
+   ],
+   "textures": [
+    "../textures/mini-characters.png",
+    "../textures/tint.png"
+   ],
+   "id": "villager-00",
+   "skin": 0,
+   "skeleton": "kenney-mini-7bone",
+   "animationsFrom": "characters/villager-anims.glb",
+   "source": "Kenney Mini Characters 2.0: character-male-a.glb",
+   "description": "Yeşil gömlekli, gözlüklü",
+   "rigged": true,
+   "origin": "ayak ortası",
+   "forward": "+Z"
+  },
+  {
+   "path": "characters/villager-01.glb",
+   "group": "characters",
+   "bytes": 53064,
+   "triangles": 790,
+   "bbox": {
+    "min": [
+     -0.959,
+     0,
+     -0.527
+    ],
+    "max": [
+     0.959,
+     1.808,
+     0.519
+    ],
+    "size": [
+     1.918,
+     1.808,
+     1.046
+    ]
+   },
+   "materials": [
+    {
+     "name": "villager",
+     "texture": "../textures/mini-characters.png"
+    },
+    {
+     "name": "cloth",
+     "texture": "../textures/tint.png"
+    }
+   ],
+   "textures": [
+    "../textures/mini-characters.png",
+    "../textures/tint.png"
+   ],
+   "id": "villager-01",
+   "skin": 1,
+   "skeleton": "kenney-mini-7bone",
+   "animationsFrom": "characters/villager-anims.glb",
+   "source": "Kenney Mini Characters 2.0: character-female-b.glb",
+   "description": "Sarı tişörtlü, topuzlu",
+   "rigged": true,
+   "origin": "ayak ortası",
+   "forward": "+Z"
+  },
+  {
+   "path": "characters/villager-02.glb",
+   "group": "characters",
+   "bytes": 48292,
+   "triangles": 686,
+   "bbox": {
+    "min": [
+     -0.959,
+     0,
+     -0.407
+    ],
+    "max": [
+     0.959,
+     1.653,
+     0.567
+    ],
+    "size": [
+     1.918,
+     1.653,
+     0.974
+    ]
+   },
+   "materials": [
+    {
+     "name": "villager",
+     "texture": "../textures/mini-characters.png"
+    },
+    {
+     "name": "cloth",
+     "texture": "../textures/tint.png"
+    }
+   ],
+   "textures": [
+    "../textures/mini-characters.png",
+    "../textures/tint.png"
+   ],
+   "id": "villager-02",
+   "skin": 2,
+   "skeleton": "kenney-mini-7bone",
+   "animationsFrom": "characters/villager-anims.glb",
+   "source": "Kenney Mini Characters 2.0: character-male-b.glb",
+   "description": "Kel, sakallı",
+   "rigged": true,
+   "origin": "ayak ortası",
+   "forward": "+Z"
+  },
+  {
+   "path": "characters/villager-03.glb",
+   "group": "characters",
+   "bytes": 53988,
+   "triangles": 780,
+   "bbox": {
+    "min": [
+     -0.959,
+     0,
+     -0.73
+    ],
+    "max": [
+     0.959,
+     1.939,
+     0.519
+    ],
+    "size": [
+     1.918,
+     1.939,
+     1.249
+    ]
+   },
+   "materials": [
+    {
+     "name": "villager",
+     "texture": "../textures/mini-characters.png"
+    },
+    {
+     "name": "cloth",
+     "texture": "../textures/tint.png"
+    }
+   ],
+   "textures": [
+    "../textures/mini-characters.png",
+    "../textures/tint.png"
+   ],
+   "id": "villager-03",
+   "skin": 3,
+   "skeleton": "kenney-mini-7bone",
+   "animationsFrom": "characters/villager-anims.glb",
+   "source": "Kenney Mini Characters 2.0: character-female-c.glb",
+   "description": "Bereli, mavi gömlekli",
+   "rigged": true,
+   "origin": "ayak ortası",
+   "forward": "+Z"
+  },
+  {
+   "path": "characters/villager-04.glb",
+   "group": "characters",
+   "bytes": 54324,
+   "triangles": 749,
+   "bbox": {
+    "min": [
+     -0.959,
+     0,
+     -0.431
+    ],
+    "max": [
+     0.959,
+     1.678,
+     0.419
+    ],
+    "size": [
+     1.918,
+     1.678,
+     0.85
+    ]
+   },
+   "materials": [
+    {
+     "name": "villager",
+     "texture": "../textures/mini-characters.png"
+    },
+    {
+     "name": "cloth",
+     "texture": "../textures/tint.png"
+    }
+   ],
+   "textures": [
+    "../textures/mini-characters.png",
+    "../textures/tint.png"
+   ],
+   "id": "villager-04",
+   "skin": 4,
+   "skeleton": "kenney-mini-7bone",
+   "animationsFrom": "characters/villager-anims.glb",
+   "source": "Kenney Mini Characters 2.0: character-male-f.glb",
+   "description": "Kısa saçlı, yelekli",
+   "rigged": true,
+   "origin": "ayak ortası",
+   "forward": "+Z"
+  },
+  {
+   "path": "characters/villager-05.glb",
+   "group": "characters",
+   "bytes": 57480,
+   "triangles": 845,
+   "bbox": {
+    "min": [
+     -0.959,
+     0,
+     -0.73
+    ],
+    "max": [
+     0.959,
+     1.939,
+     0.519
+    ],
+    "size": [
+     1.918,
+     1.939,
+     1.249
+    ]
+   },
+   "materials": [
+    {
+     "name": "villager",
+     "texture": "../textures/mini-characters.png"
+    },
+    {
+     "name": "cloth",
+     "texture": "../textures/tint.png"
+    }
+   ],
+   "textures": [
+    "../textures/mini-characters.png",
+    "../textures/tint.png"
+   ],
+   "id": "villager-05",
+   "skin": 5,
+   "skeleton": "kenney-mini-7bone",
+   "animationsFrom": "characters/villager-anims.glb",
+   "source": "Kenney Mini Characters 2.0: character-female-d.glb",
+   "description": "Kızıl topuzlu, ceketli",
+   "rigged": true,
+   "origin": "ayak ortası",
+   "forward": "+Z"
+  },
+  {
+   "path": "characters/villager-06.glb",
+   "group": "characters",
+   "bytes": 60916,
+   "triangles": 877,
+   "bbox": {
+    "min": [
+     -0.959,
+     0,
+     -0.431
+    ],
+    "max": [
+     0.959,
+     1.678,
+     0.567
+    ],
+    "size": [
+     1.918,
+     1.678,
+     0.998
+    ]
+   },
+   "materials": [
+    {
+     "name": "villager",
+     "texture": "../textures/mini-characters.png"
+    },
+    {
+     "name": "cloth",
+     "texture": "../textures/tint.png"
+    }
+   ],
+   "textures": [
+    "../textures/mini-characters.png",
+    "../textures/tint.png"
+   ],
+   "id": "villager-06",
+   "skin": 6,
+   "skeleton": "kenney-mini-7bone",
+   "animationsFrom": "characters/villager-anims.glb",
+   "source": "Kenney Mini Characters 2.0: character-male-g.glb",
+   "description": "Göz bantlı, sakallı",
+   "rigged": true,
+   "origin": "ayak ortası",
+   "forward": "+Z"
+  },
+  {
+   "path": "characters/villager-07.glb",
+   "group": "characters",
+   "bytes": 54932,
+   "triangles": 804,
+   "bbox": {
+    "min": [
+     -0.959,
+     0,
+     -0.799
+    ],
+    "max": [
+     0.959,
+     1.791,
+     0.519
+    ],
+    "size": [
+     1.918,
+     1.791,
+     1.318
+    ]
+   },
+   "materials": [
+    {
+     "name": "villager",
+     "texture": "../textures/mini-characters.png"
+    },
+    {
+     "name": "cloth",
+     "texture": "../textures/tint.png"
+    }
+   ],
+   "textures": [
+    "../textures/mini-characters.png",
+    "../textures/tint.png"
+   ],
+   "id": "villager-07",
+   "skin": 7,
+   "skeleton": "kenney-mini-7bone",
+   "animationsFrom": "characters/villager-anims.glb",
+   "source": "Kenney Mini Characters 2.0: character-female-e.glb",
+   "description": "Uzun siyah saçlı, önlüklü",
+   "rigged": true,
+   "origin": "ayak ortası",
+   "forward": "+Z"
+  },
+  {
+   "path": "characters/villager-08.glb",
+   "group": "characters",
+   "bytes": 52928,
+   "triangles": 759,
+   "bbox": {
+    "min": [
+     -0.959,
+     0,
+     -0.431
+    ],
+    "max": [
+     0.959,
+     1.804,
+     0.419
+    ],
+    "size": [
+     1.918,
+     1.804,
+     0.85
+    ]
+   },
+   "materials": [
+    {
+     "name": "villager",
+     "texture": "../textures/mini-characters.png"
+    },
+    {
+     "name": "cloth",
+     "texture": "../textures/tint.png"
+    }
+   ],
+   "textures": [
+    "../textures/mini-characters.png",
+    "../textures/tint.png"
+   ],
+   "id": "villager-08",
+   "skin": 8,
+   "skeleton": "kenney-mini-7bone",
+   "animationsFrom": "characters/villager-anims.glb",
+   "source": "Kenney Mini Characters 2.0: character-male-d.glb",
+   "description": "Kızıl saçlı, takım elbiseli",
+   "rigged": true,
+   "origin": "ayak ortası",
+   "forward": "+Z"
+  },
+  {
+   "path": "characters/villager-09.glb",
+   "group": "characters",
+   "bytes": 59052,
+   "triangles": 836,
+   "bbox": {
+    "min": [
+     -0.959,
+     0,
+     -0.584
+    ],
+    "max": [
+     0.959,
+     1.678,
+     0.519
+    ],
+    "size": [
+     1.918,
+     1.678,
+     1.103
+    ]
+   },
+   "materials": [
+    {
+     "name": "villager",
+     "texture": "../textures/mini-characters.png"
+    },
+    {
+     "name": "cloth",
+     "texture": "../textures/tint.png"
+    }
+   ],
+   "textures": [
+    "../textures/mini-characters.png",
+    "../textures/tint.png"
+   ],
+   "id": "villager-09",
+   "skin": 9,
+   "skeleton": "kenney-mini-7bone",
+   "animationsFrom": "characters/villager-anims.glb",
+   "source": "Kenney Mini Characters 2.0: character-female-f.glb",
+   "description": "Kızıl uzun saçlı",
+   "rigged": true,
+   "origin": "ayak ortası",
+   "forward": "+Z"
+  },
+  {
+   "path": "characters/villager-10.glb",
+   "group": "characters",
+   "bytes": 54320,
+   "triangles": 758,
+   "bbox": {
+    "min": [
+     -0.959,
+     0,
+     -0.431
+    ],
+    "max": [
+     0.959,
+     1.69,
+     0.424
+    ],
+    "size": [
+     1.918,
+     1.69,
+     0.855
+    ]
+   },
+   "materials": [
+    {
+     "name": "villager",
+     "texture": "../textures/mini-characters.png"
+    },
+    {
+     "name": "cloth",
+     "texture": "../textures/tint.png"
+    }
+   ],
+   "textures": [
+    "../textures/mini-characters.png",
+    "../textures/tint.png"
+   ],
+   "id": "villager-10",
+   "skin": 10,
+   "skeleton": "kenney-mini-7bone",
+   "animationsFrom": "characters/villager-anims.glb",
+   "source": "Kenney Mini Characters 2.0: character-male-e.glb",
+   "description": "Gözlüklü, önlüklü",
+   "rigged": true,
+   "origin": "ayak ortası",
+   "forward": "+Z"
+  },
+  {
+   "path": "characters/villager-11.glb",
+   "group": "characters",
+   "bytes": 60764,
+   "triangles": 880,
+   "bbox": {
+    "min": [
+     -0.959,
+     0,
+     -0.799
+    ],
+    "max": [
+     0.959,
+     1.791,
+     0.519
+    ],
+    "size": [
+     1.918,
+     1.791,
+     1.318
+    ]
+   },
+   "materials": [
+    {
+     "name": "villager",
+     "texture": "../textures/mini-characters.png"
+    },
+    {
+     "name": "cloth",
+     "texture": "../textures/tint.png"
+    }
+   ],
+   "textures": [
+    "../textures/mini-characters.png",
+    "../textures/tint.png"
+   ],
+   "id": "villager-11",
+   "skin": 11,
+   "skeleton": "kenney-mini-7bone",
+   "animationsFrom": "characters/villager-anims.glb",
+   "source": "Kenney Mini Characters 2.0: character-raider.glb",
+   "description": "At kuyruklu, askılı",
+   "rigged": true,
+   "origin": "ayak ortası",
+   "forward": "+Z"
+  },
+  {
+   "path": "characters/villager-anims.glb",
+   "group": "characters",
+   "bytes": 39372,
+   "triangles": 0,
+   "bbox": {
+    "min": [
+     null,
+     null,
+     null
+    ],
+    "max": [
+     null,
+     null,
+     null
+    ],
+    "size": [
+     null,
+     null,
+     null
+    ]
+   },
+   "materials": [],
+   "textures": [],
+   "id": "villager-anims",
+   "skeleton": "kenney-mini-7bone",
+   "note": "Mesh yok; sadece iskelet + klipler. Klipler düğüm adına göre bağlanır, 12 köylünün hepsine uygulanır.",
+   "animations": [
+    {
+     "name": "idle",
+     "duration": 1.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "walk",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sprint",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "jump",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "fall",
+     "duration": 0.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "crouch",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sit",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "die",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "pick-up",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "emote-yes",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "emote-no",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-right",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-left",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-both",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-right",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-left",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-kick-right",
+     "duration": 0.533,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-right",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-left",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    }
+   ]
+  },
+  {
+   "path": "characters/vampire.glb",
+   "group": "characters",
+   "bytes": 88408,
+   "triangles": 990,
+   "bbox": {
+    "min": [
+     -1.014,
+     0.055,
+     -0.701
+    ],
+    "max": [
+     1.014,
+     2.006,
+     0.435
+    ],
+    "size": [
+     2.028,
+     1.951,
+     1.136
+    ]
+   },
+   "materials": [
+    {
+     "name": "graveyard",
+     "texture": "../textures/graveyard.png"
+    }
+   ],
+   "textures": [
+    "../textures/graveyard.png"
+   ],
+   "id": "vampire",
+   "skeleton": "kenney-graveyard-rigid",
+   "source": "Kenney Graveyard Kit 5.0: character-vampire.glb",
+   "rigged": "rigid (parça hiyerarşisi)",
+   "origin": "ayak ortası",
+   "forward": "+Z",
+   "animations": [
+    {
+     "name": "idle",
+     "duration": 1.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "walk",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sprint",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "jump",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "fall",
+     "duration": 0.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "crouch",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sit",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "die",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "pick-up",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "emote-yes",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "emote-no",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-right",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-left",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-both",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-right",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-left",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-kick-right",
+     "duration": 0.533,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-right",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-left",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    }
+   ]
+  },
+  {
+   "path": "characters/ghost.glb",
+   "group": "characters",
+   "bytes": 43356,
+   "triangles": 413,
+   "bbox": {
+    "min": [
+     -0.985,
+     0.275,
+     -0.61
+    ],
+    "max": [
+     0.985,
+     1.93,
+     0.61
+    ],
+    "size": [
+     1.97,
+     1.655,
+     1.22
+    ]
+   },
+   "materials": [
+    {
+     "name": "graveyard",
+     "texture": "../textures/graveyard.png"
+    },
+    {
+     "name": "tint-ghost",
+     "texture": "../textures/tint.png"
+    }
+   ],
+   "textures": [
+    "../textures/graveyard.png",
+    "../textures/tint.png"
+   ],
+   "id": "ghost",
+   "skeleton": "kenney-graveyard-rigid",
+   "source": "Kenney Graveyard Kit 5.0: character-ghost.glb",
+   "rigged": "rigid (parça hiyerarşisi)",
+   "origin": "ayak ortası",
+   "forward": "+Z",
+   "animations": [
+    {
+     "name": "idle",
+     "duration": 1.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "walk",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sprint",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "jump",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "fall",
+     "duration": 0.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "crouch",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sit",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "die",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "pick-up",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "emote-yes",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "emote-no",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-right",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-left",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-both",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-right",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-left",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-kick-right",
+     "duration": 0.533,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-right",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-left",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    }
+   ]
+  },
+  {
+   "path": "characters/skeleton.glb",
+   "group": "characters",
+   "bytes": 71352,
+   "triangles": 580,
+   "bbox": {
+    "min": [
+     -0.951,
+     0.055,
+     -0.385
+    ],
+    "max": [
+     0.951,
+     1.805,
+     0.405
+    ],
+    "size": [
+     1.902,
+     1.75,
+     0.79
+    ]
+   },
+   "materials": [
+    {
+     "name": "graveyard",
+     "texture": "../textures/graveyard.png"
+    }
+   ],
+   "textures": [
+    "../textures/graveyard.png"
+   ],
+   "id": "skeleton",
+   "skeleton": "kenney-graveyard-rigid",
+   "source": "Kenney Graveyard Kit 5.0: character-skeleton.glb",
+   "rigged": "rigid (parça hiyerarşisi)",
+   "origin": "ayak ortası",
+   "forward": "+Z",
+   "animations": [
+    {
+     "name": "idle",
+     "duration": 1.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "walk",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sprint",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "jump",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "fall",
+     "duration": 0.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "crouch",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sit",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "die",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "pick-up",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "emote-yes",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "emote-no",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-right",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-left",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-both",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-right",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-left",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-kick-right",
+     "duration": 0.533,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-right",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-left",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    }
+   ]
+  },
+  {
+   "path": "characters/zombie.glb",
+   "group": "characters",
+   "bytes": 86808,
+   "triangles": 968,
+   "bbox": {
+    "min": [
+     -1.014,
+     0.055,
+     -0.406
+    ],
+    "max": [
+     1.014,
+     2.118,
+     0.457
+    ],
+    "size": [
+     2.028,
+     2.063,
+     0.863
+    ]
+   },
+   "materials": [
+    {
+     "name": "graveyard",
+     "texture": "../textures/graveyard.png"
+    }
+   ],
+   "textures": [
+    "../textures/graveyard.png"
+   ],
+   "id": "zombie",
+   "skeleton": "kenney-graveyard-rigid",
+   "source": "Kenney Graveyard Kit 5.0: character-zombie.glb",
+   "rigged": "rigid (parça hiyerarşisi)",
+   "origin": "ayak ortası",
+   "forward": "+Z",
+   "animations": [
+    {
+     "name": "idle",
+     "duration": 1.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "walk",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sprint",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "jump",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "fall",
+     "duration": 0.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "crouch",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sit",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "die",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "pick-up",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "emote-yes",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "emote-no",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-right",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-left",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-both",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-right",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-left",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-kick-right",
+     "duration": 0.533,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-right",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-left",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    }
+   ]
+  },
+  {
+   "path": "characters/keeper.glb",
+   "group": "characters",
+   "bytes": 90920,
+   "triangles": 1031,
+   "bbox": {
+    "min": [
+     -1.014,
+     0.055,
+     -0.657
+    ],
+    "max": [
+     1.014,
+     2.211,
+     0.686
+    ],
+    "size": [
+     2.028,
+     2.156,
+     1.343
+    ]
+   },
+   "materials": [
+    {
+     "name": "graveyard",
+     "texture": "../textures/graveyard.png"
+    }
+   ],
+   "textures": [
+    "../textures/graveyard.png"
+   ],
+   "id": "keeper",
+   "skeleton": "kenney-graveyard-rigid",
+   "source": "Kenney Graveyard Kit 5.0: character-keeper.glb",
+   "rigged": "rigid (parça hiyerarşisi)",
+   "origin": "ayak ortası",
+   "forward": "+Z",
+   "animations": [
+    {
+     "name": "idle",
+     "duration": 1.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "walk",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sprint",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "jump",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "fall",
+     "duration": 0.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "crouch",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sit",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "die",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "pick-up",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "emote-yes",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "emote-no",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-right",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-left",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-both",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-right",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-left",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-kick-right",
+     "duration": 0.533,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-right",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-left",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    }
+   ]
+  },
+  {
+   "path": "characters/bat.glb",
+   "group": "characters",
+   "bytes": 7156,
+   "triangles": 64,
+   "bbox": {
+    "min": [
+     -0.53,
+     -0.08,
+     -0.1
+    ],
+    "max": [
+     0.53,
+     0.25,
+     0.11
+    ],
+    "size": [
+     1.06,
+     0.33,
+     0.21
+    ]
+   },
+   "materials": [
+    {
+     "name": "bat",
+     "color": [
+      0.17,
+      0.13,
+      0.25,
+      1
+     ]
+    },
+    {
+     "name": "bat-wing",
+     "color": [
+      0.24,
+      0.18,
+      0.33,
+      1
+     ],
+     "doubleSided": true
+    },
+    {
+     "name": "bat-eye",
+     "color": [
+      1,
+      0.25,
+      0.25,
+      1
+     ]
+    }
+   ],
+   "textures": [],
+   "id": "bat",
+   "source": "Prosedürel (bu depo, CC0)",
+   "origin": "gövde merkezi",
+   "forward": "+Z",
+   "nodes": [
+    "bat",
+    "wing-left",
+    "wing-right"
+   ],
+   "note": "Kanat çırpma: wing-left.rotation.z = +sin(t*20)*0.8, wing-right.rotation.z = -sin(t*20)*0.8. Gözler emissive."
+  },
+  {
+   "path": "houses/house-0.glb",
+   "group": "houses",
+   "bytes": 102508,
+   "triangles": 1924,
+   "bbox": {
+    "min": [
+     -2.668,
+     0,
+     -2.5
+    ],
+    "max": [
+     2.668,
+     5,
+     2.613
+    ],
+    "size": [
+     5.336,
+     5,
+     5.113
+    ]
+   },
+   "materials": [
+    {
+     "name": "fantasy-town",
+     "texture": "../textures/fantasy-town.png",
+     "doubleSided": true
+    },
+    {
+     "name": "tint-owner",
+     "texture": "../textures/tint.png",
+     "doubleSided": true
+    },
+    {
+     "name": "window",
+     "color": [
+      0.16,
+      0.11,
+      0.08,
+      1
+     ]
+    }
+   ],
+   "textures": [
+    "../textures/fantasy-town.png",
+    "../textures/tint.png"
+   ],
+   "id": "house-0"
+  },
+  {
+   "path": "houses/house-1.glb",
+   "group": "houses",
+   "bytes": 79760,
+   "triangles": 1544,
+   "bbox": {
+    "min": [
+     -2.677,
+     0,
+     -2.625
+    ],
+    "max": [
+     2.677,
+     5.352,
+     2.613
+    ],
+    "size": [
+     5.354,
+     5.352,
+     5.238
+    ]
+   },
+   "materials": [
+    {
+     "name": "fantasy-town",
+     "texture": "../textures/fantasy-town.png",
+     "doubleSided": true
+    },
+    {
+     "name": "tint-owner",
+     "texture": "../textures/tint.png",
+     "doubleSided": true
+    },
+    {
+     "name": "window",
+     "color": [
+      0.16,
+      0.11,
+      0.08,
+      1
+     ]
+    }
+   ],
+   "textures": [
+    "../textures/fantasy-town.png",
+    "../textures/tint.png"
+   ],
+   "id": "house-1"
+  },
+  {
+   "path": "houses/house-2.glb",
+   "group": "houses",
+   "bytes": 145204,
+   "triangles": 2936,
+   "bbox": {
+    "min": [
+     -3.362,
+     0,
+     -3.362
+    ],
+    "max": [
+     3.362,
+     5.707,
+     3.362
+    ],
+    "size": [
+     6.724,
+     5.707,
+     6.724
+    ]
+   },
+   "materials": [
+    {
+     "name": "holiday",
+     "texture": "../textures/holiday.png",
+     "doubleSided": true
+    },
+    {
+     "name": "fantasy-town",
+     "texture": "../textures/fantasy-town.png",
+     "doubleSided": true
+    },
+    {
+     "name": "tint-owner",
+     "texture": "../textures/tint.png",
+     "doubleSided": true
+    },
+    {
+     "name": "window",
+     "color": [
+      0.16,
+      0.11,
+      0.08,
+      1
+     ]
+    }
+   ],
+   "textures": [
+    "../textures/holiday.png",
+    "../textures/fantasy-town.png",
+    "../textures/tint.png"
+   ],
+   "id": "house-2"
+  },
+  {
+   "path": "houses/house-3.glb",
+   "group": "houses",
+   "bytes": 94288,
+   "triangles": 1816,
+   "bbox": {
+    "min": [
+     -2.677,
+     0,
+     -2.5
+    ],
+    "max": [
+     2.677,
+     5.625,
+     2.613
+    ],
+    "size": [
+     5.354,
+     5.625,
+     5.113
+    ]
+   },
+   "materials": [
+    {
+     "name": "fantasy-town",
+     "texture": "../textures/fantasy-town.png",
+     "doubleSided": true
+    },
+    {
+     "name": "tint-owner",
+     "texture": "../textures/tint.png",
+     "doubleSided": true
+    },
+    {
+     "name": "window",
+     "color": [
+      0.16,
+      0.11,
+      0.08,
+      1
+     ]
+    }
+   ],
+   "textures": [
+    "../textures/fantasy-town.png",
+    "../textures/tint.png"
+   ],
+   "id": "house-3"
+  },
+  {
+   "path": "hats/hats.glb",
+   "group": "hats",
+   "bytes": 157176,
+   "triangles": 1002,
+   "bbox": {
+    "min": [
+     -0.314,
+     0.062,
+     -0.33
+    ],
+    "max": [
+     0.314,
+     0.648,
+     0.33
+    ],
+    "size": [
+     0.628,
+     0.586,
+     0.66
+    ]
+   },
+   "materials": [
+    {
+     "name": "mini-characters",
+     "texture": "../textures/mini-characters.png",
+     "doubleSided": true
+    },
+    {
+     "name": "tint-hat-2-bere",
+     "texture": "../textures/tint.png",
+     "color": [
+      0.2,
+      0.62,
+      0.45,
+      1
+     ],
+     "doubleSided": true
+    },
+    {
+     "name": "grass",
+     "color": [
+      0.173,
+      0.847,
+      0.722,
+      1
+     ],
+     "doubleSided": true
+    },
+    {
+     "name": "colorRed",
+     "color": [
+      0.878,
+      0.29,
+      0.314,
+      1
+     ],
+     "doubleSided": true
+    },
+    {
+     "name": "holiday",
+     "texture": "../textures/holiday.png",
+     "doubleSided": true
+    },
+    {
+     "name": "mini-forest",
+     "texture": "../textures/mini-forest.png",
+     "doubleSided": true
+    },
+    {
+     "name": "tint-hat-7-kasket",
+     "texture": "../textures/tint.png",
+     "color": [
+      0.45,
+      0.33,
+      0.25,
+      1
+     ],
+     "doubleSided": true
+    },
+    {
+     "name": "tint-hat-1-hasir",
+     "texture": "../textures/tint.png",
+     "color": [
+      0.91,
+      0.78,
+      0.42,
+      1
+     ],
+     "doubleSided": true
+    },
+    {
+     "name": "tint-hat-5-bandana",
+     "texture": "../textures/tint.png",
+     "color": [
+      0.84,
+      0.15,
+      0.24,
+      1
+     ],
+     "doubleSided": true
+    },
+    {
+     "name": "tint-hat-8-kulaklik",
+     "texture": "../textures/tint.png",
+     "color": [
+      0.95,
+      0.55,
+      0.65,
+      1
+     ],
+     "doubleSided": true
+    }
+   ],
+   "textures": [
+    "../textures/mini-characters.png",
+    "../textures/tint.png",
+    "../textures/holiday.png",
+    "../textures/mini-forest.png"
+   ],
+   "id": "hats",
+   "animations": [
+    {
+     "name": "static",
+     "duration": 0.1,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "idle",
+     "duration": 1.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "walk",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sprint",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "jump",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "fall",
+     "duration": 0.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "crouch",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sit",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "drive",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "die",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "pick-up",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "emote-yes",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "emote-no",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-right",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-left",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-both",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-right-shoot",
+     "duration": 0.2,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-left-shoot",
+     "duration": 0.2,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-both-shoot",
+     "duration": 0.2,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-right",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-left",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-kick-right",
+     "duration": 0.533,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-kick-left",
+     "duration": 0.533,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-right",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-left",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-sit",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-look-left",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "wheelchair-look-right",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "wheelchair-move-forward",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-move-back",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-move-left",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-move-right",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "static",
+     "duration": 0.1,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "idle",
+     "duration": 1.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "walk",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sprint",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "jump",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "fall",
+     "duration": 0.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "crouch",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sit",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "drive",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "die",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "pick-up",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "emote-yes",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "emote-no",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-right",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-left",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-both",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-right-shoot",
+     "duration": 0.2,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-left-shoot",
+     "duration": 0.2,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-both-shoot",
+     "duration": 0.2,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-right",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-left",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-kick-right",
+     "duration": 0.533,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-kick-left",
+     "duration": 0.533,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-right",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-left",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-sit",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-look-left",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "wheelchair-look-right",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "wheelchair-move-forward",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-move-back",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-move-left",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-move-right",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "static",
+     "duration": 0.1,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "idle",
+     "duration": 1.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "walk",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sprint",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "jump",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "fall",
+     "duration": 0.333,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "crouch",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "sit",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "drive",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "die",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "pick-up",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "emote-yes",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "emote-no",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-right",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-left",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-both",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-right-shoot",
+     "duration": 0.2,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-left-shoot",
+     "duration": 0.2,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "holding-both-shoot",
+     "duration": 0.2,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-right",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-melee-left",
+     "duration": 0.417,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-kick-right",
+     "duration": 0.533,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "attack-kick-left",
+     "duration": 0.533,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-right",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "interact-left",
+     "duration": 0.667,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-sit",
+     "duration": 0.167,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-look-left",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "wheelchair-look-right",
+     "duration": 0.333,
+     "endsWhereItStarts": false
+    },
+    {
+     "name": "wheelchair-move-forward",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-move-back",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-move-left",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    },
+    {
+     "name": "wheelchair-move-right",
+     "duration": 0.5,
+     "endsWhereItStarts": true
+    }
+   ]
+  },
+  {
+   "path": "props/village.glb",
+   "group": "props",
+   "bytes": 857336,
+   "triangles": 18680,
+   "bbox": {
+    "min": [
+     -2.5,
+     -1.418,
+     -2.5
+    ],
+    "max": [
+     2.5,
+     7.432,
+     2.5
+    ],
+    "size": [
+     5,
+     8.85,
+     5
+    ]
+   },
+   "materials": [
+    {
+     "name": "survival",
+     "texture": "../textures/survival.png",
+     "doubleSided": true
+    },
+    {
+     "name": "fantasy-town",
+     "texture": "../textures/fantasy-town.png",
+     "doubleSided": true
+    },
+    {
+     "name": "mini-forest",
+     "texture": "../textures/mini-forest.png",
+     "doubleSided": true
+    },
+    {
+     "name": "graveyard",
+     "texture": "../textures/graveyard.png",
+     "doubleSided": true
+    },
+    {
+     "name": "holiday",
+     "texture": "../textures/holiday.png",
+     "doubleSided": true
+    },
+    {
+     "name": "mini-dungeon",
+     "texture": "../textures/mini-dungeon.png",
+     "doubleSided": true
+    },
+    {
+     "name": "pirate",
+     "texture": "../textures/pirate.png",
+     "doubleSided": true
+    },
+    {
+     "name": "tint",
+     "texture": "../textures/tint.png",
+     "doubleSided": true
+    },
+    {
+     "name": "Water",
+     "color": [
+      0.193,
+      0.718,
+      1,
+      0.6
+     ],
+     "doubleSided": true,
+     "alpha": "BLEND"
+    },
+    {
+     "name": "castle",
+     "texture": "../textures/castle.png",
+     "doubleSided": true
+    }
+   ],
+   "textures": [
+    "../textures/survival.png",
+    "../textures/fantasy-town.png",
+    "../textures/mini-forest.png",
+    "../textures/graveyard.png",
+    "../textures/holiday.png",
+    "../textures/mini-dungeon.png",
+    "../textures/pirate.png",
+    "../textures/tint.png",
+    "../textures/castle.png"
+   ],
+   "id": "village",
+   "bundle": true,
+   "note": "Her prop sahnenin kök düğümü; gltf.scene.getObjectByName(id).clone()"
+  },
+  {
+   "path": "props/graveyard.glb",
+   "group": "props",
+   "bytes": 346808,
+   "triangles": 7758,
+   "bbox": {
+    "min": [
+     -1.472,
+     0,
+     -1.736
+    ],
+    "max": [
+     1.472,
+     5.756,
+     1.736
+    ],
+    "size": [
+     2.944,
+     5.756,
+     3.472
+    ]
+   },
+   "materials": [
+    {
+     "name": "graveyard",
+     "texture": "../textures/graveyard.png",
+     "doubleSided": true
+    }
+   ],
+   "textures": [
+    "../textures/graveyard.png"
+   ],
+   "id": "graveyard",
+   "bundle": true,
+   "note": "Her prop sahnenin kök düğümü; gltf.scene.getObjectByName(id).clone()"
+  },
+  {
+   "path": "interior/furniture.glb",
+   "group": "interior",
+   "bytes": 279456,
+   "triangles": 5666,
+   "bbox": {
+    "min": [
+     -1.962,
+     -1.418,
+     -1.406
+    ],
+    "max": [
+     1.962,
+     2.5,
+     1.406
+    ],
+    "size": [
+     3.924,
+     3.918,
+     2.812
+    ]
+   },
+   "materials": [
+    {
+     "name": "carpetWhite",
+     "color": [
+      0.973,
+      1,
+      1,
+      1
+     ],
+     "doubleSided": true
+    },
+    {
+     "name": "wood",
+     "color": [
+      0.896,
+      0.602,
+      0.393,
+      1
+     ],
+     "doubleSided": true
+    },
+    {
+     "name": "metal",
+     "color": [
+      0.741,
+      0.823,
+      0.84,
+      1
+     ],
+     "doubleSided": true
+    },
+    {
+     "name": "carpet",
+     "color": [
+      0.943,
+      0.367,
+      0.343,
+      1
+     ],
+     "doubleSided": true
+    },
+    {
+     "name": "survival",
+     "texture": "../textures/survival.png",
+     "doubleSided": true
+    },
+    {
+     "name": "mini-dungeon",
+     "texture": "../textures/mini-dungeon.png",
+     "doubleSided": true
+    },
+    {
+     "name": "fantasy-town",
+     "texture": "../textures/fantasy-town.png",
+     "doubleSided": true
+    },
+    {
+     "name": "_defaultMat",
+     "doubleSided": true
+    },
+    {
+     "name": "carpetDarker",
+     "color": [
+      0.608,
+      0.298,
+      0.285,
+      1
+     ],
+     "doubleSided": true
+    },
+    {
+     "name": "woodDark",
+     "color": [
+      0.678,
+      0.456,
+      0.299,
+      1
+     ],
+     "doubleSided": true
+    },
+    {
+     "name": "plant",
+     "color": [
+      0.182,
+      0.821,
+      0.576,
+      1
+     ],
+     "doubleSided": true
+    },
+    {
+     "name": "graveyard",
+     "texture": "../textures/graveyard.png",
+     "doubleSided": true
+    },
+    {
+     "name": "holiday",
+     "texture": "../textures/holiday.png",
+     "doubleSided": true
+    }
+   ],
+   "textures": [
+    "../textures/survival.png",
+    "../textures/mini-dungeon.png",
+    "../textures/fantasy-town.png",
+    "../textures/graveyard.png",
+    "../textures/holiday.png"
+   ],
+   "id": "furniture",
+   "bundle": true,
+   "note": "Her prop sahnenin kök düğümü; gltf.scene.getObjectByName(id).clone()"
+  },
+  {
+   "path": "interior/clues.glb",
+   "group": "interior",
+   "bytes": 189576,
+   "triangles": 4192,
+   "bbox": {
+    "min": [
+     -0.717,
+     0,
+     -1.047
+    ],
+    "max": [
+     0.717,
+     1.6,
+     1.047
+    ],
+    "size": [
+     1.434,
+     1.6,
+     2.094
+    ]
+   },
+   "materials": [
+    {
+     "name": "graveyard",
+     "texture": "../textures/graveyard.png",
+     "doubleSided": true
+    },
+    {
+     "name": "mini-dungeon",
+     "texture": "../textures/mini-dungeon.png",
+     "doubleSided": true
+    },
+    {
+     "name": "survival",
+     "texture": "../textures/survival.png",
+     "doubleSided": true
+    },
+    {
+     "name": "food",
+     "texture": "../textures/food.png",
+     "doubleSided": true
+    },
+    {
+     "name": "mini-characters",
+     "texture": "../textures/mini-characters.png",
+     "doubleSided": true
+    }
+   ],
+   "textures": [
+    "../textures/graveyard.png",
+    "../textures/mini-dungeon.png",
+    "../textures/survival.png",
+    "../textures/food.png",
+    "../textures/mini-characters.png"
+   ],
+   "id": "clues",
+   "bundle": true,
+   "note": "Her prop sahnenin kök düğümü; gltf.scene.getObjectByName(id).clone()"
+  }
+ ],
+ "totals": {
+  "bytes": 3465963,
+  "byGroup": {
+   "characters": 1091108,
+   "hats": 157176,
+   "houses": 421760,
+   "interior": 469032,
+   "licenses": 8289,
+   "props": 1204144,
+   "textures": 114454
+  },
+  "firstPlayable": {
+   "files": [
+    "characters/villager-*.glb (kullanılan skinler)",
+    "characters/villager-anims.glb",
+    "houses/house-0..3.glb",
+    "props/village.glb",
+    "hats/hats.glb",
+    "textures/*.png"
+   ],
+   "note": "interior/*, props/graveyard.glb ve ekstralar tembel yüklenebilir"
+  }
+ }
+}

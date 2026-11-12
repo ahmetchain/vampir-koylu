@@ -1,2 +1,5 @@
 node_modules/
 CANLI-ADRES.md
+# Hesap deposu (JSON) ve geçici dosyaları
+data/
+*.tmp

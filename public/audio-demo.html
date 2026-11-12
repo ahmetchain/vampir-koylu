@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vampir Köylü – Ses Deneme</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --night1:#15122b; --night2:#221c44; --night3:#3a2a6b; --moon:#8fb4ff; --fire:#ffb347; --fire2:#ff7a1a; --text:#f6f1ff; --parch:#f4e4c1; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--night1); color: var(--text); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 16px; padding-bottom: 40px; }
+  h1 { font-size: 20px; margin: 0 0 4px; color: var(--fire); }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .08em; color: var(--moon); margin: 22px 0 8px; }
+  p.hint { margin: 0 0 12px; opacity: .75; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+  button { appearance: none; border: 0; border-radius: 12px; padding: 12px 8px; font: inherit; font-weight: 600; color: var(--text); background: var(--night3); cursor: pointer; touch-action: manipulation; min-height: 46px; }
+  button:active { transform: scale(.97); }
+  button.on { background: var(--fire2); color: #1b1020; }
+  button.big { width: 100%; background: var(--fire); color: #1b1020; font-size: 17px; }
+  .row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+  .row label { width: 92px; flex: none; }
+  .row input[type=range] { flex: 1; accent-color: var(--fire); }
+  .row output { width: 38px; text-align: right; font-variant-numeric: tabular-nums; }
+  #status { margin: 10px 0; padding: 8px 10px; border-radius: 10px; background: var(--night2); font-size: 13px; }
+  pre { background: var(--night2); border-radius: 10px; padding: 10px; font-size: 11px; overflow: auto; max-height: 50vh; white-space: pre-wrap; word-break: break-word; }
+  details summary { cursor: pointer; color: var(--moon); margin-top: 18px; }
+</style>
+</head>
+<body>
+<h1>Vampir Köylü – Ses Deneme</h1>
+<p class="hint">Telefonda kulaklıkla ya da hoparlörle dinleyin. İlk dokunuş sesi açar (iOS kuralı). Sessiz anahtarı açık iPhone'da Web Audio duyulmaz.</p>
+<button class="big" id="startBtn">Sesi başlat</button>
+<div id="status">Durum: –</div>
+
+<h2>Sahne</h2>
+<div class="grid" id="scenes"></div>
+
+<h2>Efektler</h2>
+<div class="grid" id="sfx"></div>
+<div class="row"><label for="sfxVol">Efekt şiddeti</label><input type="range" id="sfxVol" min="0" max="2" step="0.05" value="1"><output id="sfxVolOut">1.00</output></div>
+<div class="row"><button id="stepRun" style="flex:1">20 kişi yürüyor (adım seli)</button></div>
+
+<h2>Ses seviyeleri</h2>
+<div id="vols"></div>
+<div class="row"><button id="muteBtn" style="flex:1">Sessiz</button></div>
+
+<details><summary>Ayıklama (VKAudio._debug)</summary><pre id="dbg"></pre></details>
+
+<script src="audio.js"></script>
+<script>
+(function () {
+  var A = window.VKAudio;
+  A.init();
+  var SCENES = [['menu', 'Menü'], ['lobby', 'Lobi'], ['day', 'Gündüz'], ['night', 'Gece'], ['ended', 'Bitti'], ['none', 'Hiçbiri']];
+  var SFX = ['click', 'join', 'leave', 'start', 'night', 'dawn', 'death', 'safe', 'vote', 'hang', 'hunter', 'shot', 'seer', 'watch', 'win', 'lose', 'step', 'door', 'bite', 'potion', 'poof', 'whoosh', 'message', 'tick', 'bell'];
+  var sc = document.getElementById('scenes'), sx = document.getElementById('sfx');
+  var current = null;
+  SCENES.forEach(function (s) {
+    var b = document.createElement('button'); b.textContent = s[1]; b.dataset.scene = s[0];
+    b.onclick = function () { A.setScene(s[0]); current = s[0]; mark(); };
+    sc.appendChild(b);
+  });
+  function mark() { [].forEach.call(sc.children, function (b) { b.classList.toggle('on', b.dataset.scene === current); }); }
+  var sfxVol = document.getElementById('sfxVol');
+  sfxVol.oninput = function () { document.getElementById('sfxVolOut').textContent = (+sfxVol.value).toFixed(2); };
+  SFX.forEach(function (n) {
+    var b = document.createElement('button'); b.textContent = n; b.dataset.sfx = n;
+    b.onclick = function () { A.sfx(n, { volume: +sfxVol.value }); };
+    sx.appendChild(b);
+  });
+  document.getElementById('startBtn').onclick = function () { if (!current) { A.setScene('lobby'); current = 'lobby'; mark(); } };
+  document.getElementById('stepRun').onclick = function () {
+    var t = 0, id = setInterval(function () { A.sfx('step', { volume: 0.6 + Math.random() * 0.4 }); if ((t += 45) > 4000) clearInterval(id); }, 45);
+  };
+  // ses kaydırıcıları
+  var vols = document.getElementById('vols'), names = { master: 'Genel', music: 'Müzik', sfx: 'Efektler', amb: 'Ortam' };
+  var v0 = A.getVolume();
+  Object.keys(names).forEach(function (k) {
+    var row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = '<label for="v_' + k + '">' + names[k] + '</label><input type="range" id="v_' + k + '" min="0" max="1" step="0.01"><output></output>';
+    var inp = row.querySelector('input'), out = row.querySelector('output');
+    inp.value = v0[k]; out.textContent = (+v0[k]).toFixed(2);
+    inp.oninput = function () { var o = {}; o[k] = +inp.value; A.setVolume(o); out.textContent = (+inp.value).toFixed(2); };
+    vols.appendChild(row);
+  });
+  var mb = document.getElementById('muteBtn');
+  function muteLabel() { mb.textContent = A.isMuted() ? 'Sesi aç' : 'Sessiz'; mb.classList.toggle('on', A.isMuted()); }
+  mb.onclick = function () { A.mute(!A.isMuted()); muteLabel(); };
+  muteLabel();
+  // durum
+  var st = document.getElementById('status'), dbg = document.getElementById('dbg');
+  setInterval(function () {
+    var d = A._debug();
+    st.textContent = 'Durum: ' + d.state + (d.unlocked ? ' · açık' : ' · dokunuş bekleniyor') + ' · sahne: ' + d.scene +
+      (d.gains.musicTrack ? ' · müzik: ' + d.gains.musicTrack.id : '') + ' · yüklü: ' + d.loaded.length +
+      (Object.keys(d.failed).length ? ' · hata: ' + Object.keys(d.failed).length : '');
+    if (dbg.offsetParent) dbg.textContent = JSON.stringify(d, null, 1);
+  }, 400);
+})();
+</script>
+</body>
+</html>

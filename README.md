@@ -1,35 +1,36 @@
 # Vampir Köylü
 
-Arkadaşlarla tarayıcıdan oynanan, gerçek zamanlı ve animasyonlu Vampir Köylü oyunu.
-Node.js + Express + Socket.IO sunucusu, sade HTML/CSS/JS arayüz. Karakterler SVG ile kodda çizilir ve
-CSS ile canlandırılır; dışarıdan görsel ya da kütüphane dosyası gerekmez, telefonda da hafif çalışır.
+Arkadaşlarla tarayıcıdan oynanan, gerçek zamanlı Vampir Köylü oyunu (5–20 kişi, telefonda da rahat).
+Her oyuncunun hesabı, profili ve istatistikleri var; köy, kamp ateşinin etrafındaki evleriyle tam ekran
+bir 3B dünya olarak açılır. Gündüz tartışıp oylarla vampirleri bulmaya, gece hayatta kalmaya çalışırsınız.
 
-## Öne çıkanlar
-
-- **Köy meydanı sahnesi:** Oyuncular kamp ateşinin etrafında sevimli karakterler olarak durur.
-  Lobide meydana dokunarak dolaşabilir, kendine dokunarak renk ve şapka seçebilirsin.
-- **Gece:** Köy yere uzanıp uyur (Zzz). Gece rolü olan oyuncunun karakteri seçtiği kişinin yanına yürür.
-  Bunu sadece kendisi görür; vampirler birbirini pelerinleriyle görür.
-- **Gündüz:** Oylar karakterin üstünde oy verenlerin renginde noktalar olarak görünür, sohbet mesajları
-  konuşma balonu olarak çıkar.
-- **Sahneler:** Vampir saldırısı, zehir, asılma, avcının son atışı, kahinin kristal küresi ve zafer için
-  kısa animasyonlar oynar.
+- **Sunucu:** Node.js + Express + Socket.IO. Oyun kuralları, roller ve sayaçlar sunucuda; roller asla
+  başka oyuncunun tarayıcısına gitmez.
+- **Arayüz:** derleme gerektirmeyen düz HTML/CSS/JS (ES modülleri). Tam ekran oyun alanı, sayfa hiç
+  kaymaz; sohbet telefonda alttan açılan bir şerit/sayfa, geniş ekranda sağda sabit panel.
+- **3B köy:** three.js ile yapılmış `public/build/world.js` (derlenmiş dosya depoda durur). WebGL olmayan
+  ya da çok zayıf cihazlarda arayüz kendiliğinden hafif 2B kuşbakışı köye geçer; oyun yine tam oynanır.
+- **Ses:** müzik, ortam sesi ve efektler (`public/audio.js`).
 
 ## Roller
 
 | Rol | Takım | Ne yapar |
 | --- | --- | --- |
-| 🧛 Vampir | Vampirler | Her gece bir kurban seçer. Sayıları diğerlerine eşitlenince kazanırlar. |
-| 🩺 Doktor | Köylüler | Her gece birini korur; korunan kişi o gece ölmez. |
-| 🔮 Kahin | Köylüler | Her gece birine bakar, sabah onun vampir olup olmadığını gizlice öğrenir. |
-| 🧪 Cadı | Köylüler | Vampirlerin hedefini görür. Bir kez hayat iksiri, bir kez zehir kullanabilir. |
-| 🏹 Avcı | Köylüler | Ölünce 20 saniye içinde birini vurup yanında götürür. |
-| 🎖️ Muhtar | Köylüler | Gündüz oyu iki sayılır (oy verince herkes fark eder). |
-| 🃏 Soytarı | Tek başına | Gündüz asılırsa tek başına kazanır. |
-| 🧑‍🌾 Köylü | Köylüler | Tartışır, oy verir, vampirleri bulmaya çalışır. |
+| Vampir | Vampirler | Her gece diğer vampirlerle bir kurban seçer. Sayıları diğerlerine eşitlenince kazanırlar. |
+| İftiracı | Vampirler | Vampirlerin gizli yardımcısı (7+ oyuncuda). Gece birine iftira atar: kahin ona bakarsa VAMPİR görür. Son vampir ölürse vampire dönüşür. |
+| Doktor | Köylüler | Her gece birini korur (kendini de); korunan kişi o gece ölmez. |
+| Kahin | Köylüler | Her gece birine bakar, sabah onun vampir olup olmadığını gizlice öğrenir. |
+| Gözcü | Köylüler | Her gece bir evi gözetler; sabah o eve kimlerin girdiğini öğrenir. |
+| Cadı | Köylüler | Vampirlerin hedefini görür. Oyunda bir kez hayat iksiri, bir kez zehir kullanır. |
+| Avcı | Köylüler | Ölünce 20 saniye içinde birini vurup yanında götürür. |
+| Muhtar | Köylüler | Gündüz oyu iki sayılır (herkes görür). |
+| Soytarı | Tek başına | Gündüz asılırsa tek başına kazanır. |
+| Köylü | Köylüler | Tartışır, oy verir, vampirleri bulmaya çalışır. |
 
 Vampir sayısı oyuncu sayısına göre belirlenir (5–9: 1, 10–14: 2, 15+: 3). Oda sahibi özel rolleri oda
-kurarken ya da lobide açıp kapatır. Özel roller tablodaki sırayla eklenir, her oyunda en az bir sade köylü kalır.
+kurarken ya da lobide açıp kapatır. Özel roller Doktor, Kahin, Gözcü, Cadı, Avcı, Muhtar, Soytarı
+sırasıyla eklenir; her oyunda en az bir sade köylü kalır. Her oyuncuya ayrıca sadece hikâye için bir köy
+işi (terzi, fırıncı…) verilir; işin rolle hiçbir ilgisi yoktur.
 
 ## Bilgisayarda çalıştırma
 
@@ -41,28 +42,49 @@ kurarken ya da lobide açıp kapatır. Özel roller tablodaki sırayla eklenir, 
    npm start
    ```
 
-3. Tarayıcıda `http://localhost:3000` adresini aç.
+3. Tarayıcıda `http://localhost:3000` adresini aç, bir hesap oluştur ve oda kur.
 
-Sunucu açılınca terminalde `Aynı Wi-Fi'dakiler: http://192.168.x.x:3000` gibi bir satır yazar.
-Aynı ağdaki arkadaşların bu adresle katılabilir. Oyunu tek başına denemek için aynı tarayıcıda
-5 ayrı sekme açman yeterli.
+Sunucu açılınca terminalde `Aynı Wi-Fi'dakiler: http://192.168.x.x:3000` gibi bir satır yazar; lobideki
+davet linki de bu adresle oluşur, aynı ağdaki arkadaşların linke dokunarak katılabilir. Tek başına denemek
+için farklı tarayıcı profillerinde (ya da gizli pencerelerde) 5 ayrı hesap açman yeterli.
+
+3B köyün kaynak kodu `client/world/` altındadır; değiştirirsen `npm run build` ile
+`public/build/world.js` yeniden üretilir. Arayüzün geri kalanı derleme istemez.
+
+## Ortam değişkenleri
+
+| Değişken | Ne işe yarar |
+| --- | --- |
+| `PORT` | Sunucunun portu (varsayılan `3000`). |
+| `DATA_DIR` | Hesapların tutulduğu JSON dosyasının klasörü (varsayılan `./data`). `DATABASE_URL` yoksa kullanılır. |
+| `DATABASE_URL` | PostgreSQL adresi. Verilirse hesaplar ve istatistikler veritabanında tutulur, tablolar açılışta kurulur. |
+| `DATABASE_SSL` | `off`, `on` ya da `no-verify`. Boşsa adrese göre otomatik seçilir. |
+| `CLIENT_ORIGIN` | Arayüz başka bir adresten (ör. Netlify) yayınlanıyorsa o adres(ler), virgülle ayrılarak. |
+| `TRUST_PROXY` | Sunucu bir vekil arkasındaysa gerçek IP için açılır (Render'da otomatik). |
+
+Açık odalar ve süren oyunlar bellekte tutulur; sunucu yeniden başlarsa odalar kapanır, hesaplar ve
+istatistikler (JSON dosyası ya da veritabanı) kalır.
 
 ## İnternette yayınlama (farklı evlerden oynamak için)
 
-Oyun, sürekli açık duran bir Node.js sunucusu ister: roller gizli tutulur, gece/gündüz sayaçları ve
-oylar sunucuda hesaplanır. Bu yüzden **sadece Netlify ya da Firebase Hosting yetmez** (ikisi de yalnızca
-statik dosya sunar, WebSocket sunucusu çalıştırmaz).
+Oyun, sürekli açık duran bir Node.js sunucusu ister: roller gizli tutulur, gece/gündüz sayaçları ve oylar
+sunucuda hesaplanır. Bu yüzden **sadece Netlify ya da Firebase Hosting yetmez** (ikisi de yalnızca statik
+dosya sunar, WebSocket sunucusu çalıştırmaz).
 
-### Önerilen: Render (ücretsiz, tek servis)
+### Önerilen: Render (tek servis)
 
 1. Projeyi GitHub'a yükle.
 2. [render.com](https://render.com) → **New → Blueprint** → depoyu seç. `render.yaml` her şeyi ayarlar.
    (Elle kurmak istersen: **New → Web Service**, Build: `npm ci --omit=dev`, Start: `npm start`.)
-3. Birkaç dakika sonra `https://vampir-koylu.onrender.com` gibi bir adres verir. Davet linkleri de bu adresle oluşur.
+3. **Hesaplar için veritabanı:** Render'ın ücretsiz planında disk kalıcı değildir; `DATABASE_URL` boş
+   kalırsa hesaplar her yeniden başlatmada silinir. Ücretsiz bir PostgreSQL (ör. Neon ya da Render
+   Postgres) açıp adresini `DATABASE_URL` olarak gir. Kalıcı disk bağladıysan `DATA_DIR` ile o klasörü de
+   gösterebilirsin.
+4. Birkaç dakika sonra `https://vampir-koylu.onrender.com` gibi bir adres verir. Davet linkleri de bu adresle oluşur.
 
-Ücretsiz planda 15 dakika kimse bağlanmazsa sunucu uyur. İlk giren kişide açılış yaklaşık 1 dakika sürer.
-Sunucu yeniden başlarsa açık odalar kapanır (oyun durumu bellekte tutulur). Sürekli açık olsun istersen
-Render'ın en ucuz ücretli planı ya da Railway, Fly.io gibi bir servis kullanılabilir.
+Ücretsiz planda 15 dakika kimse bağlanmazsa sunucu uyur; ilk giren kişide açılış yaklaşık 1 dakika
+sürer (arayüz bu sırada "Sunucuya ulaşılamadı, tekrar dene" ekranı gösterebilir). Sürekli açık olsun
+istersen Render'ın en ucuz ücretli planı ya da Railway, Fly.io gibi bir servis kullanılabilir.
 
 ### İsteğe bağlı: arayüz Netlify'da, sunucu Render'da
 
@@ -73,9 +95,9 @@ Render'ın en ucuz ücretli planı ya da Railway, Fly.io gibi bir servis kullan�
 
 ### Firebase neden kullanılmadı?
 
-Firebase ile yapmak için oyun kurallarının Cloud Functions'a taşınması gerekir. Aksi halde roller
-veritabanında herkesin okuyabileceği yerde durur. Cloud Functions ücretli (Blaze) plan ister ve
-mevcut kodun büyük kısmını yeniden yazmak demektir. Mevcut Socket.IO sunucusu bu iş için daha basit ve güvenli.
+Firebase ile yapmak için oyun kurallarının Cloud Functions'a taşınması gerekir; aksi halde roller
+veritabanında herkesin okuyabileceği yerde durur. Cloud Functions ücretli (Blaze) plan ister ve mevcut
+kodun büyük kısmını yeniden yazmak demektir. Mevcut Socket.IO sunucusu bu iş için daha basit ve güvenli.
 
 ## Testler
 
@@ -83,22 +105,25 @@ mevcut kodun büyük kısmını yeniden yazmak demektir. Mevcut Socket.IO sunucu
 npm test
 ```
 
-Kural testleri (`test/game.test.js`, tüm roller dahil) ve gerçek sunucuyu 5 sanal oyuncuyla oynatan
-uçtan uca test (`test/socket.test.js`) çalışır.
+Kural testleri (tüm roller), hesap/oturum testleri, iki depolama türü (JSON ve PostgreSQL, `pg-mem` ile)
+ve gerçek sunucuyu sanal oyuncularla oynatan uçtan uca testler çalışır.
 
 ## Dosyalar
 
 | Dosya | Görevi |
 | --- | --- |
-| `game.js` | Oyun kuralları: roller, gece/gündüz döngüsü, avcı atışı, oylama, kazanma koşulları, sohbet kanalları |
-| `server.js` | Odalar, oyuncu bağlantıları, Socket.IO olayları, `/healthz` |
-| `public/index.html` | Ekranlar: menü, nasıl oynanır, odalar, oda oluştur, lobi/oyun |
-| `public/app.js` | Arayüz mantığı |
-| `public/avatar.js` | Karakter, şapka, rol kostümü, mezar taşı ve hayalet çizimleri (SVG) |
-| `public/scene.js` | Köy meydanı: karakterlerin yeri, yürüme, uyku, seçim, konuşma balonları |
-| `public/cine.js` | Duyurularda oynayan kısa animasyonlu sahneler |
-| `public/style.css`, `public/scene.css` | Tasarım ve animasyonlar |
+| `server.js` | Express + Socket.IO, odalar, REST hesap API'si, statik dosyalar, `/healthz` |
+| `game.js` | Oyun kuralları: roller, gece/gündüz döngüsü, avcı, oylama, kazanma, sohbet kanalları |
+| `lib/` | Hesaplar ve oturumlar, depolama (JSON / PostgreSQL), istatistikler, hikâye motoru |
+| `docs/PROTOCOL.md` | Sunucu ile istemci arasındaki protokolün tam tarifi |
+| `public/index.html` | Uygulama iskeleti: dünya katmanı, ekranlar, oyun arayüzü katmanları |
+| `public/app.js` | Arayüzün giriş noktası: açılış, oturum, soket olayları, ekran geçişleri |
+| `public/ui/` | Arayüz modülleri: giriş ve menü (`screens.js`), oda arayüzü (`room.js`), sohbet, duyurular, Köy Günlüğü, görünüm düzenleyici, oda ayarları, ikonlar |
+| `public/ui/world-fallback.js` | 3B dünya açılamazsa kullanılan 2B köy (aynı API) |
+| `public/ui/rules.js` | Kim kimi seçebilir: arayüz ve dünyaların ortak seçim kuralları |
+| `public/style.css`, `public/game.css` | Tasarım belirteçleri, bileşenler, menü ve oyun arayüzü |
+| `public/build/world.js` | Derlenmiş 3B köy (kaynağı `client/world/`) |
+| `public/audio.js` | Ses motoru |
+| `public/assets/` | Modeller, sesler, yazı tipleri (`assets/ui/fonts`, OFL lisanslı) ve emeği geçenler (`CREDITS.md`) |
 | `public/config.js` | Sunucu ayrı bir adresteyse o adres |
 | `render.yaml`, `netlify.toml` | Yayınlama ayarları |
-
-Sabit değerler (`MIN_PLAYERS`, `MAX_PLAYERS`, süreler, rol sırası) `game.js` dosyasının başında.

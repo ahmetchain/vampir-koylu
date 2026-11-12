@@ -343,7 +343,7 @@ test('oyun bitince lobiye dönülür ve roller sıfırlanır', (t) => {
 
 // ---------- yeni roller ----------
 
-const { rolesFor, SPECIAL_ROLES } = require('../game');
+const { rolesFor, OPTIONAL_ROLES } = require('../game');
 
 const S = ROLE.SEER;
 const W = ROLE.WITCH;
@@ -353,7 +353,7 @@ const J = ROLE.JESTER;
 
 function setupWith(count, roles) {
   const ctx = setup(count);
-  ctx.room.settings.roles = Object.fromEntries(SPECIAL_ROLES.map((r) => [r, roles.includes(r)]));
+  ctx.room.settings.roles = Object.fromEntries(OPTIONAL_ROLES.map((r) => [r, roles.includes(r)]));
   return ctx;
 }
 
@@ -505,19 +505,25 @@ test('soytarı asılırsa tek başına kazanır', (t) => {
   room.destroy();
 });
 
-test('renkler benzersizdir, görünüm ve dolaşma sadece lobide değişir', (t) => {
+test('renkler benzersizdir, görünüm sadece lobide ve oyun sonunda değişir', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { room } = setup(5);
   const colors = new Set([...room.players.values()].map((p) => p.look.color));
   assert.equal(colors.size, 5);
   const taken = room.players.get('p1').look.color;
   assert.match(room.setLook('p0', { color: taken }), /başka/);
-  assert.equal(room.setLook('p0', { hat: 2 }), null);
-  assert.equal(room.move('p0', 5, -3), null);
-  assert.deepEqual(room.players.get('p0').pos, { x: 0.95, y: 0.22 });
+  assert.equal(room.setLook('p0', { hat: 2, skin: 11 }), null);
+  assert.equal(room.players.get('p0').look.hat, 2);
+  assert.equal(room.players.get('p0').look.skin, 11);
+  assert.equal(room.setLook('p0', { skin: 99 }), null);
+  assert.equal(room.players.get('p0').look.skin, 11, 'model numarası 0-11 arasına sıkıştırılır');
   room.start('p0');
-  assert.match(room.move('p0', 0.5, 0.5), /Oyun/);
   assert.match(room.setLook('p0', { hat: 1 }), /lobide/);
+  room.removePlayer('p0');
+  room.removePlayer('p1');
+  room.removePlayer('p2');
+  assert.equal(room.phase, 'ended');
+  assert.equal(room.setLook('p3', { hat: 4 }), null);
   room.destroy();
 });
 

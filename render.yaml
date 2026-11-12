@@ -11,5 +11,14 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      # Hesaplar için PostgreSQL adresi (ör. Neon ya da Render Postgres "External/Internal URL").
+      # Ücretsiz planda disk kalıcı değildir: DATABASE_URL boş kalırsa hesaplar data/ klasöründeki
+      # JSON dosyasına yazılır ve her yeniden başlatmada/yayında SİLİNİR. Kurulumda doldurman istenir.
+      - key: DATABASE_URL
+        sync: false
 # Arayüzü ayrıca Netlify'da yayınlıyorsan Render panelinde CLIENT_ORIGIN ortam değişkenine
 # Netlify adresini ekle (README'deki adımlara bak).
+# İsteğe bağlı ortam değişkenleri:
+#   DATABASE_SSL=off|on|no-verify  SSL otomatik seçimini zorlar (varsayılan: adrese göre otomatik)
+#   TRUST_PROXY=1                  Render'da otomatik açıktır (istek sınırı gerçek IP'ye göre çalışsın)
+#   DATA_DIR=/yol                  JSON deposunun klasörü (kalıcı disk bağlıysa)
