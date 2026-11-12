@@ -11,6 +11,5 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
-      # Arayüzü ayrıca Netlify'da yayınlıyorsan Netlify adresini buraya yaz (virgülle birden fazla).
-      - key: CLIENT_ORIGIN
-        sync: false
+# Arayüzü ayrıca Netlify'da yayınlıyorsan Render panelinde CLIENT_ORIGIN ortam değişkenine
+# Netlify adresini ekle (README'deki adımlara bak).
