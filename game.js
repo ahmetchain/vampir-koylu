@@ -11,6 +11,13 @@ try {
   console.error('Hikâye motoru yüklenemedi, düz metinlerle devam ediliyor:', err && err.message ? err.message : err);
 }
 
+// İsme iyelik eki ("Ali'nin evi"); ek yardımcısı yüklenemezse isim olduğu gibi kalır.
+let genitive = (name) => name;
+try {
+  const { ek } = require('./lib/story/turkish');
+  genitive = (name) => { try { return ek(name, 'gen'); } catch (err) { return name; } };
+} catch (err) { /* düz isimle devam */ }
+
 const ROLE = {
   VAMPIRE: 'vampir',
   FRAMER: 'iftiraci',
@@ -738,8 +745,8 @@ class Room {
       const watched = this.players.get(watchedId);
       const names = visitors.map((id) => this.players.get(id).name);
       const text = names.length
-        ? `Bu gece ${watched.name} evine girenler: ${names.join(', ')}.`
-        : `Bu gece ${watched.name} evine kimse girmedi.`;
+        ? `Bu gece ${genitive(watched.name)} evine girenler: ${names.join(', ')}.`
+        : `Bu gece ${genitive(watched.name)} evine kimse girmedi.`;
       watcher.notes.push({ text: `👁️ ${this.round}. gece: ${text}`, ts: Date.now() });
       this.announce('watch', 'Gözcünün raporu', text, { targets: [{ id: watchedId }], visitors }, [watcher.id]);
     }

@@ -123,6 +123,7 @@ export const W = {
   getQuality() { return world ? safe(() => world.getQuality(), 'auto') : 'auto'; },
   resize() { if (world) safe(() => world.resize()); },
   reset() { if (world) safe(() => world.reset()); },
+  skip() { if (world && typeof world.skip === 'function') safe(() => world.skip()); },
   setInsets(o) { last.insets = o; if (world && typeof world.setInsets === 'function') safe(() => world.setInsets(o)); },
 };
 

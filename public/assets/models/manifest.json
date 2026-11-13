@@ -1125,7 +1125,7 @@
  ],
  "hats": {
   "path": "hats/hats.glb",
-  "bytes": 157176,
+  "bytes": 53672,
   "attach": "Düğümü klonla ve köylünün 'head' kemiğine child olarak ekle, transform sıfır (koordinatlar kafa-yerel, mini-character birimi; ebeveyndeki 2.5 ölçeği otomatik uygulanır). Saçı yüksek skinlerde skins[i].hatYOffset kadar yukarı kaydır.",
   "list": [
    {
@@ -7398,7 +7398,7 @@
   {
    "path": "hats/hats.glb",
    "group": "hats",
-   "bytes": 157176,
+   "bytes": 53672,
    "triangles": 1002,
    "bbox": {
     "min": [
@@ -8329,7 +8329,7 @@
   "bytes": 3465963,
   "byGroup": {
    "characters": 1091108,
-   "hats": 157176,
+   "hats": 53672,
    "houses": 421760,
    "interior": 469032,
    "licenses": 8289,

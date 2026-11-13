@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>VKWorld demo</title>
+<link rel="icon" href="data:,">
+<style>
+  html,body{margin:0;height:100%;background:#15122b;color:#f6f1ff;font:13px/1.35 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;overflow:hidden}
+  #stage{position:fixed;inset:0}
+  #panel{position:fixed;right:8px;top:8px;width:300px;max-height:calc(100% - 16px);overflow:auto;background:rgba(21,18,43,.88);border:1px solid #3a2a6b;border-radius:10px;padding:8px;z-index:50;box-shadow:0 6px 20px rgba(0,0,0,.4);-webkit-overflow-scrolling:touch}
+  #panel.min{width:auto;height:auto}
+  #panel.min .body{display:none}
+  #panel h3{margin:8px 0 4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#b197fc}
+  #panel .row{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:3px 0}
+  button,select,input{font:inherit;color:inherit}
+  button{background:#3a2a6b;border:1px solid #5a4a9a;border-radius:6px;padding:4px 7px;cursor:pointer}
+  button.on{background:#f2c12e;color:#15122b;border-color:#f2c12e}
+  select{background:#221c44;border:1px solid #5a4a9a;border-radius:6px;padding:3px}
+  #stats{font:11px/1.3 ui-monospace,Consolas,monospace;color:#9ef0c0;white-space:pre;background:rgba(0,0,0,.35);padding:4px 6px;border-radius:6px}
+  #top{display:flex;justify-content:space-between;align-items:center;gap:6px}
+  #timer{font-weight:800;color:#f4e4c1}
+  #prog{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);font-size:16px;z-index:40;pointer-events:none}
+  #log{position:fixed;left:8px;bottom:8px;max-width:60%;font-size:12px;z-index:40;pointer-events:none;text-shadow:0 1px 2px #000}
+  #log div{background:rgba(21,18,43,.7);padding:3px 7px;border-radius:6px;margin-top:3px}
+  .inset-top{position:fixed;left:0;right:0;top:0;height:56px;background:rgba(21,18,43,.55);border-bottom:1px solid rgba(255,255,255,.1);z-index:30;pointer-events:none;display:none}
+  .inset-bot{position:fixed;left:0;right:0;bottom:0;height:70px;background:rgba(21,18,43,.55);border-top:1px solid rgba(255,255,255,.1);z-index:30;pointer-events:none;display:none}
+  body.insets .inset-top,body.insets .inset-bot{display:block}
+  #pv{width:120px;height:160px;border-radius:10px;background:radial-gradient(#3a2a6b,#15122b);overflow:hidden}
+  @media (max-width:600px){#panel{left:6px;right:6px;width:auto;top:auto;bottom:6px;max-height:46%}}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div class="inset-top"></div><div class="inset-bot"></div>
+<div id="prog">Yükleniyor…</div>
+<div id="log"></div>
+<div id="panel">
+  <div id="top"><b>VKWorld demo</b><span id="timer"></span><button id="minbtn">▾</button></div>
+  <div class="body">
+    <div id="stats">-</div>
+    <h3>Görünüm</h3>
+    <div class="row">
+      <button data-view="menu">Menü</button><button data-view="game" class="on">Oyun</button>
+      <select id="quality"><option>auto</option><option>low</option><option>medium</option><option>high</option></select>
+      <label><input type="checkbox" id="insets"> UI boşlukları</label>
+    </div>
+    <h3>Oyuncular</h3>
+    <div class="row"><input id="count" type="range" min="5" max="20" value="8" style="width:140px"><b id="countv">8</b>
+      <button id="join">+1</button><button id="leave">-1</button></div>
+    <div class="row">Ben: <select id="role"></select><label><input type="checkbox" id="alive" checked> canlı</label>
+      <label><input type="checkbox" id="reveal" checked> rolleri aç</label></div>
+    <h3>Aşama</h3>
+    <div class="row" id="phases"></div>
+    <div class="row">Gece <input id="nightSec" type="number" value="30" min="5" style="width:48px">s Gün <input id="daySec" type="number" value="90" min="10" style="width:48px">s
+      <button id="pause">⏸</button></div>
+    <h3>Gece</h3>
+    <div class="row">Seçimim: <select id="mysel"></select>
+      <button id="witch">Cadı: iksir</button></div>
+    <div class="row"><button id="teamPick">Takım seçimi (rastgele)</button><button id="teamClear">Takımı temizle</button><button id="framer">İftiracı rastgele</button></div>
+    <h3>Gündüz</h3>
+    <div class="row"><button id="votes">Rastgele oylar</button><button id="allvoted">Herkes oyladı (kısalt)</button><button id="clearVotes">Oyları sil</button></div>
+    <div class="row"><button id="chat">Rastgele sohbet</button><button id="move">Herkes dolaşsın</button><button id="disc">Bağlantı kopar</button></div>
+    <h3>Ölümler</h3>
+    <div class="row"><select id="victim"></select><button id="kill">Öldür</button><button id="revive">Herkesi dirilt</button></div>
+    <h3>Duyurular</h3>
+    <div class="row" id="ann"></div>
+    <h3>Senaryo · iç mekân</h3>
+    <div class="row"><select id="scen"><option value="">(yok)</option><option>sisli-vadi</option><option>kanli-ay</option><option>hasat-senligi</option><option>kara-kis</option><option>veba-soylentisi</option><option>panayir</option></select>
+      <button id="visit">Gece ziyareti (rolümle)</button><button id="peek">Gözcü penceresi</button></div>
+    <h3>Önizleme</h3>
+    <div class="row"><div id="pv"></div><button id="pvlook">Görünüm değiştir</button><button id="pvdel">Kapat/Aç</button></div>
+    <h3>Test</h3>
+    <div class="row"><button id="recreate">create/dispose ×10</button><button id="hour">Saat: oto</button></div>
+  </div>
+</div>
+<script>document.write('<script src="build/' + (/[?&]dev(&|$)/.test(location.search) ? 'world.dev.js' : 'world.js') + '"><\/script>');</script>
+<script>
+(function () {
+  'use strict';
+  const NAMES = ['Ayşe', 'Mehmet', 'Zeynep', 'Ali', 'Elif', 'Mustafa', 'İrem', 'Can', 'Şule Nur', 'Emre', 'Defne', 'Burak', 'Selin', 'Oğuz', 'Gül', 'Hakan', 'Ece', 'Kerem', 'Nil', 'Tolga'];
+  const JOBS = ['Terzi', 'Nalbant', 'Fırıncı', 'Değirmenci', 'Çoban', 'Hancı', 'Balıkçı', 'Oduncu', 'Arıcı', 'Berber', 'Çömlekçi', 'Demirci'];
+  const ROLES = ['koylu', 'vampir', 'iftiraci', 'doktor', 'kahin', 'gozcu', 'cadi', 'avci', 'muhtar', 'soytari'];
+  const EVIL = { vampir: 1, iftiraci: 1 };
+  const $ = (s) => document.querySelector(s);
+  const qs = new URLSearchParams(location.search);
+  const S = {
+    scenario: qs.get('scen') || null,
+    n: +(qs.get('n') || 8), phase: qs.get('phase') || 'lobby', myRole: qs.get('role') || 'koylu', alive: qs.get('dead') ? false : true,
+    revealRoles: true, round: 0, deadline: null, paused: false, pausedLeft: 0,
+    players: [], night: { picks: {}, frame: null, protect: null, inspect: null, watch: null, heal: null, poison: null, healUsed: false, poisonUsed: false },
+    votes: {}, shortened: false, winner: null, hunterId: null, witchMode: 'heal',
+  };
+  function rnd(a) { return a[Math.floor(Math.random() * a.length)]; }
+  function mkPlayer(i) {
+    const a = Math.random() * Math.PI * 2, r = 0.22 + Math.random() * 0.2;
+    return { id: 'p' + i, name: NAMES[i % NAMES.length], seat: i, alive: true, connected: true, left: false, isHost: i === 0,
+      role: 'koylu', look: { color: i % 20, hat: (i * 5) % 9, skin: (i * 7) % 12 }, pos: { x: 0.5 + Math.cos(a) * r, y: 0.5 + Math.sin(a) * r }, job: { id: 'j' + i, label: JOBS[i % JOBS.length] } };
+  }
+  function setCount(n) {
+    while (S.players.length < n) S.players.push(mkPlayer(S.players.length));
+    while (S.players.length > n) S.players.pop();
+    deal();
+  }
+  function deal() {
+    const ps = S.players;
+    ps.forEach((p) => { p.role = 'koylu'; });
+    ps[0].role = S.myRole;
+    const vc = ps.length >= 15 ? 3 : ps.length >= 10 ? 2 : 1;
+    let v = S.myRole === 'vampir' ? 1 : 0;
+    let i = 1;
+    for (; v < vc && i < ps.length; i++) { ps[i].role = 'vampir'; v++; }
+    if (ps.length >= 7 && S.myRole !== 'iftiraci' && i < ps.length) ps[i++].role = 'iftiraci';
+    else if (S.myRole === 'iftiraci') { /* izleyici */ }
+    for (const r of ['doktor', 'kahin', 'gozcu', 'cadi', 'avci']) { if (r !== S.myRole && i < ps.length - 1) ps[i++].role = r; }
+  }
+  const me = () => S.players[0];
+  function alivePs() { return S.players.filter((p) => p.alive && !p.left); }
+  function viewFor() {
+    const m = me();
+
+    const phase = S.phase;
+    const myEvil = EVIL[m.role] && phase !== 'lobby';
+    const players = S.players.map((p) => {
+      let role = null;
+      if (phase !== 'lobby') {
+        if (p.id === m.id) role = p.role;
+        else if (phase === 'ended') role = p.role;
+        else if (myEvil && EVIL[p.role]) role = p.role;
+        else if ((!p.alive || p.left) && S.revealRoles) role = p.role;
+      }
+      return { ...p, role, look: { ...p.look }, pos: { ...p.pos }, job: phase === 'lobby' ? null : p.job };
+    });
+    let night = null;
+    if (phase === 'night' && m.alive) {
+      const N = S.night;
+      const team = S.players.filter((p) => p.role === 'vampir' && p.alive).map((p) => ({ vampId: p.id, name: p.name, targetId: N.picks[p.id] || null }));
+      switch (m.role) {
+        case 'vampir': night = { mySelection: N.picks[m.id] || null, team, framer: N.frame }; break;
+        case 'iftiraci': night = { mySelection: N.frame, team, framer: N.frame }; break;
+        case 'doktor': night = { mySelection: N.protect, team: [], framer: null }; break;
+        case 'kahin': night = { mySelection: N.inspect, team: [], framer: null }; break;
+        case 'gozcu': night = { mySelection: N.watch, team: [], framer: null }; break;
+        case 'cadi': {
+          const counts = {};
+          for (const t of team) if (t.targetId) counts[t.targetId] = (counts[t.targetId] || 0) + 1;
+          const max = Math.max(0, ...Object.values(counts));
+          night = { mySelection: null, team: [], framer: null, witch: { heal: N.heal, poison: N.poison, healUsed: N.healUsed, poisonUsed: N.poisonUsed, victims: Object.keys(counts).filter((k) => counts[k] === max && max > 0) } };
+          break;
+        }
+        default: night = null;
+      }
+    }
+    let day = null;
+    if (phase === 'day') {
+      const votes = {};
+      const voted = [], sleeping = [];
+      for (const [voter, t] of Object.entries(S.votes)) {
+        const vp = S.players.find((p) => p.id === voter);
+        if (!vp || !vp.alive) continue;
+        voted.push(voter);
+        if (t === 'sleep') { sleeping.push(voter); continue; }
+        (votes[t] = votes[t] || []).push({ id: voter, w: vp.role === 'muhtar' ? 2 : 1 });
+      }
+      day = { votes, voted, sleeping, sleepers: sleeping.length, voters: alivePs().filter((p) => p.connected).length, myVote: S.votes[m.id] || null, shortened: S.shortened };
+    }
+    return {
+      serverNow: Date.now(),
+      room: { id: 'DEMO1', name: 'Demo', phase, round: S.round, deadline: S.paused ? Date.now() + S.pausedLeft : S.deadline, hostId: 'p0',
+        settings: { nightSec: +$('#nightSec').value, daySec: +$('#daySec').value, revealRoles: S.revealRoles, roles: {} },
+        hasPassword: false, winner: S.winner, winners: S.winner === 'soytari' ? [S.players[2].id] : S.winner ? S.players.filter((p) => !p.left && (S.winner === 'vampir' ? EVIL[p.role] : !EVIL[p.role] && p.role !== 'soytari')).map((p) => p.id) : [],
+        minPlayers: 5, maxPlayers: 20, vampireCount: 1, distribution: [], hunterId: S.hunterId,
+        scenario: S.scenario && phase !== 'lobby' ? { id: S.scenario, name: S.scenario, intro: '' } : null },
+      me: { id: m.id, userId: 'u0', name: m.name, seat: m.seat, role: phase === 'lobby' ? null : m.role, alive: m.alive, look: { ...m.look }, notes: [] },
+      players, log: [], night, day,
+    };
+  }
+
+  // ---------- dünya ----------
+  let world = null;
+  window.__ev = [];
+  const log = (t) => { const d = document.createElement('div'); d.textContent = t; $('#log').appendChild(d); setTimeout(() => d.remove(), 5000); while ($('#log').children.length > 5) $('#log').firstChild.remove(); };
+  function makeWorld() {
+    world = VKWorld.create($('#stage'), {
+      onProgress(d, t) { $('#prog').textContent = `Yükleniyor ${d}/${t}`; },
+      onReady() { $('#prog').style.display = 'none'; push(); },
+      onQuality(q) { log('kalite → ' + q); },
+      onPick(id) {
+        const p = S.players.find((x) => x.id === id);
+        log('onPick ' + (p ? p.name : id));
+        window.__ev.push('pick:' + id);
+        const m = me();
+        if (S.phase === 'night') {
+          const N = S.night;
+          const tog = (k) => { N[k] = N[k] === id ? null : id; };
+          switch (m.role) {
+            case 'vampir': N.picks[m.id] = N.picks[m.id] === id ? null : id; break;
+            case 'iftiraci': tog('frame'); break;
+            case 'doktor': tog('protect'); break;
+            case 'kahin': tog('inspect'); break;
+            case 'gozcu': tog('watch'); break;
+            case 'cadi': if (S.witchMode === 'poison') { tog('poison'); if (N.heal === N.poison) N.heal = null; } else { tog('heal'); if (N.poison === N.heal) N.poison = null; } break;
+          }
+        } else if (S.phase === 'day') {
+          S.votes[m.id] = S.votes[m.id] === id ? undefined : id;
+          if (!S.votes[m.id]) delete S.votes[m.id];
+        } else if (S.phase === 'hunter') {
+          killP(id); world.announce({ kind: 'shot', title: 'Avcının son atışı', text: p.name + ' vuruldu!', targets: [{ id }], actorId: S.hunterId }).then(() => { setPhase('day'); });
+        }
+        push();
+      },
+      onMove(x, y) { window.__ev.push('move:' + x.toFixed(2) + ',' + y.toFixed(2)); me().pos = { x, y }; setTimeout(push, 80); },
+      onSelf() { window.__ev.push('self'); log('onSelf (görünüm düzenleyici)'); const l = me().look; l.hat = (l.hat + 1) % 9; l.skin = (l.skin + 1) % 12; push(); },
+    });
+    window.world = world;
+    window.__mk = makeWorld;
+    world.setView(currentView);
+    world.setQuality($('#quality').value);
+    applyInsets();
+  }
+  let currentView = qs.get('view') || 'game';
+  function push() { if (world) world.update(viewFor(), { witchMode: S.witchMode }); syncSelects(); }
+  window.demo = { S, push, viewFor, setPhase: (p) => setPhase(p), announce: (k) => announce(k), me };
+
+  function setPhase(ph) {
+    S.phase = ph;
+    S.shortened = false;
+    if (ph === 'lobby') { S.round = 0; S.winner = null; S.players.forEach((p) => { p.alive = true; p.left = false; }); S.alive = true; $('#alive').checked = true; S.votes = {}; deal(); }
+    if (ph === 'reveal') { S.deadline = Date.now() + 8000; }
+    if (ph === 'night') { S.round++; S.deadline = Date.now() + (+$('#nightSec').value) * 1000; S.night = { picks: {}, frame: null, protect: null, inspect: null, watch: null, heal: null, poison: null, healUsed: S.night.healUsed, poisonUsed: S.night.poisonUsed }; }
+    if (ph === 'day') { S.deadline = Date.now() + (+$('#daySec').value) * 1000; S.votes = {}; }
+    if (ph === 'hunter') { S.deadline = Date.now() + 20000; const h = S.players.find((p) => p.role === 'avci') || S.players[1]; S.hunterId = h.id; h.alive = false; } else S.hunterId = null;
+    if (ph === 'ended-v' || ph === 'ended-k') { S.winner = ph === 'ended-v' ? 'vampir' : 'koylu'; S.phase = 'ended'; S.deadline = null; }
+    if (ph === 'lobby') S.deadline = null;
+    document.querySelectorAll('#phases button').forEach((b) => b.classList.toggle('on', b.dataset.p === ph));
+    push();
+  }
+  function killP(id) { const p = S.players.find((x) => x.id === id); if (p) p.alive = false; if (id === 'p0') { S.alive = false; $('#alive').checked = false; } }
+
+  // o: { scene, cause, winner, n (ziyaretçi sayısı), two (iki ölüm) }
+  function announce(kind, o = {}) {
+    const m = me();
+    const others = alivePs().filter((p) => p.id !== m.id);
+    const t = rnd(others) || m;
+    let msg = { kind, title: kind, text: '' };
+    switch (kind) {
+      case 'death': {
+        const ts = [t];
+        if (o.two) { const t2 = rnd(others.filter((x) => x !== t)); if (t2) ts.push(t2); }
+        msg = { kind, title: 'Sabah oldu', text: ts.map((x) => x.name).join(', ') + ' öldü!', targets: ts.map((x, i) => {
+          const sc = i === 0 ? (o.scene || 'bite') : rnd(['bite', 'bats', 'vanish']);
+          return { id: x.id, cause: sc === 'poison' ? 'zehir' : 'vampir', scene: sc };
+        }) };
+        msg.scene = msg.targets[0].scene;
+        ts.forEach((x) => killP(x.id));
+        break;
+      }
+      case 'seer': msg = { kind, title: 'Kristal küre konuştu', text: t.name + (o.cause === 'vampir' ? ' bir VAMPİR!' : ' vampir değil.'), targets: [{ id: S.night.inspect || t.id, cause: o.cause || 'temiz' }] }; break;
+      case 'watch': {
+        const wid = S.night.watch || t.id;
+        const pool = alivePs().filter((p) => p.id !== wid && p.id !== m.id);
+        const vis = pool.sort(() => Math.random() - 0.5).slice(0, o.n == null ? 2 : o.n).sort((a, b) => a.name.localeCompare(b.name, 'tr')).map((p) => p.id);
+        msg = { kind, title: 'Gözcünün raporu', text: '', targets: [{ id: wid }], visitors: vis };
+        break;
+      }
+      case 'hanged': killP(t.id); msg = { kind, title: 'Köy kararını verdi', text: t.name + ' oyla...', targets: [{ id: t.id }], scene: o.scene || 'gallows' }; break;
+      case 'shot': killP(t.id); msg = { kind, title: 'Avcının son atışı', text: '', targets: [{ id: t.id }], actorId: S.hunterId || 'p1', scene: 'arrow' }; break;
+      case 'hunter': msg = { kind, title: 'Avcı düştü!', text: '', targets: [{ id: S.hunterId || t.id }] }; break;
+      case 'left': t.left = true; t.alive = false; msg = { kind, title: 'Bir oyuncu ayrıldı', text: '', targets: [{ id: t.id }] }; break;
+      case 'promote': msg = { kind, title: 'Vampire dönüştün!', text: '', targets: [{ id: m.id }] }; break;
+      case 'start': msg = { kind, title: 'Roller dağıtıldı', text: '', scenario: S.scenario ? { id: S.scenario, name: S.scenario, intro: '' } : null }; break;
+      case 'win': { S.winner = o.winner || (Math.random() < 0.5 ? 'vampir' : 'koylu'); msg = { kind, title: 'Kazandı', text: '', winner: S.winner, targets: viewFor().room.winners.map((id) => ({ id })) }; break; }
+    }
+    const t0 = performance.now();
+    log('announce ' + kind + ' …');
+    // gerçek sunucu gibi: duyuru önce, state sonra
+    const pr = world.announce(msg);
+    setTimeout(() => {
+      if (kind === 'death' || kind === 'safe') setPhase('day');
+      else if (kind === 'night') setPhase('night');
+      else if (kind === 'start') setPhase('reveal');
+      else if (kind === 'win') setPhase(S.winner === 'vampir' ? 'ended-v' : 'ended-k');
+      else push();
+    }, 150);
+    pr.then(() => log('announce ' + kind + ' bitti (' + Math.round(performance.now() - t0) + ' ms)'));
+  }
+
+  // ---------- panel ----------
+  ROLES.forEach((r) => { const o = document.createElement('option'); o.value = r; o.textContent = r; $('#role').appendChild(o); });
+  $('#role').value = S.myRole;
+  [['lobby', 'Lobi'], ['reveal', 'Rol kartı'], ['night', 'Gece'], ['day', 'Gündüz'], ['hunter', 'Avcı'], ['ended-k', 'Bitti (köy)'], ['ended-v', 'Bitti (vampir)']].forEach(([p, t]) => {
+    const b = document.createElement('button'); b.textContent = t; b.dataset.p = p; b.onclick = () => setPhase(p); $('#phases').appendChild(b);
+  });
+  const ANN = [
+    ['start'], ['night'], ['safe'], ['nohang'], ['sleep'], ['left'], ['promote'],
+    ['death', { scene: 'bite' }, 'ölüm:ısırık'], ['death', { scene: 'bats' }, 'ölüm:yarasa'], ['death', { scene: 'vanish' }, 'ölüm:kayıp'], ['death', { scene: 'poison' }, 'ölüm:zehir'], ['death', { two: true }, 'ölüm×2'],
+    ['hanged', { scene: 'gallows' }, 'darağacı'], ['hanged', { scene: 'exile' }, 'sürgün'], ['hanged', { scene: 'cellar' }, 'mahzen'],
+    ['hunter'], ['shot', {}, 'avcı oku'], ['nohunt'],
+    ['seer', { cause: 'vampir' }, 'kahin:VAMPİR'], ['seer', { cause: 'temiz' }, 'kahin:temiz'],
+    ['watch', { n: 3 }, 'gözcü:3'], ['watch', { n: 0 }, 'gözcü:0'],
+    ['win', { winner: 'koylu' }, 'kazan:köy'], ['win', { winner: 'vampir' }, 'kazan:vampir'], ['win', { winner: 'soytari' }, 'kazan:soytarı'],
+  ];
+  ANN.forEach(([k, o, label]) => {
+    const b = document.createElement('button'); b.textContent = label || k; b.onclick = () => announce(k, o || {}); $('#ann').appendChild(b);
+  });
+  const sk = document.createElement('button'); sk.textContent = '⏭ geç'; sk.onclick = () => world.skip && world.skip(); $('#ann').appendChild(sk);
+  function syncSelects() {
+    const opts = (sel, list, cur) => {
+      const html = '<option value="">—</option>' + list.map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
+      if (sel.dataset.h !== html) { sel.innerHTML = html; sel.dataset.h = html; }
+      sel.value = cur || '';
+    };
+    const N = S.night, m = me();
+    const cur = { vampir: N.picks[m.id], iftiraci: N.frame, doktor: N.protect, kahin: N.inspect, gozcu: N.watch, cadi: S.witchMode === 'poison' ? N.poison : N.heal }[m.role];
+    opts($('#mysel'), alivePs(), cur);
+    opts($('#victim'), alivePs(), '');
+  }
+  $('#mysel').onchange = (e) => { const id = e.target.value; const N = S.night, m = me();
+    switch (m.role) { case 'vampir': N.picks[m.id] = id || null; break; case 'iftiraci': N.frame = id || null; break; case 'doktor': N.protect = id || null; break; case 'kahin': N.inspect = id || null; break; case 'gozcu': N.watch = id || null; break; case 'cadi': if (S.witchMode === 'poison') N.poison = id || null; else N.heal = id || null; break; }
+    push(); };
+  $('#count').oninput = (e) => { $('#countv').textContent = e.target.value; setCount(+e.target.value); push(); };
+  $('#join').onclick = () => { if (S.players.length < 20) { setCount(S.players.length + 1); $('#count').value = S.players.length; $('#countv').textContent = S.players.length; push(); } };
+  $('#leave').onclick = () => { if (S.players.length > 2) { S.players.splice(1 + Math.floor(Math.random() * (S.players.length - 1)), 1); $('#count').value = S.players.length; $('#countv').textContent = S.players.length; push(); } };
+  $('#role').onchange = (e) => { S.myRole = e.target.value; deal(); push(); };
+  $('#alive').onchange = (e) => { S.alive = e.target.checked; me().alive = S.alive; push(); };
+  $('#reveal').onchange = (e) => { S.revealRoles = e.target.checked; push(); };
+  $('#scen').onchange = (e) => { S.scenario = e.target.value || null; push(); };
+  // ziyaret: gece başlat, rol seçimiyle hedefe yürüt (ev içine kesme otomatik)
+  $('#visit').onclick = () => {
+    if (!['vampir', 'doktor', 'kahin', 'cadi', 'iftiraci'].includes(S.myRole)) { S.myRole = 'vampir'; $('#role').value = 'vampir'; deal(); }
+    setPhase('night');
+    const tgt = alivePs().find((p) => p.id !== 'p0' && !EVIL[p.role]);
+    setTimeout(() => { const N = S.night; ({ vampir: () => { N.picks.p0 = tgt.id; }, doktor: () => { N.protect = tgt.id; }, kahin: () => { N.inspect = tgt.id; }, cadi: () => { N.heal = tgt.id; }, iftiraci: () => { N.frame = tgt.id; } })[S.myRole](); push(); }, 400);
+  };
+  $('#peek').onclick = () => {
+    S.myRole = 'gozcu'; $('#role').value = 'gozcu'; deal(); setPhase('night');
+    const tgt = alivePs().find((p) => p.id !== 'p0');
+    setTimeout(() => { S.night.watch = tgt.id; push(); }, 400);
+  };
+  $('#witch').onclick = (e) => { S.witchMode = S.witchMode === 'heal' ? 'poison' : 'heal'; e.target.textContent = 'Cadı: ' + (S.witchMode === 'heal' ? 'iksir' : 'zehir'); push(); };
+  $('#teamPick').onclick = () => { for (const p of S.players) if (p.role === 'vampir' && p.alive && p.id !== 'p0') { const t = rnd(alivePs().filter((x) => !EVIL[x.role])); S.night.picks[p.id] = t && t.id; } push(); };
+  $('#teamClear').onclick = () => { for (const k of Object.keys(S.night.picks)) if (k !== 'p0') delete S.night.picks[k]; S.night.frame = me().role === 'iftiraci' ? S.night.frame : null; push(); };
+  $('#framer').onclick = () => { const t = rnd(alivePs().filter((x) => !EVIL[x.role])); S.night.frame = t && t.id; push(); };
+  $('#votes').onclick = () => { for (const p of alivePs()) if (p.id !== 'p0' && Math.random() < 0.8) { const t = rnd(alivePs().filter((x) => x.id !== p.id)); S.votes[p.id] = Math.random() < 0.1 ? 'sleep' : t.id; } push(); };
+  $('#allvoted').onclick = () => { for (const p of alivePs()) if (!S.votes[p.id]) S.votes[p.id] = rnd(alivePs().filter((x) => x.id !== p.id)).id; S.shortened = true; S.deadline = Date.now() + 10000; push(); };
+  $('#clearVotes').onclick = () => { S.votes = {}; S.shortened = false; push(); };
+  const LINES = ['Dün gece bir ses duydum!', 'Bence Ali çok sessiz…', 'Ben köylüyüm, yemin ederim.', 'Oy verelim artık', 'Kim kapımı çaldı?', 'Hmm 🤔', 'Ateşin başına toplanın!', 'Bu köyde kimseye güven olmaz, herkes bir şey saklıyor gibi.'];
+  $('#chat').onclick = () => { const p = rnd(alivePs()); world.bubble(p.id, rnd(LINES), S.phase === 'night' ? 'vampir' : 'genel'); };
+  $('#move').onclick = () => { for (const p of S.players) { const a = Math.random() * Math.PI * 2, r = 0.12 + Math.random() * 0.34; p.pos = { x: 0.5 + Math.cos(a) * r, y: 0.5 + Math.sin(a) * r }; } push(); };
+  $('#disc').onclick = () => { const p = rnd(S.players.slice(1)); p.connected = !p.connected; push(); };
+  $('#kill').onclick = () => { const id = $('#victim').value; if (id) { killP(id); push(); } };
+  $('#revive').onclick = () => { S.players.forEach((p) => { p.alive = true; p.left = false; }); S.alive = true; $('#alive').checked = true; push(); };
+  $('#quality').onchange = (e) => world.setQuality(e.target.value);
+  document.querySelectorAll('[data-view]').forEach((b) => b.onclick = () => { currentView = b.dataset.view; document.querySelectorAll('[data-view]').forEach((x) => x.classList.toggle('on', x === b)); world.setView(currentView); push(); });
+  $('#insets').onchange = () => { document.body.classList.toggle('insets', $('#insets').checked); applyInsets(); };
+  function applyInsets() { if (world) world.setInsets($('#insets').checked ? { top: 56, bottom: 70 } : {}); }
+  $('#minbtn').onclick = () => $('#panel').classList.toggle('min');
+  $('#pause').onclick = (e) => { S.paused = !S.paused; if (S.paused) S.pausedLeft = (S.deadline || Date.now()) - Date.now(); else S.deadline = Date.now() + S.pausedLeft; e.target.classList.toggle('on', S.paused); push(); };
+  let hourMode = 0;
+  $('#hour').onclick = (e) => { hourMode = (hourMode + 1) % 1; e.target.textContent = 'Saat: oto'; };
+  let pv = null;
+  function makePv() { pv = VKWorld.preview($('#pv'), { color: 8, hat: 4, skin: 5 }, { turntable: true }); }
+  makePv();
+  $('#pvlook').onclick = () => pv && pv.setLook({ color: Math.floor(Math.random() * 20), hat: Math.floor(Math.random() * 9), skin: Math.floor(Math.random() * 12) });
+  $('#pvdel').onclick = () => { if (pv) { pv.dispose(); pv = null; } else makePv(); };
+  $('#recreate').onclick = async () => {
+    for (let i = 0; i < 10; i++) {
+      world.dispose();
+      makeWorld();
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    push();
+    log('10 kez yeniden oluşturuldu');
+  };
+
+  // zamanlayıcı: süre bitince bir sonraki aşama (gerçek oyun akışı gibi)
+  setInterval(() => {
+    if (S.paused || !S.deadline) { $('#timer').textContent = S.paused ? '⏸' : ''; return; }
+    const left = Math.max(0, S.deadline - Date.now());
+    $('#timer').textContent = S.phase + ' ' + Math.ceil(left / 1000) + 's';
+    if (left <= 0) {
+      if (S.phase === 'reveal') announce('night');
+      else if (S.phase === 'night') announce('safe');
+      else if (S.phase === 'day') announce('nohang');
+      else if (S.phase === 'hunter') announce('nohunt');
+      if (S.phase === 'day' || S.phase === 'hunter') setTimeout(() => setPhase('night'), 1600);
+    }
+  }, 250);
+  setInterval(() => {
+    if (!world || !world.stats) return;
+    const s = world.stats();
+    $('#stats').textContent = `fps ${s.fps}  ms ${s.ms}  cpu ${s.cpu ? s.cpu.toFixed(1) : '-'}\ncalls ${s.calls}  tris ${s.tris}\ntier ${s.tier} (${s.mode})  px ${s.px}  saat ${s.hour}`;
+  }, 500);
+
+  setCount(S.n);
+  $('#count').value = S.n; $('#countv').textContent = S.n;
+  if (S.myRole) $('#role').value = S.myRole;
+  if (S.scenario) $('#scen').value = S.scenario;
+  if (!S.alive) $('#alive').checked = false;
+  if (!VKWorld.supported()) { $('#prog').textContent = 'WebGL2 yok — 3B dünya açılamaz'; return; }
+  makeWorld();
+  if (S.phase !== 'lobby') setTimeout(() => setPhase(S.phase), 50);
+})();
+</script>
+</body>
+</html>

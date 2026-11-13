@@ -49,6 +49,7 @@ function showCrier(text) {
   el.innerHTML = `<span class="bellwrap">${icon('bell')}</span><span><b>Tellal bağırıyor</b>${esc(text)}</span>
     <button type="button" class="iconbtn crier-x" aria-label="Kapat">${icon('close')}</button>`;
   el.hidden = false;
+  window.dispatchEvent(new Event('resize'));
   sfx('bell', { volume: 0.7 });
   el.querySelector('.crier-x').onclick = hideCrier;
   clearTimeout(crierTimer);
@@ -57,6 +58,7 @@ function showCrier(text) {
 export function hideCrier() {
   clearTimeout(crierTimer);
   $('#crier').hidden = true;
+  window.dispatchEvent(new Event('resize'));
 }
 
 function items(state) {

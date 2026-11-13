@@ -185,7 +185,7 @@ test('gözcü izlediği eve girenleri isim sırasıyla öğrenir; duyuru sadece 
   assert.deepEqual(watch[0].to, ['p5']);
   assert.deepEqual(watch[0].targets, [{ id: 'p7' }]);
   assert.deepEqual(watch[0].visitors, ['p0', 'p1', 'p2', 'p3', 'p4', 'p6']);
-  assert.match(watch[0].text, /Oyuncu7 evine girenler: Oyuncu0, Oyuncu1, Oyuncu2, Oyuncu3, Oyuncu4, Oyuncu6\./);
+  assert.match(watch[0].text, /Oyuncu7'nin evine girenler: Oyuncu0, Oyuncu1, Oyuncu2, Oyuncu3, Oyuncu4, Oyuncu6\./);
   assert.match(room.players.get('p5').notes[0].text, /^👁️ 1\. gece/);
   assert.equal(room.players.get('p7').notes.length, 0);
   room.destroy();

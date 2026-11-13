@@ -658,7 +658,9 @@ export function scheduleInsets() {
   insetRaf = requestAnimationFrame(() => {
     const app = $('#app').getBoundingClientRect();
     if ($('#room').hidden) { W.setInsets({ top: 0, bottom: 0, left: 0, right: 0 }); return; }
-    const top = $('#hud-top').getBoundingClientRect().bottom - app.top;
+    let top = $('#hud-top').getBoundingClientRect().bottom - app.top;
+    const crier = $('#crier');
+    if (crier && !crier.hidden && crier.offsetHeight) top = Math.max(top, crier.getBoundingClientRect().bottom - app.top);
     let bottomEdge = app.bottom;
     for (const id of ['prompt', 'lobby-card', 'rail']) {
       const e = $(`#${id}`);

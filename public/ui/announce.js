@@ -41,7 +41,8 @@ export function pushAnnounce(a) {
   if (!a || !a.kind) return;
   queue.push(a);
   // Sohbet geçmişine de kısa bir satır.
-  appendSystem(`${a.title}: ${a.text}`, a.kind === 'night' ? 'moon' : a.kind === 'death' || a.kind === 'hanged' || a.kind === 'shot' ? 'tomb' : PRIVATE[a.kind] ? 'eye' : 'scroll');
+  // Özel duyurular (kahin, gözcü, dönüşüm) sadece bu oyuncuya gelir; akışta da öyle olduğu açıkça yazsın.
+  appendSystem(`${PRIVATE[a.kind] ? 'Sadece sen görüyorsun · ' : ''}${a.title}: ${a.text}`, a.kind === 'night' ? 'moon' : a.kind === 'death' || a.kind === 'hanged' || a.kind === 'shot' ? 'tomb' : PRIVATE[a.kind] ? 'eye' : 'scroll');
   if (!playing) next(gen);
 }
 
@@ -106,9 +107,12 @@ async function next(g) {
   bar.style.width = '100%';
 
   const skip = new Promise((r) => { skipFn = r; });
-  const world = W.announce(a, 12000);
+  let worldDone = false;
+  const world = W.announce(a, 12000).then(() => { worldDone = true; });
   await Promise.race([Promise.all([world, sleep(minMs)]), skip, sleep(14000)]);
   skipFn = null;
+  // Oyuncu geçtiyse ya da süre dolduysa 3B sahne de kesilsin; yoksa arkada oynamaya devam eder.
+  if (!worldDone) W.skip();
   if (g !== gen) return;
   el.classList.remove('on');
   await sleep(260);

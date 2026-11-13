@@ -428,7 +428,7 @@ lines and `scene` is its default – always be able to show just `text`. Private
 | `death` | all, narrated | "Sabah oldu" | per death "`<name>` bu gece vampir tarafından öldürüldü!`{role}`" or "… zehirlenerek öldü!`{role}`", joined with a space | `targets: [{ id, cause: 'vampir' \| 'zehir', scene }]` (1–2 entries; per victim `bite`\|`bats`\|`vanish` for `vampir`, always `poison` for `zehir`), `scene` = `targets[0].scene`, `story` |
 | `safe` | all, narrated | "Sabah oldu" | "Bu gece kimse ölmedi." | `story` (also when someone was saved; who was saved is never revealed) |
 | `seer` | **kahin only** | "Kristal küre konuştu" | "`<name>` bir VAMPİR!" or "`<name>` vampir değil." | `targets: [{ id, cause: 'vampir' \| 'temiz' }]` |
-| `watch` | **gözcü only** | "Gözcünün raporu" | "Bu gece `<name>` evine girenler: `<A>`, `<B>`." or "Bu gece `<name>` evine kimse girmedi." | `targets: [{ id: watchedId }]`, `visitors: [playerId]` (sorted by name, may be empty) |
+| `watch` | **gözcü only** | "Gözcünün raporu" | "Bu gece `<name>'in` evine girenler: `<A>`, `<B>`." or "Bu gece `<name>'in` evine kimse girmedi." (genitive suffix follows vowel harmony) | `targets: [{ id: watchedId }]`, `visitors: [playerId]` (sorted by name, may be empty) |
 | `promote` | **the promoted İftiracı only** | "Vampire dönüştün!" | "Son vampir de düştü. Artık sen bir vampirsin: geceleri kurbanını sen seçeceksin!" | `targets: [{ id: ownId }]` |
 | `hunter` | all, narrated | "Avcı düştü!" | "`<name>` bir avcıydı. Son nefesinde birini vurabilir…" | `targets: [{ id: hunterId }]`, `story` |
 | `shot` | all, narrated | "Avcının son atışı" | "`<name>` vuruldu!`{role}`" | `targets: [{ id }]`, `actorId: hunterId`, `scene: 'arrow'`, `story` |
