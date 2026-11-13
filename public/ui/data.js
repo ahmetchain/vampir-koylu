@@ -155,6 +155,10 @@ export function checkPassword(raw) {
   return null;
 }
 
+// Köy olayları (V2-PLAN §13.4) ertelendi: ayarı ve "Nasıl Oynanır" bölümü gizli, odalar 'off' kurulur.
+// Sunucu yine de bir olay gönderirse aşağıdaki tanımlarla gösterilir.
+export const EVENTS_UI = false;
+
 // Köy olayları (V2-PLAN §13.4). Bilinmeyen kimlikler adıyla gösterilir.
 export const EVENTS = {
   tipi: { name: 'Tipi', icon: 'snow', phase: 'night', desc: 'Kar fırtınası: köylüler evlerinden çıkamaz. Doktor, kahin, gözcü ve cadı bu gece bir şey yapamaz; sadece vampir takımı dolaşır. Gardiyanın kilidi yine de tutar.' },

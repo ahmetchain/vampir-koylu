@@ -3,7 +3,7 @@ import { ctx, send, iAmHost } from './ctx.js';
 import { openSheet } from './kit.js';
 import { esc, clamp, sfx, store } from './util.js';
 import { icon, emblem } from './icons.js';
-import { ROLES, TOGGLE_ROLES, DEFAULT_ROLES, distribution, countRoles, FRAMER_MIN, MIN_PLAYERS, MAX_PLAYERS, EVENTS, EVENT_FREQ } from './data.js';
+import { ROLES, TOGGLE_ROLES, DEFAULT_ROLES, distribution, countRoles, FRAMER_MIN, MIN_PLAYERS, MAX_PLAYERS, EVENTS, EVENT_FREQ, EVENTS_UI } from './data.js';
 
 const LAST_KEY = 'vk.lastSettings';
 
@@ -32,12 +32,12 @@ function formHTML(s, editable, withRoomFields, sampleN) {
     <div class="set-row"><label for="rf-reveal">Ölenlerin rolü açıklansın</label>
       <span class="switch"><input type="checkbox" id="rf-reveal" name="revealRoles" ${s.revealRoles ? 'checked' : ''} ${dis}><i></i></span>
       <small>Kapalıysa ölen oyuncuların rolü oyun bitene kadar gizli kalır (Soytarı asılırsa yine açıklanır).</small></div>
-    <div class="section-title">Köy olayları</div>
+    ${EVENTS_UI ? `<div class="section-title">Köy olayları</div>
     <div class="seg" role="radiogroup" aria-label="Köy olayları" data-evseg>
       ${EVENT_FREQ.map(([k, l]) => `<button type="button" role="radio" class="seg-btn${(s.events || 'some') === k ? ' on' : ''}" data-ev="${k}" aria-checked="${(s.events || 'some') === k}" ${dis}>${l}</button>`).join('')}
     </div>
     <p class="muted small" style="margin:6px 0 0"><span data-evtxt>${esc((EVENT_FREQ.find((x) => x[0] === (s.events || 'some')) || EVENT_FREQ[1])[2])}</span>
-      Tellal duyurur: ${Object.values(EVENTS).map((e) => e.name).join(', ')}. Ayrıntılar "Nasıl Oynanır"da.</p>
+      Tellal duyurur: ${Object.values(EVENTS).map((e) => e.name).join(', ')}. Ayrıntılar "Nasıl Oynanır"da.</p>` : ''}
     <div class="section-title">Özel roller</div>
     <div class="role-toggles">
       ${TOGGLE_ROLES.map((r) => `
@@ -111,7 +111,7 @@ export function openCreateRoom() {
     roomName: `${ctx.user.username} Köyü`.slice(0, 24),
     nightSec: last.nightSec || 30, daySec: last.daySec || 120,
     revealRoles: last.revealRoles !== undefined ? last.revealRoles : true,
-    events: last.events || 'some',
+    events: EVENTS_UI ? (last.events || 'some') : 'off',
     roles: { ...DEFAULT_ROLES, ...(last.roles || {}) },
   };
   const sheet = openSheet({
@@ -148,7 +148,7 @@ export function openRoomSettings() {
   if (!st) return;
   const host = iAmHost() && st.room.phase === 'lobby';
   const cur = st.room.settings;
-  const s = { nightSec: cur.nightSec, daySec: cur.daySec, revealRoles: cur.revealRoles, events: cur.events || 'some', roles: { ...cur.roles } };
+  const s = { nightSec: cur.nightSec, daySec: cur.daySec, revealRoles: cur.revealRoles, events: EVENTS_UI ? (cur.events || 'some') : 'off', roles: { ...cur.roles } };
   const n = Math.max(MIN_PLAYERS, st.players.filter((p) => !p.left).length);
   const sheet = openSheet({
     title: host ? 'Oda Ayarları' : 'Oda Kuralları',

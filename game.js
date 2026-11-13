@@ -109,7 +109,7 @@ const DEFAULT_ROLES = {
   [ROLE.FRAMER]: false,
 };
 const EVENT_MODES = ['off', 'some', 'often'];
-const DEFAULT_SETTINGS = { nightSec: 30, daySec: 120, revealRoles: true, events: 'some', roles: DEFAULT_ROLES };
+const DEFAULT_SETTINGS = { nightSec: 30, daySec: 120, revealRoles: true, events: 'off', roles: DEFAULT_ROLES };
 
 // Gece seçimi olan roller ve tipide evden çıkamayan köy rolleri.
 const NIGHT_ACTION_ROLES = new Set([ROLE.VAMPIRE, ROLE.FRAMER, ROLE.DOCTOR, ROLE.SEER, ROLE.WATCHER, ROLE.WITCH]);

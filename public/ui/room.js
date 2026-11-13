@@ -129,7 +129,7 @@ function confirmNight(s, p) {
 let lockSheet = null;
 function openLockSheet() {
   const s = ctx.state;
-  if (!s || !s.day || s.me.role !== 'gardiyan' || lockSheet) return;
+  if (!s || !canLock(s) || lockSheet) return;
   const render = (st) => {
     const lock = (st.day && st.day.lock) || {};
     const opts = st.players.filter((p) => p.alive && !p.left).map((p) => {
@@ -159,7 +159,7 @@ function openLockSheet() {
   });
   const unsub = on('state', (st) => {
     if (!lockSheet) return;
-    if (!st.day || !['day', 'trial'].includes(st.room.phase)) { lockSheet.close(); return; }
+    if (!canLock(st)) { lockSheet.close(); return; }
     lockSheet.body.innerHTML = render(st);
   });
 }
@@ -216,12 +216,6 @@ function onPromptClick(e) {
   if (a === 'heal' || a === 'poison') { ctx.witchMode = a; sfx('click'); renderAll(s); return; }
   if (a === 'sleep') { sfx('vote'); send('day:vote', { targetId: 'sleep' }); return; }
   if (a === 'unvote') { sfx('click'); send('day:vote', { targetId: null }); return; }
-  if (a === 'clear') {
-    const n = s.night;
-    if (!n) return;
-    const target = n.witch ? (ctx.witchMode === 'poison' ? n.witch.poison : n.witch.heal) : n.mySelection;
-    if (target) { sfx('click'); send('night:select', { targetId: target, action: ctx.witchMode }); }
-  }
   if (a === 'role') openRoleSheet();
   if (a === 'lock') { sfx('click'); openLockSheet(); return; }
   if (a === 'tvote') { sfx('vote'); send('day:vote', { targetId: b.dataset.id }); return; }
@@ -497,7 +491,7 @@ function promptFor(s) {
         if (sel) out.short = `Bakılacak: ${name(sel)} ${st}`;
         break;
       case 'gozcu':
-        out.html = sel ? `${name(sel)} evini gözetliyorsun ${st}. Gelenler aşağıdaki listede.` : '<b>Bu gece kimin evini gözetleyeceksin?</b> Kendi evin de olur. Seçim kesindir.';
+        out.html = sel ? `Gözetlediğin ev: ${name(sel)} ${st}. Gelenler ayrı panelde, canlı.` : '<b>Bu gece kimin evini gözetleyeceksin?</b> Kendi evin de olur. Seçim kesindir.';
         if (sel) out.short = `Gözetlenen: ${name(sel)}`;
         break;
       case 'cadi': {
@@ -518,7 +512,7 @@ function promptFor(s) {
       case 'gardiyan': {
         out.lead = emblem('gardiyan', 's');
         const tgt = n.mySelection;
-        out.html = tgt ? `Bu gece ${name(tgt)} kapısı kilitli. Sabah kaç kişinin zorladığını öğreneceksin.` : 'Bu gece kilitli kapı yok. Gündüz, gelecek gece için bir kapı seçebilirsin.';
+        out.html = tgt ? `Bu gece kilitli kapı: ${name(tgt)}. Sabah kaç kişinin zorladığını öğreneceksin.` : 'Bu gece kilitli kapı yok. Gündüz, gelecek gece için bir kapı seçebilirsin.';
         break;
       }
       default: {
@@ -538,12 +532,12 @@ function promptFor(s) {
     else if (mv === 'sleep') out.html = 'Hızlı Uyu dedin. Herkes derse kimse asılmadan geceye geçilir.';
     else out.html = fog ? '<b>Sis var: oylar gizli.</b> Herkes sadece oy sayılarını görür; kendi oyunu sen görürsün.' : '<b>Tartışın ve oy verin.</b> Şüphelendiğin kişiye dokun. Oylar herkese açık.';
     if (me.role === 'muhtar') out.html += ' <span class="muted">Muhtar olarak oyun iki sayılır.</span>';
-    const lockBtn = me.role === 'gardiyan' ? lockButton(s) : '';
+    const lockBtn = canLock(s) ? lockButton(s) : '';
     out.actions = `${lockBtn}<button type="button" class="btn btn-s sleep-btn${mv === 'sleep' ? ' on' : ''}" data-a="sleep">${icon('zz')}Hızlı Uyu ${day.sleepers}/${day.voters}</button>
       ${mv && mv !== 'sleep' ? `<button type="button" class="btn btn-ghost btn-s" data-a="unvote">${icon('close')}Oyumu geri al</button>` : ''}`;
     if (mv) {
       out.short = day.shortened ? '<b>Herkes oy verdi!</b>' : mv === 'sleep' ? '<b>Hızlı Uyu</b> dedin' : `Oyun: ${name(mv)}`;
-      out.mini = `${me.role === 'gardiyan' ? lockButton(s, true) : ''}<button type="button" class="btn btn-s sleep-btn mini${mv === 'sleep' ? ' on' : ''}" data-a="sleep" aria-label="Hızlı Uyu, ${day.sleepers}/${day.voters}">${icon('zz')}${day.sleepers}/${day.voters}</button>`
+      out.mini = `${canLock(s) ? lockButton(s, true) : ''}<button type="button" class="btn btn-s sleep-btn mini${mv === 'sleep' ? ' on' : ''}" data-a="sleep" aria-label="Hızlı Uyu, ${day.sleepers}/${day.voters}">${icon('zz')}${day.sleepers}/${day.voters}</button>`
         + (mv !== 'sleep' ? `<button type="button" class="btn btn-ghost btn-s mini" data-a="unvote" aria-label="Oyumu geri al">${icon('close')}</button>` : '');
     }
     return out;
@@ -568,7 +562,10 @@ function tripStatus(s, sel) {
   return statusHTML(Date.now() - selSeen.get(key) > 3500 ? 'in' : 'go');
 }
 
-// Gardiyan: gündüz, gelecek gece kilitlenecek kapı.
+// Gardiyan: gündüz, gelecek gece kilitlenecek kapı. Sunucu day.lock'u sadece yaşayan gardiyana gönderir.
+function canLock(s) {
+  return !!(s.me.alive && s.me.role === 'gardiyan' && s.day && s.day.lock && ['day', 'trial'].includes(s.room.phase));
+}
 function lockButton(s, mini = false) {
   const lock = s.day && s.day.lock;
   const p = lock && lock.targetId ? playerById(lock.targetId) : null;
@@ -600,7 +597,7 @@ function trialPrompt(s, name) {
     out.html = t.speaker ? `${name(t.speaker)} savunma yapıyor. Sonra köy bu iki kişi arasında yeniden oylayacak.` : 'Mahkeme kuruluyor…';
     if (t.speaker === s.me.id) out.html = '<b>Savunma sırası sende!</b> Sohbete yaz, köyü ikna et.';
   }
-  out.actions = `<div class="trial" style="flex:1"><div class="trial-pair">${card(acc[0])}<span class="trial-vs">ya da</span>${card(acc[1])}</div>
+  out.actions = `${canLock(s) ? lockButton(s) : ''}<div class="trial" style="flex:1"><div class="trial-pair">${card(acc[0])}<span class="trial-vs">ya da</span>${card(acc[1])}</div>
     ${t.step === 'vote' && s.me.alive && s.day ? `<button type="button" class="btn btn-s sleep-btn${s.day.myVote === 'sleep' ? ' on' : ''}" data-a="sleep">${icon('zz')}Hızlı Uyu ${s.day.sleepers}/${s.day.voters}</button>` : ''}</div>`;
   return out;
 }
@@ -612,7 +609,7 @@ function renderWatch(s) {
   el.hidden = !wv;
   if (!wv) { el.dataset.html = ''; return; }
   const owner = playerById(wv.targetId);
-  const ownName = owner ? (owner.id === s.me.id ? 'Kendi evin' : `${esc(owner.name)} evi`) : 'Ev';
+  const ownName = owner ? (owner.id === s.me.id ? 'kendi evin' : `<b>${esc(owner.name)}</b>`) : '?';
   const vis = wv.visitors || [];
   let list;
   if (wv.dark) {
@@ -629,11 +626,11 @@ function renderWatch(s) {
   if (wv.ownerOut) {
     const to = wv.ownerWent ? playerById(wv.ownerWent) : null;
     let where = '';
-    if (to) where = to.id === s.me.id ? ' → <b>senin</b> evine geldi' : ` → <b>${esc(to.name)}</b> evine gitti`;
+    if (to) where = to.id === s.me.id ? ' → <b>senin</b> evine geldi' : ` → gittiği ev: <b>${esc(to.name)}</b>`;
     else if (wv.dark) where = '; karanlıkta nereye gittiği görünmedi';
     own = `<div class="watch-owner">${icon('door')} Ev sahibi çıktı${where}.</div>`;
   }
-  const html = `<header>${emblem('gozcu', 's')}<span>Gözetlediğin: ${ownName}</span><span class="lt-private">${icon('eye')}Sadece sen görüyorsun</span></header>${list}${own}`;
+  const html = `<header>${emblem('gozcu', 's')}<span>Gözetlediğin ev: ${ownName}</span><span class="lt-private">${icon('eye')}Sadece sen görüyorsun</span></header>${list}${own}`;
   if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; scheduleInsets(); }
 }
 
@@ -643,7 +640,6 @@ function renderPrompt(s) {
   el.hidden = !p;
   if (!p) return;
   // Seçim/oy yapıldıktan sonra istem tek satıra iner (dünya daha çok görünsün); dokununca açılır.
-  if (p.short && !p.mini && /data-a="clear"/.test(p.actions)) p.mini = `<button type="button" class="btn btn-ghost btn-s mini" data-a="clear" aria-label="Seçimi kaldır">${icon('close')}</button>`;
   const compact = !!p.short && promptOpenKey !== phaseKey;
   const toggle = p.short ? `<button type="button" class="iconbtn prompt-tog" data-a="${compact ? 'expand' : 'collapse'}" aria-label="${compact ? 'Ayrıntıları göster' : 'Küçült'}">${icon(compact ? 'chevUp' : 'chevDown')}</button>` : '';
   const html = compact
