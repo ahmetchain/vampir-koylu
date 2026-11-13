@@ -299,3 +299,44 @@ Must work on iOS Safari (mp3/m4a, unlock on gesture) and survive missing files.
 
 ## 10. Dev ports
 server agent 3101–3109, assets 3111–3119, audio 3121–3129, world 3131–3139, ui 3141–3149, QA 3151–3159.
+
+## 11. Round 2 (2026-11-13, after the first live release)
+
+Feedback from the project owner after trying the live game. Same working rules (§2), same
+ownership (§9), same dev ports (§10). Work in this worktree; the live game runs from the main
+folder and must not be touched.
+
+### 11.1 Bots (server + ui) — so one person can start and test a full game alone
+- `room:addBot {}` (host only, lobby only, room not full) adds a bot player; `room:kick` removes
+  it. `players[i].bot === true` in `state`. Bots have a Turkish name marked as a bot, a random look,
+  a seat and a house like anyone else, and are always "connected".
+- Bots act on their own, with human-like random delays: night role actions on a random valid
+  target, a day vote for a random living player (sometimes "Hızlı Uyu"), the hunter's shot. They do
+  not need to move or chat (a little is welcome if cheap). They never crash or stall a game.
+- A room with no human left is closed. Games that include a bot are **not** written to account
+  stats or the leaderboard.
+- UI: host sees "Bot ekle" in the lobby, bots carry a small badge, a note says botlu oyunlar
+  istatistiğe sayılmaz.
+
+### 11.2 Camera and movement (world)
+- By day / in the lobby the default view is a **third-person follow camera**: a little above and
+  diagonally behind the player's own character (think of a classic third-person action game), which
+  follows smoothly while walking. Drag orbits around the character, pinch/wheel zooms from close
+  follow out to the village overview; a button toggles follow/overview.
+- Direct movement: an on-screen joystick on touch devices and WASD/arrow keys on desktop, relative
+  to the camera, in addition to tap-to-move. Uses the existing `onMove` (normalized plaza coords),
+  rate-limited, with local prediction for the own character.
+- At night, when the village sleeps or the player picks a house, keep the current overview — the
+  owner likes it as it is.
+
+### 11.3 Mobile performance (world) — the top priority of this round
+The game must stay smooth on an ordinary phone with ~10 players (and remain playable with 20).
+Dynamic resolution, cheaper tiers, less per-frame CPU, faster automatic downgrade, remembered per
+device. Measured under CPU throttling with phone-size viewports, since no real phone is available.
+An optional on-screen FPS read-out (toggle in settings) lets the owner report real numbers.
+
+### 11.4 Sound (audio + ui)
+- The owner finds the menu music very bad: replace it with something calmer and simpler; music
+  should sit quietly in the background by default.
+- Sound controls must be reachable from the menu and in game: mute, and separate sliders for
+  music, effects and ambience (campfire, night).
