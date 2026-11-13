@@ -340,3 +340,20 @@ An optional on-screen FPS read-out (toggle in settings) lets the owner report re
   should sit quietly in the background by default.
 - Sound controls must be reachable from the menu and in game: mute, and separate sliders for
   music, effects and ambience (campfire, night).
+
+## 12. Round 3 (owner feedback after playing round 2)
+
+1. **Performance with many players, even on PC**: frame drops as the player count grows; some
+   characters' hats/bodies jitter or twitch constantly. Find and fix the root causes (animation
+   blending/LOD skipping, position corrections fighting between server state and local movement,
+   per-player prop spawning). Fewer props: the village must not add more and more decoration per
+   player — a fixed, curated set, instanced/merged.
+2. **Movement only in the lobby (and ended).** By day every living player stands at a fixed spot
+   on the ring around the campfire (by seat, facing the fire); no free walking, no joystick, no
+   auto-wandering, bots don't stroll. `player:move` is rejected outside lobby/ended. The follow
+   camera still exists in lobby/ended; by day the camera frames the ring.
+3. **Faster walking** everywhere (~1.6× current), house entry quick.
+4. **Night timer starts after everyone is home.** The night phase gets a fixed walk-home lead-in
+   `NIGHT_WALK_MS` (4000 ms): selections are already allowed, but the night countdown the player
+   sees (`room.deadline` stays the real end; new `room.timerFrom` = when the countdown starts)
+   only starts when the lead-in is over, so the full `nightSec` is available after arriving home.
