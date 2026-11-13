@@ -220,7 +220,8 @@ async function boot() {
   const bar = $('#splash-bar');
   const worldP = initWorld($('#world'), {
     onPick: (id) => pick(id),
-    onMove: (x, y) => { if (ctx.state) send('player:move', { x, y }, { quiet: true }); },
+    // Serbest yürüme sadece lobide ve oyun bitince (sunucu başka aşamada reddeder; hata gösterilmez).
+    onMove: (x, y) => { const ph = ctx.state && ctx.state.room.phase; if (ph === 'lobby' || ph === 'ended') send('player:move', { x, y }, { quiet: true }); },
     onSelf: () => openLookEditor(),
     onProgress: (d, t) => { if (t) bar.style.width = `${Math.max(6, Math.round((d / t) * 100))}%`; },
     onReady: () => { bar.style.width = '100%'; },

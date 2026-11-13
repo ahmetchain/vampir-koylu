@@ -6,8 +6,10 @@ import * as A from './assets.js';
 import { COLOR_HEX, HAT_NODES, HAT_Y_OFFSET, clamp, damp, wrapAngle } from './constants.js';
 
 export const SCALE = 1.12;
-const WALK_SPEED = 1.75;
-const SPEEDS = { walk: WALK_SPEED, brisk: 2.35, sneak: 1.5, sprint: 3.4, stroll: 1.3 };
+// Yürüme hızları (3. tur: ~1.6 kat). STRIDE: yürüme klibinin doğal hızı (adım temposu buna göre ölçeklenir)
+const STRIDE = 1.75;
+const WALK_SPEED = 2.8;
+const SPEEDS = { walk: WALK_SPEED, brisk: 3.75, sneak: 2.4, sprint: 5.4, stroll: 2.1 };
 const BASE_CLIPS = ['idle', 'walk', 'sprint', 'crouch', 'sit', 'die', 'emote-yes', 'emote-no'];
 const tmpV = new THREE.Vector3();
 
@@ -100,6 +102,7 @@ export class Character {
     this.clips = A.clips();
     this.headBone = head || null;
     this.headBaseQ = head ? head.quaternion.clone() : null;
+    this.headAnimQ = null;
     this.armR = model.getObjectByName('arm-right');
     this.armL = model.getObjectByName('arm-left');
     this.headY = (1.72 + (look.hat ? 0.18 : 0)) * SCALE;
@@ -215,7 +218,7 @@ export class Character {
       const sp = Math.max(this.speed, 0.6);
       this.pos.x += d.x * sp * dt; this.pos.z += d.z * sp * dt;
       targetSpeed = d.speed;
-      this.mode = d.speed > 2.3 ? 'sprint' : 'walk';
+      this.mode = d.speed > 3.7 ? 'sprint' : 'walk';
     } else if (this.path && this.path.length) {
       const p = this.path[0];
       const dx = p.x - this.pos.x, dz = p.z - this.pos.z;
@@ -229,7 +232,8 @@ export class Character {
         if (!this.path.length) this.path = null;
       } else {
         targetSpeed = SPEEDS[this.mode] || WALK_SPEED;
-        if (last) targetSpeed = Math.min(targetSpeed, 0.6 + d * 2.2);
+        // son noktada yavaşla; ama hedef az önce güncellendiyse (sunucudan akan konum) yavaşlama, yoksa kesik kesik yürür
+        if (last && !(this.retargetAt != null && this.world.time - this.retargetAt < 0.5)) targetSpeed = Math.min(targetSpeed, 0.9 + d * 3.2);
         // köşelerde sonraki noktaya doğru yumuşak dönüş
         let tx = dx, tz = dz;
         if (!last && d < 1.2) {
@@ -238,7 +242,10 @@ export class Character {
           tx = dx * (1 - k) + (n.x - this.pos.x) * k; tz = dz * (1 - k) + (n.z - this.pos.z) * k;
         }
         const want = Math.atan2(tx, tz);
-        this.yaw += wrapAngle(want - this.yaw) * damp(9, dt);
+        const turn = wrapAngle(want - this.yaw);
+        this.yaw += turn * damp(12, dt);
+        // ters yöne bakarken önce dön (yerinde yürür gibi kaymasın)
+        targetSpeed *= clamp(1.25 - Math.abs(turn) / 1.6, 0.2, 1);
         const step = Math.min(d, this.speed * dt);
         // hareket yönü: bakılan yöne yakın (kayma olmasın), hedefe doğru
         const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
@@ -250,7 +257,9 @@ export class Character {
     } else if (this.faceYaw != null) {
       this.yaw += wrapAngle(this.faceYaw - this.yaw) * damp(4, dt);
     }
-    this.speed += (targetSpeed - this.speed) * damp(targetSpeed > this.speed ? 6 : 10, dt);
+    // yol bittiyse hızla dur: yerinde yürüme animasyonu (ayak sürtme) kalmasın
+    const stopping = !this.path && !(this.drive && this.drive.speed > 0.05);
+    this.speed += (targetSpeed - this.speed) * damp(targetSpeed > this.speed ? 6 : stopping ? 28 : 10, dt);
     if (this.speed < 0.02) this.speed = 0;
     this.root.rotation.y = this.yaw;
 
@@ -265,8 +274,8 @@ export class Character {
       }
     }
     // yürüme hızına göre adım temposu (ayak kayması olmasın)
-    if (this.actions.walk) this.actions.walk.timeScale = moving ? clamp(this.speed / WALK_SPEED, 0.5, 1.6) * (this.base === 'sneak' ? 1.25 : 1) : 1;
-    if (this.actions.sprint) this.actions.sprint.timeScale = moving ? clamp(this.speed / 3.2, 0.6, 1.4) : 1;
+    if (this.actions.walk) this.actions.walk.timeScale = moving ? clamp(this.speed / STRIDE, 0.5, 1.9) * (this.base === 'sneak' ? 1.1 : 1) : 1;
+    if (this.actions.sprint) this.actions.sprint.timeScale = moving ? clamp(this.speed / 3.6, 0.6, 1.6) : 1;
     if (moving && this.isMe && this.visible && this.world.sfxStep) {
       this.stepPhase += dt * this.speed / 1.4;
       if (this.stepPhase > 1) { this.stepPhase -= 1; this.world.sfxStep(); }
@@ -315,6 +324,12 @@ export class Character {
       if (this.headBone) this.headBone.quaternion.copy(this.headBaseQ); // klipte baş izi yoksa birikmesin
       this.mixer.update(this.animAcc);
       this.animAcc = 0;
+      // animasyonun verdiği baş pozu: atlanan karelerde baş çevirme bunun üstüne uygulanır (birikmesin)
+      if (this.headBone) { if (!this.headAnimQ) this.headAnimQ = new THREE.Quaternion(); this.headAnimQ.copy(this.headBone.quaternion); }
+    } else if (this.headBone && this.headAnimQ) {
+      // HATA DÜZELTMESİ: önceki sürümde atlanan karelerde rotateY bir önceki karenin dönmüş başına eklenip
+      // birikiyordu -> uzak/düşük kademedeki karakterlerin başı (ve şapkası) sürekli seğiriyordu
+      this.headBone.quaternion.copy(this.headAnimQ);
     }
     // baş çevirme: konuşana / ateşe / kameraya (animasyonun üstüne, sınırlı)
     if (this.headBone) {

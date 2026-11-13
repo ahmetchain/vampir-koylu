@@ -133,6 +133,8 @@ test('gece süresi dolunca kendiliğinden sabah olur', (t) => {
   startWithRoles(room, [V, D, K, K, K]);
   room.selectNight('p0', 'p4');
   t.mock.timers.tick(30000);
+  assert.equal(room.phase, 'night', 'eve yürüme payı (4 sn) henüz bitmedi');
+  t.mock.timers.tick(4000);
   assert.equal(room.phase, 'day');
   assert.equal(room.players.get('p4').alive, false);
   t.mock.timers.tick(120000);

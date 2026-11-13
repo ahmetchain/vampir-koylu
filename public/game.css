@@ -478,3 +478,6 @@
 .lobby-bots { margin: 0; display: flex; gap: 8px; align-items: center; justify-content: center; font-size: var(--fs-xs); color: #cfe0ff; font-weight: 800; }
 .lobby-bots .ic { width: 16px; height: 16px; flex: none; }
 .note .ic { flex: none; }
+
+/* gece sayacı: herkes evine dönene kadar donuk */
+.phase-timer.wait { opacity: .6; background: rgba(143, 180, 255, .18); }

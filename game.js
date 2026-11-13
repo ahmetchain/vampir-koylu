@@ -57,6 +57,7 @@ const FRAMER_MIN_PLAYERS = 7;    // iftiracı ancak bu kadar oyuncu varsa dağı
 const REVEAL_MS = 8000;          // rol kartlarına bakma süresi
 const ALL_VOTED_MS = 10000;      // herkes oy verince kalan süre buna iner
 const HUNTER_MS = 20000;         // avcının son atışı süresi
+const NIGHT_WALK_MS = 4000;      // gece başında herkesin evine yürüme süresi; gece sayacı bundan sonra başlar
 const LOBBY_GRACE_MS = 30000;    // lobide bağlantısı kopan oyuncu bu süre sonunda çıkarılır
 const EMPTY_ROOM_MS = 10 * 60 * 1000;
 const SLEEP = 'sleep';           // gündüz "Hızlı Uyu" oyu
@@ -88,7 +89,8 @@ const SKIN_COUNT = 12;
 
 // Meydan koordinatları 0-1 arası; (0.5, 0.5) kamp ateşi. Karakterler ateşle evler arasındaki halkada durur.
 const PLAZA = { cx: 0.5, cy: 0.5, minR: 0.10, maxR: 0.48, spawnMinR: 0.22, spawnMaxR: 0.42 };
-const MOVE_PHASES = ['lobby', 'day', 'ended'];
+// Serbest dolaşma sadece lobide ve oyun sonunda; gündüz herkes ateşin çevresinde sabit yerinde durur.
+const MOVE_PHASES = ['lobby', 'ended'];
 
 const DEFAULT_ROLES = {
   [ROLE.DOCTOR]: true,
@@ -257,6 +259,7 @@ class Room {
   resetGame() {
     this.round = 0;
     this.deadline = null;
+    this.timerFrom = null;
     this.winner = null;
     this.winners = [];
     this.log = [];
@@ -515,7 +518,7 @@ class Room {
     return null;
   }
 
-  // Lobide, gündüz ve oyun sonunda karakterler meydanda dolaşabilir (ölüler de).
+  // Sadece lobide ve oyun sonunda karakterler meydanda dolaşabilir (ölüler de); gündüz herkes yerinde durur.
   move(byId, x, y) {
     const p = this.players.get(byId);
     if (!p) return 'Odada değilsin.';
@@ -622,6 +625,7 @@ class Room {
   setPhase(phase, ms, onEnd) {
     clearTimeout(this.timer);
     this.phase = phase;
+    this.timerFrom = null;
     this.deadline = Date.now() + ms;
     this.timer = setTimeout(onEnd, ms);
   }
@@ -638,7 +642,9 @@ class Room {
     this.nightWatch = null;
     this.nightFrame = null;
     this.nightWitch = { heal: null, poison: null };
-    this.setPhase('night', this.settings.nightSec * 1000, () => this.endNight());
+    // Gece süresi eve yürüme payıyla başlar: seçimler hemen açık, görünen sayaç (timerFrom) yürüyüş bitince başlar.
+    this.setPhase('night', NIGHT_WALK_MS + this.settings.nightSec * 1000, () => this.endNight());
+    this.timerFrom = Date.now() + NIGHT_WALK_MS;
     const n = this.narrate('night', { round: this.round },
       { title: `${this.round}. Gece`, text: 'Köy uyuyor... Gece rolleri seçimini yapsın.' });
     this.addLog(`${this.round}. gece başladı.`, 'night');
@@ -1035,6 +1041,7 @@ class Room {
     clearTimeout(this.timer);
     this.phase = 'ended';
     this.deadline = null;
+    this.timerFrom = null;
     this.winner = winner;
     this.hunterId = null;
     this.hunterNext = null;
@@ -1220,7 +1227,7 @@ class Room {
       serverNow: Date.now(),
       room: {
         id: this.id, name: this.name, phase: this.phase, round: this.round,
-        deadline: this.deadline, hostId: this.hostId, settings: this.settings,
+        deadline: this.deadline, timerFrom: this.timerFrom, hostId: this.hostId, settings: this.settings,
         hasPassword: Boolean(this.password), winner: this.winner, winners: this.winners,
         minPlayers: MIN_PLAYERS, maxPlayers: MAX_PLAYERS,
         vampireCount: vampireCount(activeCount),
@@ -1299,7 +1306,7 @@ class Room {
 module.exports = {
   Room, ROLE, SLEEP, MIN_PLAYERS, MAX_PLAYERS, FRAMER_MIN_PLAYERS, SPECIAL_ROLES, OPTIONAL_ROLES,
   DEFAULT_ROLES, ROLE_LABEL, COLOR_COUNT, HAT_COUNT, SKIN_COUNT, PLAZA, MOVE_PHASES,
-  REVEAL_MS, ALL_VOTED_MS, HUNTER_MS, LOBBY_GRACE_MS, EMPTY_ROOM_MS,
+  REVEAL_MS, ALL_VOTED_MS, HUNTER_MS, NIGHT_WALK_MS, LOBBY_GRACE_MS, EMPTY_ROOM_MS,
   LOG_MAX, SCENES,
   vampireCount, assignRoles, rolesFor, winnerOf, tally, normalizeSettings, teamOf, isEvil, clampToPlaza,
 };

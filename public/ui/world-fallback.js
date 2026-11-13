@@ -400,7 +400,7 @@
         if (best.p.id === state.me.id && (ph === 'lobby' || ph === 'ended')) { handlers.onSelf && handlers.onSelf(); return; }
         if (window.VKRules && window.VKRules.action(state)) return;
       }
-      if (ph === 'lobby' || ph === 'day' || ph === 'ended') {
+      if (ph === 'lobby' || ph === 'ended') {
         var q = unproj(x, y);
         var dx = q.u - 0.5; var dy = q.v - 0.5; var d = Math.hypot(dx, dy) || 1;
         var cd = clamp(d, 0.1, 0.48);

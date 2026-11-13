@@ -413,39 +413,51 @@ export function createVillage(scene, q, fx, terrain) {
       put(i === 1 ? 'log-small' : 'log', Math.sin(a) * r, Math.cos(a) * r, a + Math.PI / 2, 1, 'village', 0);
       benchSlots.push({ x: Math.sin(a) * r, z: Math.cos(a) * r, a, small: i === 1 });
     }
-    put('stump', Math.sin(5.4) * 3.2, Math.cos(5.4) * 3.2, 0.4, 1, 'village', 0);
     put('campfire-stand', 0, 0, 1.2, 0.85, 'village', 0);
-    // Evlerin arası: fener + küçük dekor (kapı yollarından uzak)
+    // Sabit, seçilmiş dekor (3. tur): oyuncu sayısı arttıkça dekor artmaz; yalnız evler çoğalır.
+    // Fener ve küçük dekor, kapı boşluğundan uzak sabit açılarda; her biri en yakın iki evin arasına kaydırılır.
     const hs = L.houses;
-    const propsMid = ['barrel', 'crate', 'hay-bale', 'crate-bottles', 'pumpkin', 'bucket', 'wheel', 'stool'];
-    for (let i = 0; i < hs.length; i++) {
-      const a0 = hs[i].angle;
-      let a1 = hs[(i + 1) % hs.length].angle;
-      let d = a1 - a0; while (d < 0) d += TAU;
-      if (hs.length === 1 || d > Math.PI) continue; // kapı boşluğu
-      const mid = a0 + d / 2;
-      // fener: ev hattının önünde
+    const gapMid = (a) => {
+      // a açısına en yakın iki komşu evin ortası (kapı yolunu kapatmasın)
+      let best = null, bd = Infinity;
+      for (let i = 0; i < hs.length; i++) {
+        const a0 = hs[i].angle;
+        let d = hs[(i + 1) % hs.length].angle - a0; while (d < 0) d += TAU;
+        if (hs.length > 1 && d > Math.PI) continue;
+        const m = a0 + d / 2;
+        const dd = Math.abs(((m - a + Math.PI) % TAU + TAU) % TAU - Math.PI);
+        if (dd < bd) { bd = dd; best = m; }
+      }
+      return best == null ? a : best;
+    };
+    const usedMid = new Set();
+    const fixedAngles = (k) => { const out = []; for (let i = 0; i < k; i++) out.push(L.gateAngle + Math.PI + ((i + 0.5) / k - 0.5) * (TAU - 1.4)); return out; };
+    for (const a of fixedAngles(Math.min(6, Math.max(1, hs.length - 1)))) {
+      const mid = gapMid(a);
+      const key = mid.toFixed(3);
+      if (usedMid.has(key)) continue;
+      usedMid.add(key);
       const lr = L.R - 3.4;
       const lx = Math.sin(mid) * lr, lz = Math.cos(mid) * lr;
       put('lamp-post', lx, lz, mid + Math.PI, 1);
       lamps.push({ x: lx, y: 3.55, z: lz });
-      // evlerin arasında küçük dekor
-      const pr = L.R + 0.4;
-      const p1 = propsMid[Math.floor(R() * propsMid.length)];
-      put(p1, Math.sin(mid) * pr, Math.cos(mid) * pr, R() * TAU, 1);
-      if (R() < 0.6) put('bush', Math.sin(mid + 0.04) * (pr + 1.6), Math.cos(mid + 0.04) * (pr + 1.6), R() * TAU, 1.2 + R() * 0.5);
     }
+    const propsMid = ['barrel', 'crate', 'hay-bale', 'crate-bottles', 'bucket', 'wheel', 'barrel', 'crate'];
+    const usedProp = new Set();
+    fixedAngles(8).forEach((a, i) => {
+      const mid = gapMid(a + 0.11);
+      const key = mid.toFixed(3);
+      if (usedProp.has(key)) return;
+      usedProp.add(key);
+      const pr = L.R + 0.4;
+      put(propsMid[i], Math.sin(mid) * pr, Math.cos(mid) * pr, R() * TAU, 1);
+    });
     // Her evin kapısının yanında yer feneri
     for (const h of houses.values()) {
       if (h.removing) continue;
       const v = { x: h.tx, z: h.tz, rotY: h.trot };
       const p = toWorld(v, h.info.door[0] + 0.95, h.info.front + 0.45);
       put('lantern', p.x, p.z, h.trot, 0.8, 'village', 0);
-      // arka bahçe: odun kütüğü / çit parçası, gözcünün yolunu kapatmayacak şekilde
-      const back = toWorld(v, -h.info.hx - 0.6, -h.info.hz + 0.6);
-      if (R() < 0.7) put(R() < 0.5 ? 'stump' : 'barrel', back.x, back.z, R() * TAU, 0.9);
-      const side = toWorld(v, -h.info.hx + 0.2, h.info.front + 1.2);
-      if (R() < 0.5) put(R() < 0.5 ? 'grass-large' : 'bush', side.x, side.z, R() * TAU, 1.0);
     }
     // Meydan kenarı: tezgah, el arabası, kuyu yerine çeşme taşı vb. (kapı yolu açılarından uzak)
     const free = (a) => {
@@ -455,7 +467,7 @@ export function createVillage(scene, q, fx, terrain) {
     };
     const plazaProps = [['stall', 0], ['cart', 1], ['bench', 0], ['stall-green', 0], ['hay-bale', 0], ['bench-stone', 0], ['cart-hay', 1]];
     let placed = 0;
-    for (let k = 0; k < 40 && placed < Math.min(4 + Math.floor(L.n / 5), plazaProps.length); k++) {
+    for (let k = 0; k < 40 && placed < 4; k++) {
       const a = R() * TAU;
       if (!free(a)) continue;
       const r = L.Rp + 2.2 + R() * Math.max(0.5, L.Rr - L.Rp - 3.5);
@@ -515,6 +527,8 @@ export function createVillage(scene, q, fx, terrain) {
       list.push({ tpl, mats, cast: !/grass|patch|rock-flat|bush/.test(name) });
     }
     dressing.add(mergedProps(list));
+    // ateş: takip kamerası üstünden geçmesin
+    blockers.push({ x: 0, z: 0, r: 1.5, h: 3.3, name: 'fire' });
     if (pendingGrow) { GROW.value = 0; growT = 0; pendingGrow = false; }
     // mezarlık (paket yüklüyse)
     buildGraveyard();
@@ -766,8 +780,10 @@ export function createVillage(scene, q, fx, terrain) {
     const put = (name, x, z, rotY, s = 1) => { addBlocker(themeBlockers, 'village', name, x, z, s); if (!batches.has(name)) batches.set(name, []); batches.get(name).push(compose(x, terrain.heightAt(x, z), z, rotY, s)); };
     if (theme.dress === 'harvest') {
       // kapı önlerinde balkabakları, meydan kenarında saman balyaları ve yük arabası
-      for (const h of houses.values()) {
-        if (h.removing) continue;
+      const hl = [...houses.values()].filter((h) => !h.removing);
+      const stepH = Math.max(1, Math.ceil(hl.length / 8));
+      for (let hi = 0; hi < hl.length; hi += stepH) {
+        const h = hl[hi];
         const v = { x: h.tx, z: h.tz, rotY: h.trot };
         const p = toWorld(v, h.info.door[0] - 0.9, h.info.front + 0.7);
         put('pumpkin', p.x, p.z, R() * TAU, 0.7 + R() * 0.3);

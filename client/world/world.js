@@ -82,6 +82,20 @@ export function create(container, handlers = {}) {
   scene.fog = new THREE.Fog(0x9ab, 50, 250);
   const camera = new THREE.PerspectiveCamera(40, 1, 0.3, 900);
   const rig = new CameraRig(camera);
+  // ev halkası bandında alçak kamera: yatayda halkanın önüne çek (çatı/duvar içinden görüntü olmasın)
+  rig.clampFn = (p) => {
+    const L = village && village.layout;
+    if (!L || view !== 'game') return;
+    const r = Math.hypot(p.x, p.z);
+    const lim = L.R - 6.2;   // çatı saçakları da hesaba katılır
+    if (r > lim && r < L.R + 6 && p.y < 9.5) {
+      // yükseklik arttıkça izin verilen bant daralır: 9.5 m üstü serbest
+      const k = lim / r;
+      const t = Math.max(0, (p.y - 7) / 2.5);
+      const kk = k + (1 - k) * t;
+      p.x *= kk; p.z *= kk;
+    }
+  };
 
   // ---------- kalite ----------
   let qualityMode = 'auto';
@@ -193,6 +207,12 @@ export function create(container, handlers = {}) {
     houseAnchors(id) { const h = village && village.house(id); return h ? village.anchors(h) : null; },
     layoutR() { return village && village.layout ? village.layout.R : 15; },
     meId() { return state && state.me ? state.me.id : null; },
+    // gece girişi için kalan süre (sn): sunucu room.timerFrom gönderiyorsa ona göre, yoksa ~3.6 sn
+    leadInLeft() {
+      const tf = state && state.room && state.room.timerFrom;
+      if (!tf) return 3.6;
+      return clamp((tf - (Date.now() + skew)) / 1000 - 0.3, 1.2, 4.5);
+    },
     flash(a, color) {
       if (!a) { flashEl.style.opacity = '0'; return; }
       flashEl.style.background = `radial-gradient(ellipse at 50% 50%, ${color || '#d7263d'}55, ${color || '#d7263d'}cc)`;
@@ -635,7 +655,8 @@ export function create(container, handlers = {}) {
         pts[n++].set(goal.x, 2.4, goal.z);
       }
       for (const g of ghosts.values()) { if (n < 62) { pts[n++].set(g.pos.x, 2.6, g.pos.z); pts[n++].set(g.pos.x, 0, g.pos.z); } }
-      const el = kind === 'gather' ? (portrait ? 0.6 : 0.5) : (portrait ? 0.58 : 0.54);
+      // gündüz halkası: dikey ekranda daha yukarıdan (halka ekranı doldursun, önde boş zemin/çatı kalmasın)
+      const el = kind === 'gather' ? (portrait ? 0.6 : 0.5) : (portrait ? 1.02 : 0.66);
       rig.setShot({ kind, target: plazaCentroid(pts, n), az: 0, el, fov: portrait ? 44 : 38, points: pts.slice(0, n), margin: portrait ? 0.92 : 0.8, minDist: 8, snap: force, speed: 1.8 });
       s.dynamic = true;
       s.points = pts.slice(0, n);
@@ -740,7 +761,7 @@ export function create(container, handlers = {}) {
     const ph = state.room.phase;
     const me = state.me;
     if ((ph === 'lobby' || ph === 'ended') && nearestChar(x, y, (id) => id === me.id, 26)) { if (H.onSelf) H.onSelf(); return; }
-    if (ph === 'lobby' || ph === 'day' || ph === 'ended') {
+    if (ph === 'lobby' || ph === 'ended') {
       const p = rayAt(x, y).intersectPlane(groundPlane, tmpV);
       if (!p) return;
       const L = village.layout;
@@ -1015,11 +1036,11 @@ export function create(container, handlers = {}) {
     list.length = 0;
     camFrustum.setFromProjectionMatrix(projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     for (const ch of chars.values()) {
-      // görüş dışı: 4 karede bir, uzak: 2 karede bir; tasarruf kademesinde en az 2
+      // görüş dışı: 4 karede bir (görünmez); görünenler her karede
       lodSphere.center.set(ch.pos.x, ch.pos.y + 0.9, ch.pos.z);
       const inView = ch.visible && camFrustum.intersectsSphere(lodSphere);
-      const far = camera.position.distanceToSquared(lodSphere.center) > 26 * 26;
-      ch.animEvery = !inView ? 4 : Math.max(far ? 2 : 1, tier.animLod || 1);
+      // görünenler her karede (seyrek güncelleme uzakta da göze takılıyordu); yalnız görüş dışındakiler seyrek
+      ch.animEvery = inView ? 1 : 4;
       try { ch.update(dt, time); } catch (e) { report('karakter', e); recoverChar(ch); }
       if (ch.visible && !ch.claimed) list.push(ch);
     }
@@ -1124,7 +1145,8 @@ export function create(container, handlers = {}) {
     const ch = chars.get(me.id);
     return ch && ch.visible ? ch : null;
   }
-  function movePhase() { const ph = state && view === 'game' ? state.room.phase : null; return ph === 'lobby' || ph === 'day' || ph === 'ended'; }
+  // serbest dolaşma yalnız lobide ve oyun sonunda (gündüz herkes ateşin çevresindeki yerinde durur)
+  function movePhase() { const ph = state && view === 'game' ? state.room.phase : null; return ph === 'lobby' || ph === 'ended'; }
   function followable() { return movePhase() && !!followTarget(); }
   function wantFollow() { return camMode === 'follow' && followable(); }
   function behindAz(ch) { return ch.yaw + Math.PI + 0.38 * fol.side; }
@@ -1174,8 +1196,18 @@ export function create(container, handlers = {}) {
     let el = fol.el + ((portrait ? 1.15 : 0.98) - fol.el) * b;
     let dist = base * z + (fol.ovDist - base * z) * b;
     const fov = (portrait ? 54 : 46) + (40 - (portrait ? 54 : 46)) * b;
+    // meydanın kenarında arkadan çekim evlere sıkışır: kamera (kullanıcı sürüklemiyorsa) yavaşça meydan tarafına döner
+    {
+      const hc = Math.cos(el) * dist;
+      const cx = folTgt.x + Math.sin(fol.az) * hc, cz = folTgt.z + Math.cos(fol.az) * hc;
+      const excess = Math.hypot(cx, cz) - (L.R - 6.2);
+      if (excess > 0 && b < 0.4 && fol.dragT > 0.8) {
+        const azIn = Math.atan2(-folTgt.x, -folTgt.z);
+        fol.az = wrapAngle(fol.az + wrapAngle(azIn - fol.az) * damp(clamp(excess * 0.5, 0, 2.5), dt));
+      }
+    }
     // evlerin içine girme: kamera yatay olarak ev halkasının önünde kalsın (önce yüksel, sonra yaklaş)
-    const lim = L.R - 4.6;
+    const lim = L.R - 6.2;   // çatı saçakları da hesaba katılır
     if (b < 0.6) {
       for (let it = 0; it < 14; it++) {
         const h = Math.cos(el) * dist;
@@ -1209,13 +1241,13 @@ export function create(container, handlers = {}) {
       if (me && ch !== me && ch.visible && !ch.claimed) {
         const dx = ch.pos.x - c.x, dz = ch.pos.z - c.z;
         const d2 = dx * dx + dz * dz;
-        if (d2 < 2.4 * 2.4) hide = true;
+        if (d2 < 3.6 * 3.6) hide = true;
         else {
           // kamera -> hedef doğrusu üzerinde, hedeften önce ve çizgiye yakın
           const tx = me.pos.x - c.x, tz = me.pos.z - c.z;
           const tl2 = tx * tx + tz * tz || 1;
           const t = (dx * tx + dz * tz) / tl2;
-          if (t > 0 && t < 0.82) { const px = dx - tx * t, pz = dz - tz * t; if (px * px + pz * pz < 0.75 * 0.75) hide = true; }
+          if (t > 0 && t < 0.82) { const px = dx - tx * t, pz = dz - tz * t; if (px * px + pz * pz < 0.9 * 0.9) hide = true; }
         }
       }
       if (hide !== !!ch.camHidden) {
@@ -1248,7 +1280,9 @@ export function create(container, handlers = {}) {
         const y = T.y + (cy - T.y) * t;
         // kamera nesnenin içinde
         const icx = cx - o.x, icz = cz - o.z;
-        if (icx * icx + icz * icz < (o.r + 0.45) * (o.r + 0.45) && cy < o.h + 0.35) {
+        // uzun dekor (tezgâh tentesi, araba): kamera hemen üstünde de olmasın, tente ön planı kaplıyordu
+        const hm = o.h > 2.4 ? 1.1 : 0.35, rm = o.h > 2.4 ? 0.8 : 0.45;
+        if (icx * icx + icz * icz < (o.r + rm) * (o.r + rm) && cy < o.h + hm) {
           if (o.h < 2.4) needUp = Math.max(needUp, o.h + 0.45 - cy);
           else cut = Math.min(cut, Math.max(0, t * hl - o.r - 0.5));
           continue;
@@ -1297,7 +1331,7 @@ export function create(container, handlers = {}) {
       let dx = rx * joyV.x + fx * joyV.y, dz = rz * joyV.x + fz * joyV.y;
       const l = Math.hypot(dx, dz) || 1;
       dx /= l; dz /= l;
-      const speed = m > 0.92 ? 3.0 : 0.5 + m * 1.9;
+      const speed = m > 0.92 ? 4.8 : 0.8 + m * 3.0;
       if (!ch.drive) ch.drive = { x: 0, z: 0, speed: 0 };
       ch.drive.x = dx; ch.drive.z = dz; ch.drive.speed = speed;
       if (!driving) { driving = true; sendT = 0; }

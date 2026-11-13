@@ -157,7 +157,7 @@ test('hesaplarla oda kurma, katılma, koltuk, görünüm, oyun içi yeniden bağ
   const dead = back.lastState.players.find((p) => p.id === victimId);
   assert.equal(dead.alive, false);
   assert.equal(dead.role, 'koylu', 'ölenin rolü açıklanmalı');
-  assert.equal((await emit(victim, 'player:move', { x: 0.2, y: 0.5 })).ok, true, 'gündüz ölüler de dolaşır');
+  assert.equal((await emit(victim, 'player:move', { x: 0.2, y: 0.5 })).ok, false, 'gündüz kimse dolaşamaz');
 
   // Vampir oyundan ayrılırsa köylüler kazanır; ayrılan kaybetmiş sayılır.
   await emit(vamp, 'room:leave', {});

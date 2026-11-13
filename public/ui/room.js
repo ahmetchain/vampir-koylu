@@ -284,10 +284,16 @@ function tick() {
   const s = ctx.state;
   const el = $('#timer');
   if (!s || !s.room.deadline) { el.hidden = true; return; }
-  const sec = Math.max(0, Math.ceil((s.room.deadline - serverNow()) / 1000));
+  // Gece: herkes evine dönene kadar (room.timerFrom) sayaç tam gece süresinde donuk durur.
+  const now = serverNow();
+  const from = Number(s.room.timerFrom) || 0;
+  const waiting = from > now && from < s.room.deadline;
+  const sec = Math.max(0, Math.ceil((s.room.deadline - (waiting ? from : now)) / 1000));
   el.hidden = false;
   el.textContent = fmtClock(sec);
-  const urgent = sec <= 10 && ['night', 'day', 'hunter'].includes(s.room.phase);
+  el.classList.toggle('wait', waiting);
+  el.title = waiting ? 'Köy evlerine dönüyor…' : '';
+  const urgent = !waiting && sec <= 10 && ['night', 'day', 'hunter'].includes(s.room.phase);
   el.classList.toggle('urgent', urgent);
   if (urgent && sec <= 5 && sec > 0 && sec !== lastTick) { lastTick = sec; sfx('tick', { volume: 0.5 }); }
 }
@@ -727,9 +733,12 @@ export function scheduleInsets() {
     // Arayüz bu kareye hiçbir kontrol koymaz; dünya joystick'i burada çizer (container'a göre px).
     const touch = window.matchMedia('(pointer: coarse)').matches;
     const size = Math.round(Math.max(104, Math.min(140, app.width * 0.34, (bottomEdge - app.top - top) * 0.45)));
-    const joystick = touch ? { left: 12, bottom: bottom + 10, size } : null;
+    // Serbest yürüme sadece lobide ve oyun bitince; başka aşamada joystick yok (null).
+    const ph = ctx.state && ctx.state.room.phase;
+    const canWalk = ph === 'lobby' || ph === 'ended';
+    const joystick = touch && canWalk ? { left: 12, bottom: bottom + 10, size } : null;
     $('#app').style.setProperty('--joy-bottom', `${bottom + 10}px`);
-    $('#app').style.setProperty('--joy-size', touch ? `${size}px` : '0px');
+    $('#app').style.setProperty('--joy-size', joystick ? `${size}px` : '0px');
     W.setInsets({ top, bottom, left: 0, right, joystick });
   });
 }

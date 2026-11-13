@@ -415,7 +415,7 @@ test('karakterler meydan halkasında doğar ve halkaya sıkıştırılır', (t) 
   room.destroy();
 });
 
-test('dolaşma lobide, gündüz (ölüler dahil) ve oyun sonunda serbest; diğer evrelerde yasak', (t) => {
+test('dolaşma sadece lobide ve oyun sonunda serbest (ölüler dahil); gündüz ve diğer evrelerde yasak', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { room } = setup(6);
   assert.equal(room.move('p0', 0.3, 0.3), null);
@@ -428,9 +428,11 @@ test('dolaşma lobide, gündüz (ölüler dahil) ve oyun sonunda serbest; diğer
   room.selectNight('p0', 'p5');
   room.endNight();
   assert.equal(room.phase, 'day');
-  assert.equal(room.move('p2', 0.3, 0.7), null);
+  const before = { ...room.players.get('p2').pos };
+  assert.match(room.move('p2', 0.3, 0.7), /dolaşamazsın/, 'gündüz herkes yerinde durur');
+  assert.deepEqual(room.players.get('p2').pos, before);
   assert.equal(room.players.get('p5').alive, false);
-  assert.equal(room.move('p5', 0.7, 0.7), null, 'ölüler de dolaşabilir');
+  assert.match(room.move('p5', 0.7, 0.7), /dolaşamazsın/, 'gündüz ölüler de dolaşamaz');
   for (const id of ['p0', 'p2', 'p3']) room.vote(id, 'p1');
   room.endDay();
   assert.equal(room.phase, 'hunter');
@@ -438,6 +440,7 @@ test('dolaşma lobide, gündüz (ölüler dahil) ve oyun sonunda serbest; diğer
   room.shoot('p1', 'p0');
   assert.equal(room.phase, 'ended');
   assert.equal(room.move('p2', 0.3, 0.3), null);
+  assert.equal(room.move('p5', 0.3, 0.7), null, 'oyun sonunda ölüler de dolaşır');
   room.destroy();
 });
 
@@ -501,5 +504,55 @@ test('soytarı kazanınca sonuç soytarı takımıyla bildirilir; bildirim hatas
   assert.equal(jester.team, J);
   assert.equal(jester.won, true);
   assert.equal(got.results.filter((r) => r.won).length, 1);
+  room.destroy();
+});
+
+// ---------- gece başında eve yürüme payı ----------
+
+test('gece eve yürüme payıyla başlar: timerFrom sayacın başladığı an, seçimler hemen açık', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+  const { NIGHT_WALK_MS } = require('../game');
+  assert.equal(NIGHT_WALK_MS, 4000);
+  const { room } = setup(6);
+  assert.equal(room.viewFor('p0').room.timerFrom, null, 'lobide yok');
+  room.start('p0');
+  assert.equal(room.viewFor('p0').room.timerFrom, null, 'rol kartlarında yok');
+  [V, D, K, K, K, K].forEach((role, i) => { room.players.get(`p${i}`).role = role; });
+  room.startNight();
+  const now = Date.now();
+  assert.equal(room.timerFrom, now + 4000);
+  assert.equal(room.deadline, now + 4000 + 30000);
+  assert.equal(room.viewFor('p3').room.timerFrom, now + 4000);
+  assert.equal(room.selectNight('p0', 'p2'), null, 'yürüyüş sırasında da seçim yapılabilir');
+  t.mock.timers.tick(33999);
+  assert.equal(room.phase, 'night', 'gecenin tam süresi yürüyüşten sonra başlar');
+  t.mock.timers.tick(1);
+  assert.equal(room.phase, 'day');
+  assert.equal(room.timerFrom, null, 'gündüz yok');
+  assert.equal(room.deadline, Date.now() + 120000, 'gündüz süresi değişmedi');
+  for (const id of ['p0', 'p3', 'p4', 'p5']) room.vote(id, 'p1');
+  room.vote('p1', 'p3');
+  assert.equal(room.dayShortened, true);
+  assert.equal(room.deadline, Date.now() + 10000, 'herkes oy verince 10 sn (değişmedi)');
+  assert.equal(room.timerFrom, null);
+  t.mock.timers.tick(10000);
+  assert.equal(room.phase, 'night');
+  assert.equal(room.timerFrom, Date.now() + 4000, 'her gece yeniden');
+  room.removePlayer('p0');
+  assert.equal(room.phase, 'ended');
+  assert.equal(room.timerFrom, null);
+  assert.equal(room.viewFor('p1').room.timerFrom, null);
+  room.destroy();
+});
+
+test('avcı evresinde timerFrom yoktur, süre değişmez', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 2_000_000 });
+  const { room } = setup(6);
+  startWithRoles(room, [V, H, K, K, K, K]);
+  room.selectNight('p0', 'p1');
+  room.endNight();
+  assert.equal(room.phase, 'hunter');
+  assert.equal(room.timerFrom, null);
+  assert.equal(room.deadline, Date.now() + 20000);
   room.destroy();
 });

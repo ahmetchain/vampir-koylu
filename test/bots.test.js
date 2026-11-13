@@ -289,7 +289,7 @@ test('hata fırlatan bot hamlesi yakalanır ve evreyi durdurmaz', (t) => {
   room.selectNight = () => { throw new Error('gece kırık'); };
   try {
     room.start('h0');
-    for (let i = 0; i < 39; i++) t.mock.timers.tick(1000);
+    for (let i = 0; i < 43; i++) t.mock.timers.tick(1000);   // 8 sn kart + 4 sn eve yürüme + 30 sn gece
     assert.equal(room.phase, 'day', 'gece süresi dolunca gün geldi');
     for (let i = 0; i < 121; i++) t.mock.timers.tick(1000);
     assert.equal(room.phase, 'night', 'gün süresi dolunca gece geldi');
@@ -352,4 +352,31 @@ test('soket: room:addBot, bot bayrağı, bot çıkarma ve botlu oyun istatistiğ
   await emit(guest, 'room:leave', {});
   await emit(host, 'room:leave', {});
   await waitFor(() => !srv.rooms.has(roomId), 2000, 'oda kapanmalı');
+});
+
+test('botlar gece hamlelerini eve yürüme bittikten sonra yapar; gündüz hiç dolaşmaz', (t) => {
+  enableClock(t);
+  for (let g = 0; g < 6; g++) {
+    const { room } = makeRoom({ humans: 1, bots: 8, seed: `yuruyus-${g}`, settings: { roles: { gozcu: true, iftiraci: true, cadi: true } } });
+    const calls = [];
+    for (const method of ['selectNight', 'move']) {
+      const orig = room[method].bind(room);
+      room[method] = (byId, ...args) => {
+        const p = room.players.get(byId);
+        if (p && p.bot) calls.push({ method, phase: room.phase, now: Date.now(), timerFrom: room.timerFrom, deadline: room.deadline });
+        return orig(byId, ...args);
+      };
+    }
+    room.start('h0');
+    playToEnd(t, room, { limitMs: 60 * 60 * 1000 });
+    assert.equal(room.phase, 'ended');
+    const nights = calls.filter((c) => c.method === 'selectNight');
+    assert.ok(nights.length > 0);
+    for (const c of nights) {
+      assert.ok(c.now >= c.timerFrom, `gece hamlesi yürüyüş bitmeden (${c.timerFrom - c.now} ms erken)`);
+      assert.ok(c.now <= c.deadline);
+    }
+    for (const c of calls.filter((x) => x.method === 'move')) assert.ok(['lobby', 'ended'].includes(c.phase), c.phase);
+    room.destroy();
+  }
 });

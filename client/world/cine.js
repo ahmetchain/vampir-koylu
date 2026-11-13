@@ -379,7 +379,7 @@ export function registerCinematics(director, world) {
     ctx.prop('village', 'frame-wood', g.x, 1.18, g.z, rot, 1);
     const front = { x: Math.sin(rot), z: Math.cos(rot) };
     const side = { x: Math.cos(rot), z: -Math.sin(rot) };
-    ctx.prop('village', 'ladder', g.x + front.x * 1.5 + side.x * 0.6, 0, g.z + front.z * 1.5 + side.z * 0.6, rot, 0.8);
+    ctx.prop('village', 'ladder', g.x + front.x * 1.5 - side.x * 0.75, 0, g.z + front.z * 1.5 - side.z * 0.75, rot, 0.8); // merdiven kameranın karşı yanında: hedefi örtmesin
     const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.0, 6), new THREE.MeshLambertMaterial({ color: '#c8a46a' }));
     rope.position.set(g.x, 1.18 + 2.35 - 0.5, g.z);
     const noose = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.035, 6, 12), rope.material);
@@ -389,20 +389,22 @@ export function registerCinematics(director, world) {
     // kalabalık önde yay şeklinde, darağacına bakar (kameraya sırtı dönük; hedefi kapatmaz)
     const portrait = world.rig.portrait;
     // kalabalık önde ama kameranın karşı tarafına kaymış yay (ikincil; darağacını ve hedefi kapatmaz)
-    arrangeCrowd(others, { x: g.x, z: g.z }, portrait ? 3.6 : 4.4, rot - 0.6, { front: true, spread: portrait ? 1.5 : 1.9 });
+    arrangeCrowd(others, { x: g.x, z: g.z }, portrait ? 3.6 : 4.2, rot - 1.25, { front: true, spread: portrait ? 1.4 : 1.7 });
     // hedef yandan gelir, platformun önünden yukarı çıkar
-    const stand = { x: g.x + front.x * 1.9 + side.x * 2.6, z: g.z + front.z * 1.9 + side.z * 2.6 };
+    const stand = { x: g.x + front.x * 3.4, z: g.z + front.z * 3.4 };
     ch.pos.set(stand.x, 0, stand.z);
-    ch.yaw = Math.atan2(-side.x, -side.z); ch.faceYaw = ch.yaw;
+    ch.yaw = rot + Math.PI; ch.faceYaw = ch.yaw;
     // önden, hafif yandan ve yukarıdan: kalabalığın başları altta, darağacı ve hedef ortada
     // yüksekten: seyirciler yukarıdan küçük görünür (başlar kadrajı kapatmaz), ateş kameranın altında kalır
     // kamera önden ~45° yandan: ateş (önde, meydan ortasında) kadrajın dışında kalır
-    const fd = portrait ? 8.0 : 6.4, sd = portrait ? 8.0 : 8.0;
+    // yatay ekranda dar açı + biraz geri: ateş (yaklaşık 33° yanda) kadraja girmez
+    const fd = portrait ? 8.0 : 7.4, sd = portrait ? 8.0 : 9.6;
+    const gfov = portrait ? wfov() : 32;
     const cam0 = V(g.x + front.x * fd + side.x * sd, portrait ? 6.2 : 5.0, g.z + front.z * fd + side.z * sd);
     const cam1 = V(g.x + front.x * fd * 0.8 + side.x * sd * 0.8, portrait ? 5.2 : 4.2, g.z + front.z * fd * 0.8 + side.z * sd * 0.8);
-    const lk = (y) => V(g.x + front.x * 0.3 - side.x * 0.5, y, g.z + front.z * 0.3 - side.z * 0.5);
-    ctx.move(cam0, lk(portrait ? 1.6 : 1.7), cam1, lk(portrait ? 1.9 : 2.0), 4.2, { fov: wfov() });
-    nearGuard(ctx, others, portrait ? 5.0 : 4.2);
+    const lk = (y) => V(g.x - front.x * (portrait ? 0 : 0.7) - side.x * 0.5, y, g.z - front.z * (portrait ? 0 : 0.7) - side.z * 0.5);
+    ctx.move(cam0, lk(portrait ? 1.6 : 1.7), cam1, lk(portrait ? 1.9 : 2.0), 4.2, { fov: gfov });
+    nearGuard(ctx, others, portrait ? 6.0 : 6.0);
     ch.run([{ walk: [{ x: g.x + front.x * 1.6, z: g.z + front.z * 1.6 }], mode: 'walk' }]);
     await ctx.wait(1.4);
     await ctx.tween(0.5, (k) => { ch.pos.y = k * 1.2; ch.pos.x = g.x + front.x * 1.6 * (1 - k); ch.pos.z = g.z + front.z * 1.6 * (1 - k); });
@@ -448,18 +450,19 @@ export function registerCinematics(director, world) {
     // kamera kapıya göre konumlanır (köyün büyüklüğünden bağımsız), ateşe ve evlere girmez
     const portrait = world.rig.portrait;
     // kamera kapının dışında, ağaçsız yolun kenarında: kapı, mahkûm ve arkasındaki meşaleli kalabalık tek karede
-    const camP = at(l.R + 7.0, 3.3);
-    const camY = portrait ? 3.6 : 3.0;
-    const look0 = at(l.R - 1.0, -0.4);
-    ctx.cut(V(camP.x, camY, camP.z), V(look0.x, 1.3, look0.z), { fov: wfov() });
-    const out = at(l.R + 15, -3.4);
-    nearGuard(ctx, torchers, 4.0, ch);
+    const camP = at(Math.max(l.R - (portrait ? 12 : 11), 2.8), portrait ? 1.2 : -2.2);
+    const camY = portrait ? 10.5 : 9.6;
+    const look0 = at(l.R + (portrait ? 1.5 : 3.0), 0);
+    ctx.cut(V(camP.x, camY, camP.z), V(look0.x, 0.8, look0.z), { fov: wfov() });
+    const out = at(l.R + 15);
+    nearGuard(ctx, torchers, 8.0, ch);
     ch.run([{ walk: [gate, out], mode: 'walk' }]);
     torchers.forEach((c, i) => { const p = at(l.R - 1.2 - (i % 2) * 0.9, (i - 2.5) * 1.1); c.run([{ wait: 0.4 }, { walk: [p], mode: 'walk' }, { pose: i % 2 === 0 ? 'hold' : 'idle' }]); });
     ctx.sfx('whoosh', { volume: 0.4 });
     // sonra kamera dönüp sise yürüyen mahkûmu izler
-    const end = at(l.R + 6.0, 3.0);
-    await ctx.move(V(camP.x, camY, camP.z), V(look0.x, 1.3, look0.z), V(end.x, camY + 0.9, end.z), V(out.x, 0.9, out.z), 4.8, { fov: wfov() });
+    // sonra kapının üstüne doğru ilerler: mahkûm yolda sise yürür, meşaleler aşağıda kalır (yakındakiler gizlenir)
+    const end = at(l.R - 2.0, portrait ? 0.6 : -1.2);
+    await ctx.move(V(camP.x, camY, camP.z), V(look0.x, 0.8, look0.z), V(end.x, portrait ? 6.8 : 6.0, end.z), V(out.x, 0.9, out.z), 4.8, { fov: wfov() });
     // sise karışıp kaybolur, kapı kapanır
     world.fx.emit('mist', ch.pos.x, 0.6, ch.pos.z, '#d8dde4', 16);
     ch.setVisible(false);

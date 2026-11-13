@@ -40,6 +40,7 @@ connection · 7 Client → server events · 8 Server → client events · 9 The 
 | `REVEAL_MS` | 8000 | role-card phase before night 1 |
 | `ALL_VOTED_MS` | 10000 | day timer drops to this when every alive connected player has voted |
 | `HUNTER_MS` | 20000 | hunter's last-shot time |
+| `NIGHT_WALK_MS` | 4000 | walk-home lead-in at the start of every night, before the visible night countdown (`room.timerFrom`) |
 | `LOBBY_GRACE_MS` | 30000 | a player disconnected in `lobby`/`ended` is removed after this |
 | `EMPTY_ROOM_MS` | 600000 | room is deleted after 10 min with nobody connected (immediately when it has no players) |
 | `nightSec` | 15–120, default 30 | room setting |
@@ -276,7 +277,7 @@ player is marked `left`, dies (announce `left`) and their seat stays in the list
 | `hunter:shoot` | `{ targetId }` | the dying hunter, phase `hunter` | "Şu an atış zamanı değil.", "Sadece avcı ateş edebilir.", "Kendini vuramazsın.", "Bu oyuncu vurulamaz." |
 | `day:vote` | `{ targetId }` = player id, `null` (withdraw) or `'sleep'` | alive, day | "Oylama sadece gündüz yapılır.", "Ölüler oy veremez.", "Bu oyuncuya oy verilemez.", "Kendine oy veremezsin." Voting the same value again withdraws it. |
 | `player:look` | `{ color?, hat?, skin? }` | lobby or ended | "Görünüm sadece lobide değiştirilebilir.", "Bu renk başka bir oyuncuda." Values are parsed as integers and clamped to range (unparsable → unchanged). On success the full look is also saved to the account profile (background, failures only logged). |
-| `player:move` | `{ x, y }` | `lobby`, `day`, `ended` (dead players too) | "Şu an meydanda dolaşamazsın.", "Geçersiz konum." Every move is applied (clamped to the ring, §12.1); the resulting `state` broadcast is coalesced (≤ 1 per 100 ms per room). |
+| `player:move` | `{ x, y }` | `lobby` and `ended` only (dead players too) | "Şu an meydanda dolaşamazsın." in every other phase (`reveal`, `night`, `day`, `hunter`; the UI need not show it), "Geçersiz konum." Every move is applied (clamped to the ring, §12.1); the resulting `state` broadcast is coalesced (≤ 1 per 100 ms per room). |
 | `chat:send` | `{ text }` | see §11 | "Biraz yavaş yaz :)", "Boş mesaj gönderilemez.", "Gece köy uyur, konuşamazsın." |
 
 **`night:select`** `{ targetId, action?: 'heal' | 'poison' }` (action only for Cadı; anything other
@@ -319,7 +320,9 @@ Sent per viewer. Full shape:
     name: "Akşam Oyunu",
     phase: "lobby" | "reveal" | "night" | "day" | "hunter" | "ended",
     round: 0,                          // night/day number, 0 in lobby, increments at each night start
-    deadline: 1763030030000 | null,    // when the current timed phase ends (null in lobby/ended)
+    deadline: 1763030030000 | null,    // when the current timed phase really ends (null in lobby/ended)
+    timerFrom: 1763030004000 | null,   // night only: when the visible countdown starts (= night start + 4000 ms
+                                       // walk-home lead-in); null in every other phase (count down from phase start)
     hostId: "player-uuid" | null,
     settings: { nightSec, daySec, revealRoles, roles: {8 keys} },   // §4
     hasPassword: false,
@@ -476,7 +479,7 @@ The sender receives their own message through the `chat` event too.
 
 ## 12. Game flow and rules
 
-Phases: `lobby` → `game:start` → `reveal` (8 s) → `night` (`nightSec`) → `day` (`daySec`, or 10 s
+Phases: `lobby` → `game:start` → `reveal` (8 s) → `night` (4 s walk home + `nightSec`) → `day` (`daySec`, or 10 s
 after everyone voted, or immediately if every alive connected player voted `sleep`) → `night` … ;
 `hunter` (20 s) is inserted whenever a hunter dies and the village has not already won;
 `ended` when someone wins; host `game:lobby` → `lobby`.
@@ -488,9 +491,20 @@ after everyone voted, or immediately if every alive connected player voted `slee
   along the same direction to 0.10 (exactly the center goes to `(0.5, 0.6)`), farther than 0.48 is
   pulled in to 0.48. Coordinates are not rounded.
 - Join spawn: random angle, radius 0.22–0.42.
-- `player:move` is allowed in `lobby`, `day` and `ended`, for dead players too. Positions persist across
-  phases (the server does not move anyone at night/day changes; the world decides where characters
-  are shown during `reveal`/`night`/`hunter`).
+- `player:move` is allowed only in `lobby` and `ended` (dead players too); it is rejected in
+  `reveal`, `night`, `day` and `hunter`. By day everyone stands at a fixed spot by seat (the world
+  places them; `pos` is not changed by the server). Positions persist across phases (the server does
+  not move anyone at phase changes; the world decides where characters are shown outside lobby/ended).
+
+### 12.1a Night walk-home lead-in
+
+Every night starts with `NIGHT_WALK_MS` = 4000 ms for everyone to walk home. The server sets
+`room.deadline = nightStart + 4000 + nightSec·1000` (the real end) and
+`room.timerFrom = nightStart + 4000`. Selections (`night:select`) and the vampire chat are allowed
+from the very start of the night, including the lead-in. Show the countdown from `timerFrom` to
+`deadline` (full `nightSec`); before `timerFrom` show it as full / "eve dönülüyor". Bots start acting
+only after `timerFrom`. `timerFrom` is `null` in every other phase; the day timer, the 10 s
+"everyone voted" shortening and the hunter timer are unchanged.
 
 ### 12.2 Night resolution (at the end of the night, all at once)
 
@@ -582,7 +596,8 @@ accepted, the finished game is written to no account's stats and does not affect
   (`resumed:true`).
 - **Look editor**: outside a room `PATCH /api/me`; inside a room (lobby/ended) `player:look`
   (saves to the profile too). In-game the look is fixed.
-- **Countdown**: `remaining = room.deadline - (Date.now() + (serverNow - receivedAt))`.
+- **Countdown**: `remaining = room.deadline - (Date.now() + (serverNow - receivedAt))`; at night show
+  `min(remaining, deadline - timerFrom)` so the count only starts after the walk home (§12.1a).
 
 ## 16. Story: scenario, jobs, scenes, chronicle
 
@@ -627,7 +642,7 @@ Bots let one person start and test a full game alone (`MIN_PLAYERS` counts bots)
   Bots are dealt roles exactly like humans; their roles are hidden by the same rules (§9).
 - **Behaviour** (server-side, through the same game actions as human players, so every rule,
   validation and the story/rumour record apply unchanged):
-  - night: every living bot with a night role acts once at a random moment in the first half of the
+  - night: every living bot with a night role acts once, after the walk-home lead-in (`timerFrom`), at a random moment in the first half of the
     night (the cadı later, at 55–85 %, so she can see the victim): vampires pick a living non-evil
     player (usually joining a team-mate's pick, which a vampire can see anyway); İftiracı frames a
     living non-evil player; doktor protects a random living player (self allowed); kahin inspects
@@ -636,7 +651,7 @@ Bots let one person start and test a full game alone (`MIN_PLAYERS` counts bots)
     Evil bots never target their own team.
   - day: each living bot votes for a random living player (10 % "Hızlı Uyu") at 15–60 % of the
     day length, sometimes (15 %) changes the vote late; may say one short canned line in the public
-    channel and stroll on the plaza. The vote does **not** use what the bot learned at night.
+    channel. Bots do not move by day. The vote does **not** use what the bot learned at night.
   - hunter: a bot hunter shoots a random living player after a few seconds.
   - lobby / ended: now and then a bot strolls; a newly added bot may greet once.
   - pace: while a human is alive and connected, delays scale with the room's timers; once no
@@ -650,5 +665,6 @@ Bots let one person start and test a full game alone (`MIN_PLAYERS` counts bots)
 - **Typical length** with default timers (`nightSec` 30, `daySec` 120, doktor + kahin), 1 human +
   6 bots, measured over 60 simulated games each: human votes early each day ≈ 5.4 min (3.6 rounds);
   human never votes ≈ 7 min (days run the full 120 s because the day only shortens when every
-  living connected player has voted); human dead on night 1 ≈ 2.5 min.
+  living connected player has voted); human dead on night 1 ≈ 2.5 min. (Measured before the 4 s
+  night lead-in was added; add ~4 s per night, i.e. ~15 s per game.)
 

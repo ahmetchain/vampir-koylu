@@ -150,6 +150,8 @@ export class CameraRig {
     }
     const w = this.ovW;
     cam.position.set(px + (this.ovPos.x - px) * w, py + (this.ovPos.y - py) * w, pz + (this.ovPos.z - pz) * w);
+    // güvenlik: kullanıcı çekimlerinde kamera hiçbir zaman evlerin içine/çatısına girmez (yönetmen çekimlerine dokunulmaz)
+    if (this.clampFn && w < 0.5) this.clampFn(cam.position);
     if (!this.lookPoint) this.lookPoint = new THREE.Vector3();
     this.lookPoint.copy(c.target).lerp(this.ovLook, w);
     cam.lookAt(this.lookPoint);

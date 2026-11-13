@@ -107,6 +107,45 @@ export function resolveStatic(p, obstacles, ignore) {
   }
 }
 
+// Yol parçaları statik engellerin (bank kütükleri, fenerler) içinden geçiyorsa yanından dolaşan ara nokta ekle.
+// (Önceden itme yalnız geri itiyordu: karakter kütüğe dayanıp yerinde yürüyordu.)
+export function detourObstacles(pts, obstacles, margin = 0.42) {
+  if (!obstacles || !obstacles.length || pts.length < 2) return pts;
+  let cur = pts;
+  for (let pass = 0; pass < 3; pass++) {
+    const out = [cur[0]];
+    let changed = false;
+    for (let i = 1; i < cur.length; i++) {
+      const a = out[out.length - 1], b = cur[i];
+      const dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz;
+      let hit = null, ht = 1, hd = 0;
+      if (l2 > 1e-4) {
+        for (const o of obstacles) {
+          if (o.tag === 'fire') continue;      // ateş: planPath kendi dolanır
+          let t = ((o.x - a.x) * dx + (o.z - a.z) * dz) / l2;
+          if (t <= 0.02 || t >= 0.98) continue;
+          const cx = a.x + dx * t - o.x, cz = a.z + dz * t - o.z;
+          const d = Math.hypot(cx, cz);
+          if (d < o.r + margin && t < ht) { hit = o; ht = t; hd = d; }
+        }
+      }
+      if (hit) {
+        // engelin, parçanın geçtiği tarafına (yoksa sola) dik kaçış
+        let nx = a.x + dx * ht - hit.x, nz = a.z + dz * ht - hit.z;
+        if (hd < 1e-3) { nx = -dz; nz = dx; }
+        const nl = Math.hypot(nx, nz) || 1;
+        const r = hit.r + margin + 0.25;
+        out.push({ x: hit.x + (nx / nl) * r, z: hit.z + (nz / nl) * r });
+        changed = true;
+      }
+      out.push(b);
+    }
+    cur = out;
+    if (!changed) break;
+  }
+  return cur;
+}
+
 // Hedef nokta bir engelin içindeyse dışarı çıkar
 export function clearPoint(p, obstacles) {
   const q = { x: p.x, z: p.z };
