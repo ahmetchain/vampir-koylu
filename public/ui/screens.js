@@ -9,6 +9,8 @@ import { ROLES, ROLE_LIST, COLORS, inkOn, levelOf, checkUsername, checkPassword,
 import { preview, W, prefers2D, setPrefers2D, isFallback } from './world-host.js';
 import { openLookEditor } from './look.js';
 import { openCreateRoom } from './roomform.js';
+import { soundControlsHTML, bindSoundControls } from './sound.js';
+import { fpsEnabled, setFpsEnabled } from './fps.js';
 
 export function fillLogos(root = document) {
   $$('[data-logo]', root).forEach((el) => { if (!el.firstChild) el.innerHTML = logoMark(); });
@@ -123,6 +125,7 @@ export function initMenu() {
     joinByCode(v);
   });
   on('user', renderProfile);
+  on('open-settings', openSettings);
 }
 
 export function enterMenu() {
@@ -205,7 +208,7 @@ function renderRooms(rooms) {
       <div class="room-item-meta">
         <span class="chip ${open ? 'chip-ok' : 'chip-moon'}">${status}</span>
         <span>${icon('users', '', '')} ${r.players}/${r.maxPlayers}</span>
-        <span>Kod ${esc(r.id)}</span><span>· ${esc(r.hostName)}</span>
+        <span>Kod ${esc(r.id)}</span><span>· ${esc(r.hostName)}</span>${r.bots ? `<span>· ${r.bots} bot</span>` : ''}
       </div>
       <button type="button" class="btn btn-s ${open ? 'btn-primary' : 'btn-ghost'}" data-join="${esc(r.id)}">${open ? 'Katıl' : 'Bak'}</button>
     </article>`;
@@ -312,25 +315,22 @@ export function openHowto() {
 
 // ======================= AYARLAR =======================
 export function openSettings() {
-  const A = window.VKAudio;
-  const vol = (A && A.getVolume && A.getVolume()) || { music: 0.7, sfx: 0.8 };
-  const muted = !!(A && A.isMuted && A.isMuted());
-  const q = W.getQuality() || store.get('vk.quality', 'auto');
+  const q = store.get('vk.quality', null) || W.getQuality() || 'auto';
   const p2 = prefers2D();
-  const pct = (v) => Math.round((v == null ? 0.7 : v) * 100);
+  const tiers = W.qualities();
   const sheet = openSheet({
     title: 'Ayarlar',
     body: `
       <div class="section-title">Ses</div>
-      <div class="set-row"><label for="s-mute">Tüm sesleri kapat</label><span class="switch"><input type="checkbox" id="s-mute" ${muted ? 'checked' : ''}><i></i></span></div>
-      <div class="set-row"><label for="s-music">Müzik</label><div class="range"><input type="range" id="s-music" min="0" max="100" value="${pct(vol.music)}"><output>${pct(vol.music)}</output></div></div>
-      <div class="set-row"><label for="s-sfx">Efektler</label><div class="range"><input type="range" id="s-sfx" min="0" max="100" value="${pct(vol.sfx)}"><output>${pct(vol.sfx)}</output></div></div>
-      ${A ? '' : '<p class="note note-moon">Ses motoru yüklenemedi; oyun sessiz çalışıyor.</p>'}
+      ${soundControlsHTML('s')}
       <div class="section-title">Görüntü</div>
-      <div class="set-row"><label>Grafik kalitesi</label>
-        <div class="seg" style="grid-column:1/-1" id="s-q">
-          ${[['auto', 'Otomatik'], ['low', 'Düşük'], ['medium', 'Orta'], ['high', 'Yüksek']].map(([k, l]) => `<button type="button" class="seg-btn${q === k ? ' on' : ''}" data-q="${k}">${l}</button>`).join('')}
-        </div><small>Telefon ısınıyor ya da takılıyorsa düşür.</small></div>
+      <div class="qlist" role="radiogroup" aria-label="Grafik kalitesi" id="s-q">
+        ${tiers.map((t) => `<button type="button" role="radio" class="qopt${q === t.id ? ' on' : ''}" data-q="${esc(t.id)}" aria-checked="${q === t.id}">
+          <span class="qdot"></span><span><b>${esc(t.label)}</b>${t.desc ? `<small>${esc(t.desc)}</small>` : ''}</span></button>`).join('')}
+      </div>
+      <p class="muted small" style="margin:6px 0 0">Telefon ısınıyor ya da takılıyorsa bir alt kademeyi seç.</p>
+      <div class="set-row"><label for="s-fps">FPS göster</label><span class="switch"><input type="checkbox" id="s-fps" ${fpsEnabled() ? 'checked' : ''}><i></i></span>
+        <small>Oyunda köşede küçük bir ölçüm etiketi çıkar (kare hızı, kare süresi, kalite). Takılma bildirirken bu sayıları paylaş.</small></div>
       <div class="set-row"><label for="s-2d">Basit 2B köy</label><span class="switch"><input type="checkbox" id="s-2d" ${p2 ? 'checked' : ''}><i></i></span>
         <small>${isFallback() && !p2 ? 'Bu cihazda 3B köy açılamadığı için zaten 2B köy kullanılıyor.' : 'Çok eski telefonlar için hafif kuşbakışı köy. Değişiklik sayfa yenilenince uygulanır.'}</small></div>
       ${ctx.user ? `<div class="section-title">Hesap</div>
@@ -339,23 +339,15 @@ export function openSettings() {
     footer: '<button type="button" class="btn btn-primary" data-close>Tamam</button>',
   });
   const b = sheet.body;
-  const setV = () => {
-    try {
-      A && A.setVolume({ music: b.querySelector('#s-music').value / 100, sfx: b.querySelector('#s-sfx').value / 100 });
-    } catch { /* yoksay */ }
-    b.querySelector('#s-music + output').textContent = b.querySelector('#s-music').value;
-    b.querySelector('#s-sfx + output').textContent = b.querySelector('#s-sfx').value;
-  };
-  b.querySelector('#s-music').addEventListener('input', setV);
-  b.querySelector('#s-sfx').addEventListener('input', setV);
-  b.querySelector('#s-sfx').addEventListener('change', () => sfx('click'));
-  b.querySelector('#s-mute').addEventListener('change', (e) => { try { A && A.mute(e.target.checked); } catch { /* yoksay */ } });
+  bindSoundControls(b);
   b.querySelector('#s-q').addEventListener('click', (e) => {
     const x = e.target.closest('[data-q]');
     if (!x) return;
+    sfx('click');
     W.setQuality(x.dataset.q);
-    b.querySelectorAll('[data-q]').forEach((y) => y.classList.toggle('on', y === x));
+    b.querySelectorAll('[data-q]').forEach((y) => { y.classList.toggle('on', y === x); y.setAttribute('aria-checked', String(y === x)); });
   });
+  b.querySelector('#s-fps').addEventListener('change', (e) => setFpsEnabled(e.target.checked));
   b.querySelector('#s-2d').addEventListener('change', async (e) => {
     setPrefers2D(e.target.checked);
     if (await confirmBox('Köy değişiyor', 'Yeni görünüm için sayfa yenilensin mi? Odadaysan yerine geri dönersin.', 'Yenile', false)) location.reload();

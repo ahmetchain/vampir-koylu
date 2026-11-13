@@ -10,7 +10,12 @@ bir 3B dünya olarak açılır. Gündüz tartışıp oylarla vampirleri bulmaya,
   kaymaz; sohbet telefonda alttan açılan bir şerit/sayfa, geniş ekranda sağda sabit panel.
 - **3B köy:** three.js ile yapılmış `public/build/world.js` (derlenmiş dosya depoda durur). WebGL olmayan
   ya da çok zayıf cihazlarda arayüz kendiliğinden hafif 2B kuşbakışı köye geçer; oyun yine tam oynanır.
-- **Ses:** müzik, ortam sesi ve efektler (`public/audio.js`).
+- **Ses:** müzik, ortam sesi ve efektler (`public/audio.js`). Giriş ekranında, menüde ve oyunun üst
+  çubuğunda hoparlör düğmesi var: sessize alma ve Müzik / Efektler / Ortam sesi kaydırıcıları tek dokunuşla açılır.
+- **Botlar:** oda sahibi lobide "Bot ekle" ile bot oyuncu ekleyebilir; tek başına da tam bir oyun denenebilir.
+  Bot içeren oyunlar istatistiklere ve liderlik tablosuna sayılmaz. Botlar normal "çıkar" ile odadan atılır.
+- **Performans:** Ayarlar'da grafik kalitesi (açıklamalı kademeler) ve "FPS göster" seçeneği var; açılınca
+  oyunda köşede kare hızı, kare süresi ve kalite kademesi görünür.
 
 ## Roller
 

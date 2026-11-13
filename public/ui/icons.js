@@ -49,6 +49,12 @@ const P = {
   undo: '<path d="M9 7.5L4.5 12 9 16.5"/><path d="M4.5 12H14a5.5 5.5 0 0 1 0 11h-2" transform="translate(0 -4)"/>',
   hat: '<path d="M3 16.5c3 1.5 15 1.5 18 0"/><path d="M6.5 16V9.5a5.5 3 0 0 1 11 0V16"/>',
   shirt: '<path d="M8.5 4L4 6.5l1.5 4 2-.8V20h9V9.7l2 .8 1.5-4L15.5 4a3.5 3.5 0 0 1-7 0z"/>',
+  music: '<path d="M9 18.5V6l11-2.5v12.5"/><circle cx="6.5" cy="18.5" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/><path d="M9 10l11-2.5"/>',
+  flame: '<path d="M12 21c-4 0-6.5-2.6-6.5-6 0-3.6 3-5.6 3.8-9.5 2.6 1.5 3.4 3.8 3.2 6 1-.6 1.8-1.7 2-3.2 2 1.6 3 3.9 3 6.7 0 3.4-2.5 6-5.5 6z"/><path d="M12 21c-1.6 0-2.7-1.1-2.7-2.6 0-1.6 1.3-2.4 1.7-4.1 1.9 1 2.9 2.4 2.9 4 0 1.5-.8 2.7-1.9 2.7z"/>',
+  bot: '<rect x="4.5" y="7.5" width="15" height="11.5" rx="3.5"/><path d="M12 7.5V4.5"/><circle cx="12" cy="3.6" r="1.1" fill="currentColor"/><circle cx="9" cy="12.5" r="1.4" fill="currentColor"/><circle cx="15" cy="12.5" r="1.4" fill="currentColor"/><path d="M9.5 16h5M2.5 12v3M21.5 12v3"/>',
+  gauge: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/><circle cx="12" cy="17" r="1.3" fill="currentColor"/>',
+  chevDown: '<path d="M6 9l6 6 6-6"/>',
+  chevUp: '<path d="M6 15l6-6 6 6"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/>',
 };
 

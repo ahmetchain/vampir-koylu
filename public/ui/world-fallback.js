@@ -225,6 +225,7 @@
     var bubbles = new Map();
     var running = true;
     var lastT = performance.now();
+    var perf = { n: 0, acc: 0, fps: 0, ms: 0 };
     var nightAmt = 0.6; var targetNight = 0.6; var duskAmt = 0;
     var spin = 0;
     var disposed = false;
@@ -629,9 +630,11 @@
       if (disposed) return;
       requestAnimationFrame(frame);
       if (!running || document.hidden) { lastT = now; return; }
-      var dt = Math.min(0.05, (now - lastT) / 1000);
+      var raw = now - lastT;
+      var dt = Math.min(0.05, raw / 1000);
       if (quality === 'low' && dt < 1 / 32) return;
       lastT = now;
+      perf.n++; perf.acc += Math.min(raw, 250); if (perf.acc >= 1000) { perf.fps = Math.round(perf.n * 1000 / perf.acc); perf.ms = +(perf.acc / perf.n).toFixed(1); perf.n = 0; perf.acc = 0; }
       if (view === 'menu') { spin += dt * 0.04; targetNight = 0.72; }
       nightAmt = lerp(nightAmt, targetNight, Math.min(1, dt * 1.5));
       var ph = phase();
@@ -734,7 +737,7 @@
           if (!p.alive && !viewerGhost) return;
           var pt = proj(e.x, e.y);
           var isMe = p.id === meId;
-          nameTag(pt.x, pt.y + 5, p.name, { dot: COLORS[p.look.color], border: isMe ? '#ffb347' : null, color: p.connected ? '#f6f1ff' : 'rgba(246,241,255,.55)' });
+          nameTag(pt.x, pt.y + 5, p.bot ? p.name + ' · bot' : p.name, { dot: COLORS[p.look.color], border: isMe ? '#ffb347' : null, color: p.connected ? '#f6f1ff' : 'rgba(246,241,255,.55)' });
           var b = bubbles.get(p.id);
           if (b) {
             if (b.until < now) bubbles.delete(p.id);
@@ -868,6 +871,7 @@
       reset: function () { ents.clear(); bubbles.clear(); effects = []; particles = []; state = null; houses = menuHouses(); },
       dispose: function () { disposed = true; canvas.remove(); },
       isFallback: true,
+      stats: function () { return { fps: perf.fps, ms: perf.ms, tier: quality === "auto" ? "low" : quality, mode: quality === "auto" ? "auto" : "manual", px: DPR }; },
     };
     setTimeout(function () {
       if (handlers.onProgress) handlers.onProgress(1, 1);

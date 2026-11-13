@@ -351,7 +351,7 @@
 .tale p:last-child { margin: 0; }
 .tale .r { font-family: var(--font-text); font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; color: #8a5a2a; display: block; margin-top: 6px; }
 .end-mini {
-  position: absolute; left: 50%; bottom: calc(var(--sab) + 150px); transform: translateX(-50%); pointer-events: auto;
+  position: absolute; left: 50%; top: calc(var(--sat) + 64px); transform: translateX(-50%); pointer-events: auto;
   display: flex; gap: 8px; align-items: center; padding: 8px 8px 8px 14px; border-radius: 99px; background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow-2); font-weight: 900; white-space: nowrap;
 }
 
@@ -429,3 +429,52 @@
 .tale-more summary { cursor: pointer; font-family: var(--font-text); font-weight: 900; font-size: 13px; color: #7a3a1a; }
 .tale-more p { margin: 8px 0 0; font-size: 14.5px; }
 .lt-scen { display: block; font-style: normal; font-family: var(--font-text); font-weight: 900; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--fire); margin-bottom: 2px; }
+
+/* ---------- 2. tur: FPS etiketi, üst çubuk sıkılaştırma ---------- */
+.fps {
+  position: relative; align-self: flex-start; margin: 4px 0 0 calc(var(--sal) + 10px); z-index: 4; pointer-events: none;
+  padding: 3px 8px; border-radius: 8px; background: rgba(8, 6, 22, .86); color: #cfe6d8; box-shadow: 0 1px 4px rgba(0,0,0,.4);
+  font: 700 11px/1.3 ui-monospace, 'Cascadia Mono', Consolas, monospace; letter-spacing: .01em; white-space: nowrap;
+}
+.fps b { color: #8ff0b8; font-size: 12px; }
+.fps.bad b { color: #ff9aa8; }
+@media (max-width: 420px) {
+  .hud-top { gap: 6px; padding-left: calc(var(--sal) + 8px); padding-right: calc(var(--sar) + 8px); }
+  .hud-top .iconbtn.glass, .hud-top .role-chip { --tap: 42px; }
+  .hud-top-r { gap: 6px; }
+  .role-chip .emblem { width: 34px; height: 34px; }
+  .phase { gap: 6px; padding-left: 10px; }
+}
+@media (max-width: 370px) { .phase-ic { display: none; } .phase-timer { min-width: 48px; padding: 4px 8px; } }
+
+/* ---------- 2. tur: sıkı alt HUD (telefon gündüz) ---------- */
+.prompt { grid-template-columns: auto 1fr auto; }
+.prompt-mini { display: flex; gap: 6px; align-items: center; }
+.prompt-tog { width: 38px; height: 38px; border-radius: 12px; color: var(--text-2); }
+.prompt.compact { padding: 5px 6px 5px 10px; border-radius: var(--r-m); }
+.prompt.compact .prompt-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; font-size: 14px; }
+.btn.mini { min-height: 40px; padding: 0 10px; font-size: 13px; gap: 4px; }
+.btn.mini .ic { width: 18px; height: 18px; }
+.chat:not([data-open="true"]) .msg { -webkit-line-clamp: 1; }
+.chat:not([data-open="true"]) .chat-list { gap: 1px; padding-bottom: 4px; }
+.hud-bottom { gap: 6px; padding-bottom: 6px; }
+@media (max-width: 759px), (max-aspect-ratio: 4/3) {
+  .pchip { width: 60px; padding: 3px 2px; }
+  .pchip-av { width: 36px; height: 36px; font-size: 15px; }
+  .pchip-name { font-size: 11px; max-width: 56px; }
+  .pchip-job { max-width: 56px; }
+  .rail { gap: 5px; padding-top: 11px; }
+  .chat-row { gap: 6px; }
+}
+
+/* ---------- 2. tur: botlar ---------- */
+.pchip-tag.bot { color: #b9d0ff; background: #26304f; border-color: rgba(143, 180, 255, .6); }
+.chip-bot { background: rgba(143, 180, 255, .15); border-color: rgba(143, 180, 255, .45); color: #cfe0ff; vertical-align: 3px; }
+.bot-mark { display: inline-flex; align-items: center; gap: 2px; margin: 0 4px 0 -1px; padding: 0 5px; border-radius: 6px; background: rgba(143, 180, 255, .18); color: #cfe0ff; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; vertical-align: 1px; text-shadow: none; }
+.bot-mark .ic { width: 11px; height: 11px; }
+.lobby-start-row { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1.7fr; gap: 8px; }
+.lobby-start-row .btn { padding: 0 10px; }
+.lobby-start-row .lobby-start { grid-column: auto; }
+.lobby-bots { margin: 0; display: flex; gap: 8px; align-items: center; justify-content: center; font-size: var(--fs-xs); color: #cfe0ff; font-weight: 800; }
+.lobby-bots .ic { width: 16px; height: 16px; flex: none; }
+.note .ic { flex: none; }

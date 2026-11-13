@@ -35,6 +35,10 @@
 <h2>Sahne</h2>
 <div class="grid" id="scenes"></div>
 
+<h2>Menü müziği</h2>
+<p class="hint">İki aday var; Menü, Lobi ve Bitti sahnelerinde çalar. Seçim kaydedilir.</p>
+<div class="grid" id="tracks"></div>
+
 <h2>Efektler</h2>
 <div class="grid" id="sfx"></div>
 <div class="row"><label for="sfxVol">Efekt şiddeti</label><input type="range" id="sfxVol" min="0" max="2" step="0.05" value="1"><output id="sfxVolOut">1.00</output></div>
@@ -42,7 +46,7 @@
 
 <h2>Ses seviyeleri</h2>
 <div id="vols"></div>
-<div class="row"><button id="muteBtn" style="flex:1">Sessiz</button></div>
+<div class="row"><button id="muteBtn" style="flex:1">Sessiz</button><button id="resetBtn" style="flex:1">Varsayılanlar</button></div>
 
 <details><summary>Ayıklama (VKAudio._debug)</summary><pre id="dbg"></pre></details>
 
@@ -61,6 +65,15 @@
     sc.appendChild(b);
   });
   function mark() { [].forEach.call(sc.children, function (b) { b.classList.toggle('on', b.dataset.scene === current); }); }
+  // menü müziği adayları
+  var tr = document.getElementById('tracks'), TN = { harp: 'Arp (varsayılan)', lute: 'Lavta' };
+  A.menuTracks().forEach(function (id) {
+    var b = document.createElement('button'); b.textContent = TN[id] || id; b.dataset.track = id;
+    b.onclick = function () { A.setMenuTrack(id); if (!current || ['menu', 'lobby', 'ended'].indexOf(current) < 0) { A.setScene('menu'); current = 'menu'; mark(); } markTracks(); };
+    tr.appendChild(b);
+  });
+  function markTracks() { [].forEach.call(tr.children, function (b) { b.classList.toggle('on', b.dataset.track === A.getMenuTrack()); }); }
+  markTracks();
   var sfxVol = document.getElementById('sfxVol');
   sfxVol.oninput = function () { document.getElementById('sfxVolOut').textContent = (+sfxVol.value).toFixed(2); };
   SFX.forEach(function (n) {
@@ -74,15 +87,20 @@
   };
   // ses kaydırıcıları
   var vols = document.getElementById('vols'), names = { master: 'Genel', music: 'Müzik', sfx: 'Efektler', amb: 'Ortam' };
-  var v0 = A.getVolume();
+  var v0 = A.getVolume(), sliders = {};
   Object.keys(names).forEach(function (k) {
     var row = document.createElement('div'); row.className = 'row';
     row.innerHTML = '<label for="v_' + k + '">' + names[k] + '</label><input type="range" id="v_' + k + '" min="0" max="1" step="0.01"><output></output>';
     var inp = row.querySelector('input'), out = row.querySelector('output');
     inp.value = v0[k]; out.textContent = (+v0[k]).toFixed(2);
+    sliders[k] = { inp: inp, out: out };
     inp.oninput = function () { var o = {}; o[k] = +inp.value; A.setVolume(o); out.textContent = (+inp.value).toFixed(2); };
     vols.appendChild(row);
   });
+  document.getElementById('resetBtn').onclick = function () {
+    var d = A.defaults(); A.setVolume(d);
+    Object.keys(sliders).forEach(function (k) { sliders[k].inp.value = d[k]; sliders[k].out.textContent = (+d[k]).toFixed(2); });
+  };
   var mb = document.getElementById('muteBtn');
   function muteLabel() { mb.textContent = A.isMuted() ? 'Sesi aç' : 'Sessiz'; mb.classList.toggle('on', A.isMuted()); }
   mb.onclick = function () { A.mute(!A.isMuted()); muteLabel(); };
@@ -91,7 +109,7 @@
   var st = document.getElementById('status'), dbg = document.getElementById('dbg');
   setInterval(function () {
     var d = A._debug();
-    st.textContent = 'Durum: ' + d.state + (d.unlocked ? ' · açık' : ' · dokunuş bekleniyor') + ' · sahne: ' + d.scene +
+    st.textContent = 'Durum: ' + d.state + (d.unlocked ? ' · açık' : ' · dokunuş bekleniyor') + ' · sahne: ' + d.scene + ' · menü: ' + d.menuTrack +
       (d.gains.musicTrack ? ' · müzik: ' + d.gains.musicTrack.id : '') + ' · yüklü: ' + d.loaded.length +
       (Object.keys(d.failed).length ? ' · hata: ' + Object.keys(d.failed).length : '');
     if (dbg.offsetParent) dbg.textContent = JSON.stringify(d, null, 1);

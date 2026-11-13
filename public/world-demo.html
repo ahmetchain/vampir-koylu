@@ -42,8 +42,9 @@
     <h3>Görünüm</h3>
     <div class="row">
       <button data-view="menu">Menü</button><button data-view="game" class="on">Oyun</button>
-      <select id="quality"><option>auto</option><option>low</option><option>medium</option><option>high</option></select>
+      <select id="quality"><option>auto</option><option>saver</option><option>low</option><option>medium</option><option>high</option></select>
       <label><input type="checkbox" id="insets"> UI boşlukları</label>
+      <select id="cam"><option value="follow">Kamera: takip</option><option value="overview">Kamera: genel</option></select>
     </div>
     <h3>Oyuncular</h3>
     <div class="row"><input id="count" type="range" min="5" max="20" value="8" style="width:140px"><b id="countv">8</b>
@@ -71,7 +72,8 @@
     <h3>Önizleme</h3>
     <div class="row"><div id="pv"></div><button id="pvlook">Görünüm değiştir</button><button id="pvdel">Kapat/Aç</button></div>
     <h3>Test</h3>
-    <div class="row"><button id="recreate">create/dispose ×10</button><button id="hour">Saat: oto</button></div>
+    <div class="row"><button id="recreate">create/dispose ×10</button><button id="hour">Saat: oto</button><button id="bench">Ölçüm (benchmark)</button></div>
+    <div id="benchOut" style="font:11px/1.35 ui-monospace,Consolas,monospace;white-space:pre;overflow:auto"></div>
   </div>
 </div>
 <script>document.write('<script src="build/' + (/[?&]dev(&|$)/.test(location.search) ? 'world.dev.js' : 'world.js') + '"><\/script>');</script>
@@ -183,7 +185,7 @@
   function makeWorld() {
     world = VKWorld.create($('#stage'), {
       onProgress(d, t) { $('#prog').textContent = `Yükleniyor ${d}/${t}`; },
-      onReady() { $('#prog').style.display = 'none'; push(); },
+      onReady() { window.__readyAt = performance.now(); $('#prog').style.display = 'none'; push(); },
       onQuality(q) { log('kalite → ' + q); },
       onPick(id) {
         const p = S.players.find((x) => x.id === id);
@@ -220,7 +222,7 @@
   }
   let currentView = qs.get('view') || 'game';
   function push() { if (world) world.update(viewFor(), { witchMode: S.witchMode }); syncSelects(); }
-  window.demo = { S, push, viewFor, setPhase: (p) => setPhase(p), announce: (k) => announce(k), me };
+  window.demo = { S, push, viewFor, setPhase: (p) => setPhase(p), announce: (k, o) => announce(k, o), me };
 
   function setPhase(ph) {
     S.phase = ph;
@@ -351,6 +353,8 @@
   $('#kill').onclick = () => { const id = $('#victim').value; if (id) { killP(id); push(); } };
   $('#revive').onclick = () => { S.players.forEach((p) => { p.alive = true; p.left = false; }); S.alive = true; $('#alive').checked = true; push(); };
   $('#quality').onchange = (e) => world.setQuality(e.target.value);
+  $('#cam').onchange = (e) => world.setCameraMode(e.target.value);
+  setInterval(() => { if (world && world.getCameraMode && $('#cam').value !== world.getCameraMode()) $('#cam').value = world.getCameraMode(); }, 700);
   document.querySelectorAll('[data-view]').forEach((b) => b.onclick = () => { currentView = b.dataset.view; document.querySelectorAll('[data-view]').forEach((x) => x.classList.toggle('on', x === b)); world.setView(currentView); push(); });
   $('#insets').onchange = () => { document.body.classList.toggle('insets', $('#insets').checked); applyInsets(); };
   function applyInsets() { if (world) world.setInsets($('#insets').checked ? { top: 56, bottom: 70 } : {}); }
@@ -372,6 +376,69 @@
     push();
     log('10 kez yeniden oluşturuldu');
   };
+
+  // ---------- benchmark: sahneler sırayla, her biri 4 sn ölçülür ----------
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let longTasks = 0;
+  try { new PerformanceObserver((l) => { longTasks += l.getEntries().length; }).observe({ type: 'longtask', buffered: false }); } catch (e) { /* desteklenmez */ }
+  // derlemeden bağımsız ölçüm: renderer.render çağrıları arası süre (eski derlemelerle karşılaştırma için)
+  const hk = { on: false, last: 0, ft: [], rt: [] };
+  function hookRender() {
+    const r = world && world._debug && world._debug.renderer;
+    if (!r || r.__hk) return;
+    r.__hk = true;
+    const orig = r.render.bind(r);
+    r.render = (sc, cam) => { const t = performance.now(); orig(sc, cam); if (hk.on) { if (hk.last) hk.ft.push(t - hk.last); hk.rt.push(performance.now() - t); } hk.last = t; };
+  }
+  const pctl = (a, p) => { if (!a.length) return 0; const b = a.slice().sort((x, y) => x - y); return +b[Math.min(b.length - 1, Math.floor(b.length * p))].toFixed(1); };
+  async function measure(name, settle = 3500, span = 4000) {
+    hookRender();
+    await sleep(settle);
+    if (world.resetStats) world.resetStats();
+    hk.ft = []; hk.rt = []; hk.last = 0; hk.on = true;
+    const lt0 = longTasks;
+    await sleep(span);
+    hk.on = false;
+    const s = world.stats();
+    return { scene: name, tier: s.tier, scale: s.scale ?? 1, px: s.px, fps: s.fps, p50: pctl(hk.ft, 0.5), p95: pctl(hk.ft, 0.95), p99: pctl(hk.ft, 0.99), cpu50: s.cpu50 ?? '-', cpu95: s.cpu95 ?? '-', rnd50: pctl(hk.rt, 0.5), rnd95: pctl(hk.rt, 0.95), calls: s.calls, tris: s.tris, longTasks: longTasks - lt0 };
+  }
+  async function bench() {
+    S.paused = true; S.pausedLeft = 60000;
+    const out = [];
+    const show = () => { $('#benchOut').textContent = out.map((r) => `${r.scene.padEnd(10)} ${r.tier}/${r.scale} p50 ${r.p50} p95 ${r.p95} p99 ${r.p99} js ${r.cpu95} dc ${r.calls}`).join('\n'); };
+    const camWas = world.getCameraMode ? world.getCameraMode() : 'overview';
+    if (world.setCameraMode) world.setCameraMode('overview');
+    S.scenario = null; S.myRole = 'vampir'; deal(); setPhase('day'); S.paused = true; S.pausedLeft = 60000; push();
+    out.push(await measure('gündüz', 5000)); show();
+    if (world.setCameraMode) {
+      // takip kamerası, W tuşu basılı + yön değiştirerek yürüyüş
+      world.setCameraMode('follow');
+      const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true }));
+      key('keydown', 'KeyW');
+      const turn = setInterval(() => { key('keydown', 'KeyA'); setTimeout(() => key('keyup', 'KeyA'), 450); }, 1500);
+      out.push(await measure('takip', 2500)); show();
+      clearInterval(turn); key('keyup', 'KeyW'); key('keyup', 'KeyA');
+      world.setCameraMode('overview');
+    }
+    setPhase('night'); S.paused = true; S.pausedLeft = 60000; push();
+    out.push(await measure('gece', 5000)); show();
+    const tgt = alivePs().find((p) => p.id !== 'p0' && !EVIL[p.role]);
+    S.night.picks.p0 = tgt.id; push();
+    for (let i = 0; i < 40 && world._debug.roomMode !== 'visit'; i++) await sleep(500);
+    out.push(await measure('iç mekân', 1500)); show();
+    S.night.picks.p0 = null; setPhase('day'); S.paused = true; S.pausedLeft = 60000; push();
+    await sleep(4000);
+    announce('win', { winner: 'vampir' });
+    out.push(await measure('sinematik', 300, 4500)); show();
+    S.winner = null; S.scenario = 'kara-kis'; setPhase('day'); S.paused = true; S.pausedLeft = 60000; push();
+    out.push(await measure('kar', 5000)); show();
+    S.scenario = null; push();
+    if (world.setCameraMode) world.setCameraMode(camWas);
+    window.__bench = out;
+    return out;
+  }
+  window.demoBench = bench;
+  $('#bench').onclick = () => bench();
 
   // zamanlayıcı: süre bitince bir sonraki aşama (gerçek oyun akışı gibi)
   setInterval(() => {

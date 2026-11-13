@@ -77,6 +77,25 @@ export async function initWorld(el, h) {
 
 export function isFallback() { return usingFallback; }
 
+// Kalite kademelerinin sade Türkçe adları ve bir satırlık açıklamaları (bilinmeyen kademe adıyla gösterilir).
+const QUALITY_NAME = {
+  auto: 'Otomatik', battery: 'Pil tasarrufu', saver: 'Pil tasarrufu', pil: 'Pil tasarrufu', lowest: 'Pil tasarrufu', minimal: 'Pil tasarrufu',
+  low: 'Düşük', medium: 'Orta', high: 'Yüksek', ultra: 'En yüksek',
+};
+const QUALITY_DESC = {
+  auto: 'Cihazına göre kendini ayarlar; takılırsa kaliteyi düşürür.',
+  battery: 'En hafif görüntü, 30 fps; pil ve ısınma için.',
+  saver: 'En hafif görüntü, 30 fps; pil ve ısınma için.',
+  pil: 'En hafif görüntü, 30 fps; pil ve ısınma için.',
+  lowest: 'En hafif görüntü, 30 fps; pil ve ısınma için.',
+  minimal: 'En hafif görüntü, 30 fps; pil ve ısınma için.',
+  low: 'Gölgesiz, az efekt; eski ya da zayıf telefonlar için.',
+  medium: 'Dengeli görüntü; çoğu telefon için.',
+  high: 'Gölgeler ve tüm efektler; güçlü telefon ve bilgisayarlar için.',
+  ultra: 'Her şey en üst seviyede; yalnızca güçlü bilgisayarlar için.',
+};
+export function qualityLabel(id) { return QUALITY_NAME[id] || String(id); }
+
 // 3B dünya çalışırken sürekli hata atıyorsa (ör. kendi çizim döngüsünde) oyun oynanamaz hale gelmesin:
 // 5 saniyede 10'dan fazla hata gelirse 2B köye geçilir ve son durum ona aktarılır.
 let last = { state: null, ui: null, view: 'menu', insets: null };
@@ -124,6 +143,27 @@ export const W = {
   resize() { if (world) safe(() => world.resize()); },
   reset() { if (world) safe(() => world.reset()); },
   skip() { if (world && typeof world.skip === 'function') safe(() => world.skip()); },
+  // Performans ölçümü (alanlar dünyaya göre değişebilir).
+  stats() {
+    if (!world || typeof world.stats !== 'function') return null;
+    const s = safe(() => world.stats(), null);
+    return s ? { ...s, fallback: usingFallback } : null;
+  },
+  // Dünyanın sunduğu kalite kademeleri (çalışma anında okunur; yoksa varsayılan liste).
+  qualities() {
+    const src = (world && typeof world.qualities === 'function' && safe(() => world.qualities(), null))
+      || (lib && (lib.QUALITIES || lib.QUALITY_TIERS)) || null;
+    let ids = Array.isArray(src) ? src.map((q) => (typeof q === 'string' ? q : q && (q.id || q.name))).filter(Boolean) : ['low', 'medium', 'high'];
+    if (!Array.isArray(src) && lib && Array.isArray(lib.ORDER)) ids = lib.ORDER.slice();
+    else if (!Array.isArray(src) && lib && lib.TIERS && typeof lib.TIERS === 'object') ids = Object.keys(lib.TIERS);
+    ids = ids.filter((q) => q !== 'auto');
+    // Dünya listesini vermiyorsa: o an kullandığı kademe listede yoksa (ör. 'saver') en alta ekle.
+    const cur = !usingFallback && W.stats();
+    if (cur && cur.tier && !ids.includes(cur.tier)) ids.unshift(cur.tier);
+    const meta = {};
+    if (Array.isArray(src)) src.forEach((q) => { if (q && typeof q === 'object') meta[q.id || q.name] = q; });
+    return ['auto', ...ids].map((id) => ({ id, label: (meta[id] && meta[id].label) || qualityLabel(id), desc: (meta[id] && (meta[id].desc || meta[id].description)) || QUALITY_DESC[id] || '' }));
+  },
   setInsets(o) { last.insets = o; if (world && typeof world.setInsets === 'function') safe(() => world.setInsets(o)); },
 };
 

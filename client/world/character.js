@@ -67,12 +67,20 @@ export class Character {
     const g = A.get(`characters/villager-${String(skin).padStart(2, '0')}.glb`);
     const model = SkeletonUtils.clone(g.scene);
     const cloth = A.tinted('cloth', COLOR_HEX[clamp(look.color | 0, 0, 19)]);
+    let skel = null;
     model.traverse((o) => {
       if (!o.isMesh) return;
       if (o.material.name === 'cloth' && cloth) o.material = cloth;
+      else if (o.isSkinnedMesh && o.userData.clothMerged && o.material.name === 'villager') { const vm = A.villagerTinted(COLOR_HEX[clamp(look.color | 0, 0, 19)]); if (vm) o.material = vm; }
       o.castShadow = true;
       o.receiveShadow = false;
-      o.frustumCulled = false;
+      if (o.isSkinnedMesh) {
+        // aynı deri: tek iskelet (kemik dokusu karede bir kez güncellenir)
+        if (!skel) skel = o.skeleton; else if (o.skeleton !== skel && o.skeleton.bones.length === skel.bones.length) { o.skeleton.dispose(); o.skeleton = skel; }
+        // elle sınır küresi: görüş dışındaki karakterler çizilmez (yatma pozunu da kapsar)
+        o.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.3, -0.15), 0.85);
+        o.frustumCulled = true;
+      } else o.frustumCulled = false;
     });
     const head = model.getObjectByName('head');
     const hatNode = HAT_NODES[look.hat | 0];
@@ -187,7 +195,7 @@ export class Character {
 
   setVisible(v) {
     this.visible = v;
-    this.root.visible = v;
+    this.root.visible = v && !this.camHidden; // takip kamerasının önündeyse gizli kalır
   }
 
   update(dt, time) {
@@ -195,7 +203,20 @@ export class Character {
     this.runSteps(dt);
     // yol izleme
     let targetSpeed = 0;
-    if (this.path && this.path.length) {
+    if (this.drive && this.drive.speed > 0.05) {
+      // doğrudan sürüş (sanal kol / tuşlar): yol ve adımlar devre dışı
+      const d = this.drive;
+      this.path = null;
+      if (this.steps.length) this.steps.length = 0;
+      this.faceYaw = null; this.restPose = null;
+      if (this.base === 'sit' || this.base === 'peek' || this.base === 'cheer' || this.base === 'sad' || this.base === 'warm') this.setBase('idle', 0.15);
+      const want = Math.atan2(d.x, d.z);
+      this.yaw += wrapAngle(want - this.yaw) * damp(12, dt);
+      const sp = Math.max(this.speed, 0.6);
+      this.pos.x += d.x * sp * dt; this.pos.z += d.z * sp * dt;
+      targetSpeed = d.speed;
+      this.mode = d.speed > 2.3 ? 'sprint' : 'walk';
+    } else if (this.path && this.path.length) {
       const p = this.path[0];
       const dx = p.x - this.pos.x, dz = p.z - this.pos.z;
       const d = Math.hypot(dx, dz);
@@ -287,8 +308,14 @@ export class Character {
       if (a) a.setEffectiveWeight(this.weights[k] * norm); else delete this.weights[k];
     }
     if (this.once) this.actions[this.once.name].setEffectiveWeight(onceW);
-    if (this.headBone) this.headBone.quaternion.copy(this.headBaseQ); // klipte baş izi yoksa birikmesin
-    this.mixer.update(dt);
+    // animasyon seviyesi: uzak/görüş dışı karakterler daha seyrek güncellenir (dt birikir)
+    this.animAcc = (this.animAcc || 0) + dt;
+    this.animTick = ((this.animTick || 0) + 1) % (this.animEvery || 1);
+    if (this.animTick === 0) {
+      if (this.headBone) this.headBone.quaternion.copy(this.headBaseQ); // klipte baş izi yoksa birikmesin
+      this.mixer.update(this.animAcc);
+      this.animAcc = 0;
+    }
     // baş çevirme: konuşana / ateşe / kameraya (animasyonun üstüne, sınırlı)
     if (this.headBone) {
       let want = 0;

@@ -11,14 +11,15 @@ import { moodFor } from './moods.js';
 import { Character } from './character.js';
 import { CameraRig } from './camera.js';
 import { createOverlay } from './overlay.js';
+import { createControls } from './control.js';
 import { createDirector } from './director.js';
 import { createChoreo } from './choreo.js';
 import { computeLayout, plazaToWorld, worldToPlaza } from './layout.js';
 import { resolveStatic } from './nav.js';
 import { makeTod, evalTod, stepHour } from './tod.js';
-import { TIERS, ORDER, AutoQuality, detailFor, isMobile } from './quality.js';
+import { TIERS, ORDER, AutoQuality, DynamicRes, detailFor, isMobile, guessTier } from './quality.js';
 import * as Rules from './rules.js';
-import { clamp, damp, COLOR_HEX, TAU } from './constants.js';
+import { clamp, damp, smooth, wrapAngle, COLOR_HEX, TAU } from './constants.js';
 
 export function supported() {
   try {
@@ -36,6 +37,8 @@ export function create(container, handlers = {}) {
   if (!container) throw new Error('VKWorld: kapsayıcı yok');
   if (!supported()) throw new Error('VKWorld: WebGL2 desteklenmiyor');
   const H = handlers;
+  const world0 = { renderScale: 1 };
+  let tickT = 0, labelT = 0;
   const mobile = isMobile();
   const detail = detailFor(mobile);
 
@@ -82,7 +85,9 @@ export function create(container, handlers = {}) {
 
   // ---------- kalite ----------
   let qualityMode = 'auto';
-  const auto = new AutoQuality(mobile ? 'medium' : 'high');
+  const auto = new AutoQuality(guessTier(mobile));
+  const drs = new DynamicRes();
+  world0.renderScale = 1;
   let tier = TIERS[auto.level];
   const q = { ...detail, sparks: 70, fireflies: 56, clouds: tier.clouds, trees: detail.trees, scatter: detail.scatter };
 
@@ -238,8 +243,11 @@ export function create(container, handlers = {}) {
   const overlay = createOverlay(root, {
     onTagTap(id) { tapCharacter(id, true); },
     onPlaqueTap(id) { if (selectableIds.has(id)) pick(id); },
-    onRecenter() { rig.recenter(); },
+    onRecenter() { recenterCam(); },
+    onCamToggle() { toggleCam(); },
   });
+  // doğrudan hareket: sanal kol (dokunmatik) + WASD / ok tuşları
+  const controls = createControls(root, {});
   const director = createDirector(world);
   registerCinematics(director, world);
   const choreo = createChoreo(world);
@@ -273,8 +281,8 @@ export function create(container, handlers = {}) {
   function applyTier(name, announce = true) {
     tier = TIERS[name];
     const dpr = window.devicePixelRatio || 1;
-    px = Math.min(dpr, tier.px);
-    renderer.setPixelRatio(px);
+    px = Math.min(dpr, mobile ? tier.pxMobile : tier.px);
+    renderer.setPixelRatio(px * (world0.renderScale || 1));
     renderer.setSize(W, Hh, false);
     const want = tier.shadows > 0;
     if (renderer.shadowMap.enabled !== want) {
@@ -302,6 +310,7 @@ export function create(container, handlers = {}) {
     renderer.setSize(W, Hh, false);
     rig.setSize(W, Hh);
     overlay.setSize(W, Hh);
+    controls.place(insets, W, Hh);
     updateShot(true);
   }
   let ro = null;
@@ -578,11 +587,22 @@ export function create(container, handlers = {}) {
     if (phase === 'menu') kind = 'menu';
     else if (phase === 'night') kind = act === 'night' ? 'overview' : 'sleep';
     else if (phase === 'reveal') kind = 'gather';
+    else if (wantFollow()) kind = 'follow';
     else kind = 'plaza';
     const changed = kind !== shotKind;
     shotKind = kind;
-    if (changed) rig.recenter();
+    if (changed) { rig.recenter(); if (kind === 'follow') fol.init = false; }
     const s = rig.shot;
+    if (kind === 'follow') {
+      // genel bakışa uzaklaşma mesafesi (köy halkası sığsın)
+      let n = 0;
+      const rr = L.R + 3.6;
+      for (let i = 0; i < 24; i++) { const a = (i / 24) * TAU; fitPts[n++].set(Math.sin(a) * rr, 0, Math.cos(a) * rr); }
+      fol.ovDist = rig.fit(tmpZero, fol.az, portrait ? 1.15 : 0.98, 40, fitPts.slice(0, n), 0.94, 8, 220);
+      s.dynamic = false; s.points = null;
+      if (changed || force) updateFollow(0, true);
+      return;
+    }
     if (kind === 'menu') {
       // tepeden değil, köyün kenarından: karşıdaki evler, orman, dağlar ve gök birlikte görünsün
       // kamera meydanın kenarında: ateş önde, karşı evler, orman, dağlar ve gök arkada
@@ -760,11 +780,11 @@ export function create(container, handlers = {}) {
     ptrs.set(e.pointerId, p);
     if (ptrs.size === 1) {
       if (!dragMoved && Math.hypot(p.x - downX, p.y - downY) > 9) dragMoved = true;
-      if (dragMoved && view === 'game') rig.drag(p.x - prev.x, p.y - prev.y);
+      if (dragMoved && view === 'game') { if (shotKind === 'follow') followDrag(p.x - prev.x, p.y - prev.y); else rig.drag(p.x - prev.x, p.y - prev.y); }
     } else if (ptrs.size === 2) {
       const [a, b] = [...ptrs.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinchD > 0 && d > 0 && view === 'game') rig.zoom(pinchD / d);
+      if (pinchD > 0 && d > 0 && view === 'game') { if (shotKind === 'follow') followZoom(pinchD / d); else rig.zoom(pinchD / d); }
       pinchD = d;
     }
   }
@@ -779,7 +799,8 @@ export function create(container, handlers = {}) {
   function onWheel(e) {
     if (view !== 'game') return;
     e.preventDefault();
-    rig.zoom(Math.exp(clamp(e.deltaY, -120, 120) * 0.0015));
+    const f = Math.exp(clamp(e.deltaY, -120, 120) * 0.0015);
+    if (shotKind === 'follow') followZoom(f); else rig.zoom(f);
   }
   function hoverAt(x, y) {
     const id = candidateAt(x, y);
@@ -851,6 +872,16 @@ export function create(container, handlers = {}) {
   let statTime = 0;
   const stats = { fps: 0, ms: 0, calls: 0, tris: 0, frames: 0 };
   function schedule() { if (!raf && !disposed) raf = requestAnimationFrame(frame); }
+  const FT_N = 240;
+  const ftBuf = new Float32Array(FT_N), cpuBuf = new Float32Array(FT_N);
+  let ftIdx = 0, ftCount = 0;
+  const pctTmp = new Float32Array(FT_N);
+  function pct(buf, p) {
+    if (!ftCount) return 0;
+    pctTmp.set(buf);
+    const a = pctTmp.subarray(0, ftCount).sort();
+    return +a[Math.min(ftCount - 1, Math.floor(p * (ftCount - 1)))].toFixed(1);
+  }
   function frame(now) {
     raf = 0;
     if (disposed) return;
@@ -858,7 +889,7 @@ export function create(container, handlers = {}) {
     schedule();
     if (W < 2 || Hh < 2) return;
     // 30 fps sınırı (düşük kalite)
-    if (tier.fps <= 30 && now - lastRender < 1000 / 30 - 3) return;
+    if (tier.fps <= 30 && now - lastRender < 1000 / 30 - 4) return;
     const dt = clamp((now - last) / 1000, 0, 0.1);
     const frameMs = now - last;
     last = now;
@@ -873,6 +904,8 @@ export function create(container, handlers = {}) {
     stats.frames++;
     statTime += frameMs;
     stats.cpu = t1 - t0;
+    // yüzdelikler için halka tampon (kare aralığı ve JS süresi)
+    ftBuf[ftIdx] = frameMs; cpuBuf[ftIdx] = t1 - t0; ftIdx = (ftIdx + 1) % FT_N; if (ftCount < FT_N) ftCount++;
     if (statTime > 500) {
       stats.fps = Math.round((stats.frames * 1000) / statTime);
       stats.ms = +(statTime / stats.frames).toFixed(1);
@@ -881,8 +914,13 @@ export function create(container, handlers = {}) {
     stats.calls = renderer.info.render.calls;
     stats.tris = renderer.info.render.triangles;
     if (qualityMode === 'auto' && ready) {
-      const nl = auto.sample(frameMs, now);
-      if (nl && nl !== tier.name) applyTier(nl);
+      const nl = auto.sample(frameMs, t1 - t0, now);
+      if (nl && nl !== tier.name) { applyTier(nl); drs.reset(); }
+    }
+    // dinamik çözünürlük (GPU/dolgu sınırlıysa); elle seçilen kademede de çalışır
+    if (ready && !contextLost) {
+      const sc = drs.sample(frameMs, t1 - t0, now, tier.fps === 30 ? 36 : 24);
+      if (sc != null) { world0.renderScale = sc; renderer.setPixelRatio(px * sc); renderer.setSize(W, Hh, false); }
     }
   }
 
@@ -928,14 +966,15 @@ export function create(container, handlers = {}) {
     if (sun.castShadow) {
       const sc = sun.shadow.camera;
       if (sc.right !== span) { sc.left = -span; sc.right = span; sc.top = span; sc.bottom = -span; sc.near = 20; sc.far = 260; sc.updateProjectionMatrix(); shadowDirty = true; }
-      if (lastLightDir.angleTo(tod.lightDir) > 0.008) { lastLightDir.copy(tod.lightDir); shadowDirty = true; }
+      if (lastLightDir.angleTo(tod.lightDir) > 0.026) { lastLightDir.copy(tod.lightDir); shadowDirty = true; }
     }
     // ateş
     const flick = 0.82 + 0.1 * Math.sin(time * 13.1) + 0.06 * Math.sin(time * 23.7 + 1) + 0.05 * Math.sin(time * 5.3);
     if (roomMode && room) {
       // iç mekânda ateş ışığı fenerin/mumun yerine geçer
       const winView = roomMode === 'window' || (director.current && director.current.kind === 'watch');
-      if (winView) { const lp = room.W({ x: -2.4, y: 2.3, z: -1.2 }); fireLight.position.copy(lp); }
+      // pencere görünümü: dış duvar ve gözcü ay ışığında seçilebilsin (kare kenarları kapkara kalmasın)
+      if (winView) { const lp = room.W({ x: -2.4, y: 2.3, z: -1.2 }); fireLight.position.copy(lp); hemi.color.lerp(moonCol, 0.6); hemi.groundColor.lerp(moonCol, 0.35); hemi.intensity = tod.hi + 1.1; }
       else { const lp = room.lanternWorld(); fireLight.position.set(lp.x, lp.y + 0.9, lp.z + 0.8); }
       fireLight.intensity = (winView ? 13 : 9 + 5 * tod.night) * flick;
       fireLight.distance = 12;
@@ -946,8 +985,8 @@ export function create(container, handlers = {}) {
     }
     fire.update(time, px, 0.75 + 0.25 * tod.fire);
     sky.update(tod, time, camera, px, moonCol);
-    fireflies.update(time, px, clamp(tod.night * 1.2 - 0.2, 0, 1));
-    vignette.style.opacity = String(0.55 + tod.night * 0.45 + (roomMode === 'window' ? 0.4 : 0));
+    fireflies.update(time, px, tier.fireflies ? clamp(tod.night * 1.2 - 0.2, 0, 1) : 0);
+    vignette.style.opacity = String(0.55 + tod.night * 0.45 + (roomMode === 'window' ? 0.12 : 0));
     // kare başı geri çağrılar (sinematik ara değerleri, yarasalar, meşaleler)
     for (let i = ticker.length - 1; i >= 0; i--) {
       let done = true;
@@ -958,22 +997,34 @@ export function create(container, handlers = {}) {
     if (room && room.visible) { try { room.update(dt, time); } catch (e) { report('oda', e); } }
     for (const a of cineActors.values()) { try { a.ch.update(dt, time); } catch (e) { report('kopya', e); } }
     if (labelsDirty && state && view === 'game') refreshLabels();
-    weather.update(dt, time, px, rig.cur.target, view === 'game' || view === 'menu' ? tier.weather : 0, moodDef && moodDef.fogTint ? colorOf(moodDef.fogTint) : null, tod.night);
+    weather.update(dt, time, px, rig.cur.target, (view === 'game' || view === 'menu') ? tier.weather : 0, moodDef && moodDef.fogTint ? colorOf(moodDef.fogTint) : null, tod.night);
 
     if (village) {
       if (village.update(dt, time, tod)) shadowDirty = true;
       if (village.version !== obsVersion && village.layout) { obsVersion = village.version; buildObstacles(village.layout); }
-      if (state && view === 'game') choreo.tick(state);
+      // gece ışıkları zamanlayıcısı: saniyede 4 kez yeterli
+      tickT -= dt;
+      if (state && view === 'game' && tickT <= 0) { tickT = 0.25; choreo.tick(state); }
     }
 
+    // doğrudan hareket (sanal kol / tuşlar): yerel tahmin
+    try { updateDrive(dt); } catch (e) { report('sürüş', e); }
     // karakterler
     const obs = world.obstacles;
-    const list = [];
+    const list = charList;
+    list.length = 0;
+    camFrustum.setFromProjectionMatrix(projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     for (const ch of chars.values()) {
+      // görüş dışı: 4 karede bir, uzak: 2 karede bir; tasarruf kademesinde en az 2
+      lodSphere.center.set(ch.pos.x, ch.pos.y + 0.9, ch.pos.z);
+      const inView = ch.visible && camFrustum.intersectsSphere(lodSphere);
+      const far = camera.position.distanceToSquared(lodSphere.center) > 26 * 26;
+      ch.animEvery = !inView ? 4 : Math.max(far ? 2 : 1, tier.animLod || 1);
       try { ch.update(dt, time); } catch (e) { report('karakter', e); recoverChar(ch); }
       if (ch.visible && !ch.claimed) list.push(ch);
     }
     for (const g of ghosts.values()) { try { g.update(dt, time); } catch (e) { report('hayalet', e); recoverChar(g); } }
+    if (driving) clampDriven();
     // karakterler arası itme ve statik engeller
     for (let i = 0; i < list.length; i++) {
       const a = list[i];
@@ -1027,15 +1078,26 @@ export function create(container, handlers = {}) {
       // dinamik sığdırma noktalarını tazele (karakterler yürüyor)
       updateShotPointsOnly();
     }
+    // takip kamerası: kip uygunluğu değiştiyse (karakter göründü, öldü, kip değişti) çekimi yenile
+    followCheckT -= dt;
+    if (view === 'game' && state && followCheckT <= 0) { followCheckT = 0.4; if ((shotKind === 'follow') !== wantFollow() && (shotKind === 'follow' || shotKind === 'plaza')) updateShot(false); }
+    if (shotKind === 'follow') { try { updateFollow(dt); } catch (e) { report('takip', e); } }
     rig.update(dt, time);
-    overlay.setRecenter(view === 'game' && rig.offset, insets);
+    try { camOccluders(); } catch (e) { report('örtme', e); }
+    const togg = view === 'game' && state && !director.current && !roomMode && followable();
+    overlay.setCamToggle(!!togg, shotKind === 'follow' ? 'follow' : 'overview', insets);
+    overlay.setRecenter(view === 'game' && (shotKind === 'follow' ? followOffset() : rig.offset), insets);
 
     // gölge haritası (orta kalite: sadece gerektiğinde)
     shadowCool -= dt;
-    if (sun.castShadow && tier.shadows === 1 && shadowDirty && shadowCool <= 0) { renderer.shadowMap.needsUpdate = true; shadowDirty = false; shadowCool = 0.2; }
+    // gece gölgeleri neredeyse görünmez: ay dönerken her 2 sn'de bir yenile
+    if (tod.night > 0.7 && shadowDirty && shadowCool <= 0 && !layoutMoving()) shadowCool = 2;
+    if (sun.castShadow && tier.shadows === 1 && shadowDirty && shadowCool <= 0) { renderer.shadowMap.needsUpdate = true; shadowDirty = false; shadowCool = layoutMoving() ? 0.25 : 1.5; }
 
     // HTML katmanı
-    if (view === 'game' && state) {
+    labelT -= dt;
+    if (view === 'game' && state && labelT <= 0) {
+      labelT = tier.labelHz >= 60 ? 0 : 1 / tier.labelHz - 0.004;
       overlay.project(camera, anchorTag, anchorPlaque, tagVisible);
     }
   }
@@ -1043,6 +1105,224 @@ export function create(container, handlers = {}) {
   // Bir karakterin animasyonu bozulursa modeli baştan kur (hatayı her karede tekrarlamasın)
   function recoverChar(ch) {
     try { ch.once = null; const l = ch.look; ch.lookKey = null; ch.setLook(l); applyCharShadow(ch); } catch (e) { ch.setVisible(false); }
+  }
+
+  // ---------- takip kamerası ----------
+  // Gündüz / lobi / oyun sonu: kendi karakterinin (ölüyse hayaletinin) biraz üstünden ve çapraz arkasından izler.
+  // Sürükleme karakter çevresinde döndürür, kıstırma/tekerlek yakından köy genel bakışına kadar uzaklaştırır.
+  const CAM_KEY = 'vkw.cam';
+  let camMode = 'follow';
+  try { const v = localStorage.getItem(CAM_KEY); if (v === 'follow' || v === 'overview') camMode = v; } catch (e) { /* özel sekme */ }
+  const fol = { az: 0, el: 0.42, zoom: 1, dragT: 99, init: false, wide: false, side: 1, ovDist: 50, zoomGoal: 0, kd: 1, ke: 0 };
+  const tmpZero = new THREE.Vector3(0, 0, 0);
+  const folTgt = new THREE.Vector3();
+  let followCheckT = 0;
+  function followTarget() {
+    if (!state || !state.me) return null;
+    const me = state.me;
+    if (!me.alive) { const g = ghosts.get(me.id); if (g) return g; }
+    const ch = chars.get(me.id);
+    return ch && ch.visible ? ch : null;
+  }
+  function movePhase() { const ph = state && view === 'game' ? state.room.phase : null; return ph === 'lobby' || ph === 'day' || ph === 'ended'; }
+  function followable() { return movePhase() && !!followTarget(); }
+  function wantFollow() { return camMode === 'follow' && followable(); }
+  function behindAz(ch) { return ch.yaw + Math.PI + 0.38 * fol.side; }
+  function followDrag(dx, dy) {
+    fol.az -= dx * 0.0075;
+    fol.el = clamp(fol.el + dy * 0.004, 0.12, 1.15);
+    fol.dragT = 0;
+  }
+  function followZoom(f) { fol.zoom = clamp(fol.zoom * f, 0.55, 4.2); fol.zoomGoal = 0; fol.dragT = Math.min(fol.dragT, 0.5); }
+  function followOffset() {
+    const ch = followTarget();
+    if (!ch) return false;
+    return Math.abs(fol.zoom - (fol.wide ? 1.6 : 1)) > 0.15 || Math.abs(fol.el - 0.42) > 0.12 || (ch.speed < 0.3 && Math.abs(wrapAngle(behindAz(ch) - fol.az)) > 0.9);
+  }
+  function recenterCam() {
+    if (shotKind === 'follow') { const ch = followTarget(); if (ch) fol.az = behindAz(ch); fol.el = 0.42; fol.zoom = fol.wide ? 1.6 : 1; fol.zoomGoal = 0; fol.dragT = 99; return; }
+    rig.recenter();
+  }
+  function toggleCam() {
+    camMode = camMode === 'follow' ? 'overview' : 'follow';
+    try { localStorage.setItem(CAM_KEY, camMode); } catch (e) { /* özel sekme */ }
+    updateShot(false);
+  }
+  function updateFollow(dt, snap) {
+    const ch = followTarget();
+    const L = village && village.layout;
+    if (!ch || !L) return;
+    const portrait = rig.portrait;
+    if (!fol.init) {
+      fol.init = true;
+      // çapraz taraf: ateşe bakan karakterde kamera hafif dış yanda (ateş ve diğerleri karede)
+      fol.side = 1; fol.az = behindAz(ch); fol.el = 0.42; fol.zoom = 1; fol.dragT = 99; fol.zoomGoal = 0; fol.wide = false;
+    }
+    fol.dragT += dt;
+    // oylama / avcı adayları: biraz geri çekil (adaylar kolayca kareye girsin)
+    const act = Rules.action(state);
+    const wide = act === 'vote' || act === 'shoot';
+    if (wide !== fol.wide) { fol.wide = wide; if (wide && fol.zoom < 1.6) fol.zoomGoal = 1.6; }
+    if (fol.zoomGoal) { fol.zoom += (fol.zoomGoal - fol.zoom) * damp(2.5, dt); if (Math.abs(fol.zoom - fol.zoomGoal) < 0.02) fol.zoomGoal = 0; }
+    // yürürken (sürükleme bittikten kısa süre sonra) kamera yeniden karakterin arkasına döner
+    if (ch.speed > 0.4 && fol.dragT > 1.1) fol.az += wrapAngle(behindAz(ch) - fol.az) * damp(ch.drive ? 1.5 : 0.9, dt);
+    fol.az = wrapAngle(fol.az);
+    const z = fol.zoom;
+    const b = smooth(clamp((z - 1.7) / 2.5, 0, 1));          // 0: takip, 1: köy genel bakışı
+    const base = portrait ? 8.8 : 7.2;
+    folTgt.set(ch.pos.x, (ch.isGhost ? 1.5 : 1.25) + (ch.isGhost && ch.model ? ch.model.position.y : 0), ch.pos.z).lerp(tmpZero, b);
+    let el = fol.el + ((portrait ? 1.15 : 0.98) - fol.el) * b;
+    let dist = base * z + (fol.ovDist - base * z) * b;
+    const fov = (portrait ? 54 : 46) + (40 - (portrait ? 54 : 46)) * b;
+    // evlerin içine girme: kamera yatay olarak ev halkasının önünde kalsın (önce yüksel, sonra yaklaş)
+    const lim = L.R - 4.6;
+    if (b < 0.6) {
+      for (let it = 0; it < 14; it++) {
+        const h = Math.cos(el) * dist;
+        const cx = folTgt.x + Math.sin(fol.az) * h, cz = folTgt.z + Math.cos(fol.az) * h;
+        if (Math.hypot(cx, cz) <= lim) break;
+        // önce yaklaş (üçüncü şahıs hissi kalsın), yetmezse yüksel
+        // kullanıcı uzaklaştırdıysa yükselmek öncelikli (uzaklaştırma geri alınmasın)
+        if (z > 1.25 && el < 1.05) el += 0.08; else if (dist > 4.4) dist *= 0.9; else if (el < 1.05) el += 0.08; else break;
+      }
+    }
+    // dekor engelleri (ağaç, fener direği, tezgâh, araba, çit...): önceden ölçülmüş silindirlerle ucuz test.
+    // Sonuç oran olarak yumuşatılır: engele girerken hızlı, çıkarken yavaş (kayarken titreme olmaz).
+    if (b < 0.85) {
+      const sv = solveProps(folTgt, fol.az, el, dist);
+      const wantK = sv.dist / dist, wantE = sv.el - el;
+      if (snap) { fol.kd = wantK; fol.ke = wantE; }
+      fol.kd += (wantK - fol.kd) * damp(wantK < fol.kd ? 9 : 1.8, dt);
+      fol.ke += (wantE - fol.ke) * damp(wantE > fol.ke ? 7 : 1.5, dt);
+      dist *= fol.kd; el += fol.ke;
+    } else { fol.kd = 1; fol.ke = 0; }
+    rig.setShot({ kind: 'follow', target: folTgt, az: fol.az, el, dist, fov, speed: 5.5, snap: !!snap });
+    rig.shot.dynamic = false;
+  }
+  // Takip kamerasının dibindeki ya da kamerayla karakter arasındaki diğer köylüler gizlenir (dev ön plan başları olmasın)
+  function camOccluders() {
+    const follow = shotKind === 'follow' && !rig.override && rig.ovW < 0.05;
+    const me = follow ? followTarget() : null;
+    const c = camera.position;
+    for (const ch of chars.values()) {
+      let hide = false;
+      if (me && ch !== me && ch.visible && !ch.claimed) {
+        const dx = ch.pos.x - c.x, dz = ch.pos.z - c.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < 2.4 * 2.4) hide = true;
+        else {
+          // kamera -> hedef doğrusu üzerinde, hedeften önce ve çizgiye yakın
+          const tx = me.pos.x - c.x, tz = me.pos.z - c.z;
+          const tl2 = tx * tx + tz * tz || 1;
+          const t = (dx * tx + dz * tz) / tl2;
+          if (t > 0 && t < 0.82) { const px = dx - tx * t, pz = dz - tz * t; if (px * px + pz * pz < 0.75 * 0.75) hide = true; }
+        }
+      }
+      if (hide !== !!ch.camHidden) {
+        ch.camHidden = hide;
+        ch.root.visible = ch.visible && !hide;
+        labelsDirty = true;
+      }
+    }
+  }
+  const solveOut = { el: 0, dist: 0 };
+  function solveProps(T, az, el, dist) {
+    const list = village && village.blockers;
+    let e = el, d = dist;
+    if (!list || !list.length) { solveOut.el = e; solveOut.dist = d; return solveOut; }
+    const sa = Math.sin(az), ca = Math.cos(az);
+    for (let it = 0; it < 6; it++) {
+      const hl = Math.cos(e) * d;
+      const cx = T.x + sa * hl, cz = T.z + ca * hl, cy = T.y + Math.sin(e) * d;
+      let needUp = 0, cut = Infinity;
+      for (let i = 0; i < list.length; i++) {
+        const o = list[i];
+        // kaba eleme: hedef-kamera parçasının kutusu
+        if (o.x + o.r + 0.6 < Math.min(T.x, cx) || o.x - o.r - 0.6 > Math.max(T.x, cx) || o.z + o.r + 0.6 < Math.min(T.z, cz) || o.z - o.r - 0.6 > Math.max(T.z, cz)) continue;
+        // parçaya en yakın nokta (yatay)
+        const px = o.x - T.x, pz = o.z - T.z;
+        let t = (px * sa + pz * ca) / (hl || 1e-3);
+        t = t < 0 ? 0 : t > 1 ? 1 : t;
+        const qx = T.x + sa * hl * t - o.x, qz = T.z + ca * hl * t - o.z;
+        const dd = Math.sqrt(qx * qx + qz * qz);
+        const y = T.y + (cy - T.y) * t;
+        // kamera nesnenin içinde
+        const icx = cx - o.x, icz = cz - o.z;
+        if (icx * icx + icz * icz < (o.r + 0.45) * (o.r + 0.45) && cy < o.h + 0.35) {
+          if (o.h < 2.4) needUp = Math.max(needUp, o.h + 0.45 - cy);
+          else cut = Math.min(cut, Math.max(0, t * hl - o.r - 0.5));
+          continue;
+        }
+        // görüşü kapatan büyük nesne (ince direkler ve alçak dekor görüşü kapatmaz)
+        if (o.h >= 1.9 && o.r >= 0.35 && t > 0.12 && t < 1 && dd < o.r + 0.12 && y < o.h) cut = Math.min(cut, Math.max(0, t * hl - o.r - 0.45));
+      }
+      if (!needUp && cut === Infinity) break;
+      if (cut !== Infinity) {
+        const nd = cut / Math.max(0.2, Math.cos(e));
+        if (nd >= 3.6) d = Math.min(d, nd); else e = Math.min(1.2, e + 0.12);
+      }
+      if (needUp) e = Math.min(1.2, e + Math.max(0.06, needUp / Math.max(2, d)));
+    }
+    solveOut.el = e; solveOut.dist = d;
+    return solveOut;
+  }
+
+  // ---------- doğrudan hareket ----------
+  const joyV = { x: 0, y: 0 };
+  const camDir = new THREE.Vector3();
+  let driving = false, sendT = 0, lastSentX = -1, lastSentY = -1;
+  Object.defineProperty(world, 'driving', { get: () => driving });
+  function sendPos(ch, force) {
+    const L = village && village.layout;
+    if (!L || !H.onMove) return;
+    const n = worldToPlaza(L, ch.pos.x, ch.pos.z);
+    if (!force && Math.abs(n.x - lastSentX) < 0.003 && Math.abs(n.y - lastSentY) < 0.003) return;
+    lastSentX = n.x; lastSentY = n.y;
+    try { H.onMove(n.x, n.y); } catch (e) { /* yok say */ }
+  }
+  function updateDrive(dt) {
+    const ch = followTarget();
+    const can = !!(ready && ch && movePhase() && !roomMode && !director.current && !ch.claimed);
+    controls.setEnabled(can);
+    controls.vector(joyV);
+    const m = can ? Math.hypot(joyV.x, joyV.y) : 0;
+    const now = performance.now();
+    if (m > 0.08) {
+      // kameraya göre: ileri = kameranın baktığı yön (yere izdüşüm)
+      camera.getWorldDirection(camDir);
+      camDir.y = 0;
+      if (camDir.lengthSq() < 1e-4) camDir.set(-Math.sin(rig.cur.az), 0, -Math.cos(rig.cur.az));
+      camDir.normalize();
+      const fx = camDir.x, fz = camDir.z, rx = -fz, rz = fx;
+      let dx = rx * joyV.x + fx * joyV.y, dz = rz * joyV.x + fz * joyV.y;
+      const l = Math.hypot(dx, dz) || 1;
+      dx /= l; dz /= l;
+      const speed = m > 0.92 ? 3.0 : 0.5 + m * 1.9;
+      if (!ch.drive) ch.drive = { x: 0, z: 0, speed: 0 };
+      ch.drive.x = dx; ch.drive.z = dz; ch.drive.speed = speed;
+      if (!driving) { driving = true; sendT = 0; }
+      const lm = world.localMove || (world.localMove = { x: 0, z: 0, until: 0 });
+      lm.x = ch.pos.x; lm.z = ch.pos.z; lm.until = now + 2500;
+      sendT -= dt;
+      if (sendT <= 0) { sendT = 0.15; sendPos(ch, false); }
+    } else if (driving) {
+      driving = false;
+      for (const c of [chars.get(state && state.me ? state.me.id : ''), ghosts.get(state && state.me ? state.me.id : '')]) if (c) c.drive = null;
+      // aşama değiştiyse (gece) son konum gönderilmez: sunucu reddeder
+      if (ch && movePhase()) {
+        world.localMove = { x: ch.pos.x, z: ch.pos.z, until: now + 2500 };
+        sendPos(ch, true);
+        applyState(false);
+      }
+    }
+  }
+  function clampDriven() {
+    const ch = followTarget();
+    const L = village && village.layout;
+    if (!ch || !L) return;
+    const r = Math.hypot(ch.pos.x, ch.pos.z) || 1e-3;
+    const r0 = Math.max(L.Rp * 0.2, 2.3), r1 = L.Rp * 0.96;
+    if (r < r0 || r > r1) { const k = clamp(r, r0, r1) / r; ch.pos.x *= k; ch.pos.z *= k; }
   }
 
   // Kadraj merkezi: karakter kümesinin ortası (ateşe doğru çekilmiş) - boş meydan yarısı ekranı kaplamasın
@@ -1053,6 +1333,12 @@ export function create(container, handlers = {}) {
     if (!k) return centroidV.set(0, 0.9, 0.2);
     return centroidV.set((sx / k) * 0.6, 0.9, (sz / k) * 0.6 + 0.2);
   }
+
+  const charList = [];   // kare başı yeniden kullanılır (çöp üretmesin)
+  const camFrustum = new THREE.Frustum();
+  const projView = new THREE.Matrix4();
+  const lodSphere = new THREE.Sphere(new THREE.Vector3(), 1.3);
+  function layoutMoving() { return !!(village && village.busy); }
 
   let refitT = 0;
   function updateShotPointsOnly() {
@@ -1102,7 +1388,7 @@ export function create(container, handlers = {}) {
     if (extra) return true;
     const ch = chars.get(id);
     if (ghosts.has(id)) return true;
-    if (!ch || !ch.visible) return false;
+    if (!ch || !ch.visible || ch.camHidden) return false;
     // gece genel bakışında yalnızca kendi karakterin ve görebildiğin ziyaretçiler etiketli (eve yürüyenler değil)
     if (state && state.room.phase === 'night' && id !== state.me.id && !nightActors.has(id)) return false;
     return true;
@@ -1195,6 +1481,7 @@ export function create(container, handlers = {}) {
     ticker.length = 0;
     for (const b of [glow, pool, blobs, rings]) b.dispose();
     overlay.dispose();
+    controls.dispose();
     if (sun.shadow.map) sun.shadow.map.dispose();
     renderer.dispose();
     renderer.forceContextLoss();
@@ -1230,8 +1517,11 @@ export function create(container, handlers = {}) {
     resize,
     reset,
     dispose,
-    setInsets(o) { insets = { top: o.top || 0, bottom: o.bottom || 0, left: o.left || 0, right: o.right || 0 }; rig.setInsets(insets); overlay.setInsets(insets); updateShot(false); },
-    recenter() { rig.recenter(); },
+    setInsets(o) { o = o || {}; insets = { top: o.top || 0, bottom: o.bottom || 0, left: o.left || 0, right: o.right || 0, joystick: o.joystick === null ? null : (o.joystick && typeof o.joystick === 'object' ? { left: +o.joystick.left || 0, bottom: +o.joystick.bottom || 0, size: +o.joystick.size || 0 } : undefined) }; rig.setInsets(insets); overlay.setInsets(insets); controls.place(insets, W, Hh); updateShot(false); },
+    recenter() { recenterCam(); },
+    // gündüz kamera kipi: 'follow' (karakterini takip) | 'overview' (meydana genel bakış)
+    setCameraMode(m) { if (m === 'follow' || m === 'overview') { if (m !== camMode) toggleCam(); } },
+    getCameraMode() { return camMode; },
     // Ruh hali parametreleri (Faz 2 senaryoları): { fog, tint, tintAmt, moon, stars, weather }
     setMood(m = {}) {
       if (m.fog != null) mood.fog = clamp(+m.fog, 0.3, 2);
@@ -1243,15 +1533,21 @@ export function create(container, handlers = {}) {
     },
     // Faz 2 / hata ayıklama
     director,
-    stats() { return { ...stats, tier: tier.name, mode: qualityMode, px, hour: +hour.toFixed(2), ready }; },
+    stats() {
+      return {
+        ...stats, tier: tier.name, mode: qualityMode, px, scale: +(world0.renderScale || 1).toFixed(2), hour: +hour.toFixed(2), ready,
+        p50: pct(ftBuf, 0.5), p95: pct(ftBuf, 0.95), p99: pct(ftBuf, 0.99), cpu50: pct(cpuBuf, 0.5), cpu95: pct(cpuBuf, 0.95),
+      };
+    },
+    resetStats() { ftCount = 0; ftIdx = 0; },
     setScenario(id) { applyScenario(id); },
-    _debug: { world, scene, renderer, camera, rig, get village() { return village; }, get room() { return room; }, get roomMode() { return roomMode; }, setHour(h) { hour = h; } },
+    _debug: { world, scene, renderer, camera, rig, fol, get village() { return village; }, get room() { return room; }, get roomMode() { return roomMode; }, setHour(h) { hour = h; } },
   };
   // saat farkı (serverNow) her state'te güncellenir
   const origUpdate = api.update;
   api.update = (st, o) => { if (st && st.serverNow) skew = st.serverNow - Date.now(); origUpdate(st, o); };
   // Dışarıdan çağrılan her yöntem hatayı içeride tutar (arayüzü asla bozmasın)
-  for (const k of ['announce', 'bubble', 'setView', 'setQuality', 'resize', 'reset', 'setInsets', 'recenter', 'setMood', 'skip', 'setScenario']) {
+  for (const k of ['announce', 'bubble', 'setView', 'setQuality', 'resize', 'reset', 'setInsets', 'recenter', 'setMood', 'skip', 'setScenario', 'setCameraMode']) {
     const f = api[k];
     api[k] = function (...args) { try { return f.apply(api, args); } catch (e) { report('api.' + k, e); return k === 'announce' ? Promise.resolve() : undefined; } };
   }

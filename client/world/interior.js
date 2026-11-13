@@ -45,8 +45,8 @@ export function createInterior(world) {
     table: { x: 1.55, z: -0.75 },
     rug: { x: 0.4, z: 0.6 },
     lantern: { x: -0.85, y: 0.75, z: -3.0 },
-    // gözcü: sol duvardaki pencere (x≈-3.6, z=0)
-    winOut: { x: -4.0, z: -0.45 },
+    // gözcü: sol duvardaki pencerenin (x≈-3.6, z≈-2.5) hemen sağında, içeri bakar
+    winOut: { x: -4.1, z: -1.55 },
     window: { x: -3.62, y: 1.35, z: -2.5 },
   };
 
@@ -175,12 +175,15 @@ export function createInterior(world) {
   function shot(mode, portrait) {
     if (mode === 'window') {
       // pencerenin tam karşısından: duvar çerçeve olur, gözcü sağda siluet
-      return { pos: W({ x: portrait ? -6.2 : -5.6, y: 1.6, z: -2.8 }), look: W({ x: -1.6, y: 0.85, z: -1.4 }), fov: portrait ? 52 : 42 };
+      // gözcü kadrajın kenarında küçük bir siluet; pencere ve oda ortada
+      // bakış çizgisi pencerenin ortasından geçer; gözcü sağ kenarda küçük bir siluet
+      return { pos: W({ x: portrait ? -6.9 : -6.3, y: 1.75, z: portrait ? -2.95 : -3.0 }), look: W({ x: -1.6, y: 0.9, z: -2.1 }), fov: portrait ? 56 : 42 };
     }
     if (mode === 'search') {
-      return { pos: W({ x: portrait ? 0.8 : 3.4, y: portrait ? 10.2 : 4.6, z: portrait ? 5.2 : 5.6 }), look: W({ x: -0.5, y: 0.3, z: -0.6 }), fov: portrait ? 62 : 48 };
+      return { pos: W({ x: portrait ? 0.5 : 3.4, y: portrait ? 9.0 : 4.6, z: portrait ? 4.3 : 5.6 }), look: W({ x: -0.5, y: 0.3, z: -0.7 }), fov: portrait ? 58 : 48 };
     }
-    return { pos: W({ x: portrait ? 0.6 : 3.6, y: portrait ? 10.8 : 4.9, z: portrait ? 5.0 : 5.9 }), look: W({ x: portrait ? -0.5 : -0.9, y: 0.3, z: portrait ? -0.6 : -1.1 }), fov: portrait ? 62 : 48 };
+    // dikey ekranda daha sıkı: oda ekranı doldursun (yan duvarlar biraz kırpılır), boşluk kalmasın
+    return { pos: W({ x: portrait ? 0.4 : 3.6, y: portrait ? 9.2 : 4.9, z: portrait ? 4.1 : 5.9 }), look: W({ x: portrait ? -0.45 : -0.9, y: 0.3, z: portrait ? -0.75 : -1.1 }), fov: portrait ? 58 : 48 };
   }
 
   return {

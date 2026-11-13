@@ -48,7 +48,8 @@ Sources:
 
 | File | Source | Details |
 |------|--------|---------|
-| `music/menu.mp3` | Generated (ElevenLabs Music v2) | Warm medieval-folk menu/lobby theme, lute, flute, frame drum. Loop 73.0 s |
+| `music/menu-harp.mp3` | Generated (ElevenLabs Music v2, 2026-11-13) | Default menu/lobby theme: calm, sparse harp over a soft string pad. No percussion. Loop 52.0 s |
+| `music/menu-lute.mp3` | Generated (ElevenLabs Music v2, 2026-11-13) | Alternative menu theme: slow solo fingerpicked lute over a soft drone. Loop 59.1 s |
 | `music/day.mp3` | Generated (ElevenLabs Music v2) | Lively, slightly suspicious daytime "village debate" theme. Loop 62.2 s |
 | `music/night.mp3` | Generated (ElevenLabs Music v2) | Sparse, tense, eerie night theme. Loop 56.7 s |
 | `sfx/win.mp3` | Generated (ElevenLabs Music v2) | Victory stinger |

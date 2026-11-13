@@ -18,6 +18,8 @@ try {
   genitive = (name) => { try { return ek(name, 'gen'); } catch (err) { return name; } };
 } catch (err) { /* düz isimle devam */ }
 
+const { BotBrain, botName } = require('./lib/bots');
+
 const ROLE = {
   VAMPIRE: 'vampir',
   FRAMER: 'iftiraci',
@@ -233,8 +235,10 @@ function describeRoles(list) {
 
 class Room {
   // storySeed: testler için sabit hikâye tohumu (metin ya da tohum döndüren fonksiyon).
-  constructor({ id, name, password, settings, hooks, storySeed = null }) {
+  // botRng: testlerde botların tohumlu rastgele sayı üreteci.
+  constructor({ id, name, password, settings, hooks, storySeed = null, botRng = Math.random }) {
     this.id = id;
+    this.closed = false;
     this.storySeedSource = storySeed;
     this.name = name;
     this.password = password || '';
@@ -245,6 +249,8 @@ class Room {
     this.phase = 'lobby';
     this.timer = null;
     this.emptyTimer = null;
+    this.bots = new BotBrain(this, { rng: botRng });
+    this.botRng = botRng;
     this.resetGame();
   }
 
@@ -270,6 +276,7 @@ class Room {
     this.scenario = null;       // { id, name, intro } – oyun başından lobiye dönüşe kadar
     this.epilogue = null;       // { title, text, story } – oyun bitince
     this.lastHangScene = null;
+    this.hadBots = false;      // oyun başında odada bot var mıydı (varsa istatistik yazılmaz)
     for (const p of this.players.values()) {
       p.role = null;
       p.alive = true;
@@ -350,7 +357,7 @@ class Room {
 
   // id herkese görünür; userId oyuncunun hesabıdır (bir hesap odada tek koltuk alır).
   // look verilirse (hesabın kayıtlı görünümü) o kullanılır; renk doluysa boş bir renk seçilir.
-  addPlayer(id, name, { userId = null, look = null } = {}) {
+  addPlayer(id, name, { userId = null, look = null, bot = false } = {}) {
     if (userId && this.findByUser(userId)) return 'Bu hesap zaten odada.';
     if (this.phase !== 'lobby') return 'Oyun başlamış, şu an katılamazsın.';
     if (this.players.size >= MAX_PLAYERS) return `Oda dolu (en fazla ${MAX_PLAYERS} kişi).`;
@@ -367,15 +374,37 @@ class Room {
     const hat = validIndex(want.hat, HAT_COUNT) ? want.hat : crypto.randomInt(HAT_COUNT);
     const skin = validIndex(want.skin, SKIN_COUNT) ? want.skin : crypto.randomInt(SKIN_COUNT);
     this.players.set(id, {
-      id, name, userId, seat: this.freeSeat(), role: null, job: null, alive: true, connected: true, left: false,
+      id, name, userId, bot: Boolean(bot), seat: this.freeSeat(), role: null, job: null, alive: true, connected: true, left: false,
       socketId: null, graceTimer: null, notes: [],
       look: { color, hat, skin },
       pos: spawnSpot(),
     });
-    if (!this.hostId) this.hostId = id;
-    this.clearEmptyTimer();
+    if (!this.hostId && !bot) this.hostId = id;
+    if (!bot) this.clearEmptyTimer();
     this.addLog(`${name} odaya katıldı.`, 'info');
     this.changed();
+    return null;
+  }
+
+  // Oda sahibi lobide bot ekler. Bot: hesabı ve soketi yok, hep bağlı, adı "Bot <ad>".
+  // { id } ya da { error } döner.
+  addBot(byId) {
+    if (byId !== this.hostId) return { error: 'Bot ekleyebilmek için oda sahibi olmalısın.' };
+    if (this.phase !== 'lobby') return { error: 'Bot sadece lobide eklenebilir.' };
+    if (this.players.size >= MAX_PLAYERS) return { error: `Oda dolu (en fazla ${MAX_PLAYERS} kişi).` };
+    const id = `bot-${crypto.randomUUID()}`;
+    const name = botName([...this.players.values()].map((p) => p.name), this.botRng);
+    const error = this.addPlayer(id, name, { bot: true });
+    if (error) return { error };
+    try { this.bots.greet(id); } catch (err) { /* selam vermese de olur */ }
+    return { id };
+  }
+
+  // Botun sohbet mesajı: insanlarla aynı kanal/evre kuralları (chat), gönderimi sunucu yapar.
+  say(fromId, text) {
+    const res = this.chat(fromId, text);
+    if (res.error) return res.error;
+    if (typeof this.hooks.chat === 'function') this.hooks.chat(this, res.recipients, res.message);
     return null;
   }
 
@@ -503,7 +532,7 @@ class Room {
   ensureHost() {
     const host = this.players.get(this.hostId);
     if (host && host.connected && !host.left) return;
-    const next = [...this.players.values()].find((p) => p.connected && !p.left);
+    const next = [...this.players.values()].find((p) => p.connected && !p.left && !p.bot);
     if (next && next.id !== this.hostId) {
       this.hostId = next.id;
       this.addLog(`${next.name} artık oda sahibi.`, 'info');
@@ -512,17 +541,23 @@ class Room {
     }
   }
 
+  // Odada (ayrılmamış) insan kalmadıysa oda hemen kapanır – botlar odayı açık tutmaz.
+  // İnsanlar var ama hiçbiri bağlı değilse oda 10 dakika sonra kapanır.
   checkEmpty() {
-    const anyConnected = [...this.players.values()].some((p) => p.connected);
-    if (this.players.size === 0) {
-      this.destroy();
-      this.hooks.empty(this);
-    } else if (!anyConnected && !this.emptyTimer) {
-      this.emptyTimer = setTimeout(() => {
-        this.destroy();
-        this.hooks.empty(this);
-      }, EMPTY_ROOM_MS);
+    if (this.closed) return;
+    const humans = [...this.players.values()].filter((p) => !p.bot && !p.left);
+    if (humans.length === 0) {
+      this.close();
+    } else if (!humans.some((p) => p.connected) && !this.emptyTimer) {
+      this.emptyTimer = setTimeout(() => this.close(), EMPTY_ROOM_MS);
     }
+  }
+
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    this.destroy();
+    this.hooks.empty(this);
   }
 
   clearEmptyTimer() {
@@ -531,6 +566,7 @@ class Room {
   }
 
   destroy() {
+    this.bots.close();
     clearTimeout(this.timer);
     this.clearEmptyTimer();
     for (const p of this.players.values()) clearTimeout(p.graceTimer);
@@ -561,6 +597,7 @@ class Room {
       }
     }
     this.resetGame();
+    this.hadBots = [...this.players.values()].some((p) => p.bot);
     const specials = enabledSpecials(this.settings);
     const roles = assignRoles([...this.players.keys()], specials);
     for (const [id, role] of roles) this.players.get(id).role = role;
@@ -1066,7 +1103,8 @@ class Room {
       left: p.left,
     }));
     try {
-      this.hooks.finished(this, { winner: this.winner, results });
+      // Botlu oyunlar hesap istatistiklerine ve liderlik tablosuna yazılmaz.
+      this.hooks.finished(this, { winner: this.winner, results, ranked: !this.hadBots });
     } catch (err) {
       console.error(`[${this.id}] Oyun sonucu kaydedilemedi:`, err);
     }
@@ -1138,6 +1176,12 @@ class Room {
   // kind === 'move' ise sunucu yayını seyreltebilir (sık gelen konum güncellemeleri).
   changed(kind) {
     this.hooks.update(this, kind);
+    if (kind === 'move' || this.closed) return;
+    try {
+      this.bots.sync();
+    } catch (err) {
+      console.error(`[${this.id}] Bot planı kurulamadı:`, err);
+    }
   }
 
   publicInfo() {
@@ -1146,6 +1190,7 @@ class Room {
       id: this.id,
       name: this.name,
       players: [...this.players.values()].filter((p) => !p.left).length,
+      bots: [...this.players.values()].filter((p) => p.bot && !p.left).length,
       maxPlayers: MAX_PLAYERS,
       phase: this.phase,
       hasPassword: Boolean(this.password),
@@ -1166,7 +1211,7 @@ class Room {
       else if (!p.alive && this.settings.revealRoles) role = p.role;
       return {
         id: p.id, name: p.name, seat: p.seat, job: p.job || null, alive: p.alive, connected: p.connected,
-        left: p.left, isHost: p.id === this.hostId, role, look: p.look, pos: p.pos,
+        left: p.left, isHost: p.id === this.hostId, bot: Boolean(p.bot), role, look: p.look, pos: p.pos,
       };
     });
 

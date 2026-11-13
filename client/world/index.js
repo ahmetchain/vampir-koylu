@@ -10,6 +10,13 @@ try {
   if (cur) setBase(new URL('../assets/models/', cur).href);
 } catch (e) { /* göreli yol kalır */ }
 
-export const version = '2.0.0-faz1';
+export const version = '2.1.0';
+// Ayarlar için kalite kademeleri (en ucuzdan en iyiye); setQuality(id) bunları ve 'auto'yu kabul eder
+export const QUALITIES = [
+  { id: 'saver', label: 'Pil tasarrufu', desc: '30 kare/sn, düşük çözünürlük, en az efekt' },
+  { id: 'low', label: 'Düşük', desc: 'Gölgesiz, sade efektler' },
+  { id: 'medium', label: 'Orta', desc: 'Gölgeler ve bulutlar' },
+  { id: 'high', label: 'Yüksek', desc: 'Tam çözünürlük, karakter gölgeleri' },
+];
 export { create, supported, preview, COLORS, HATS, SKINS };
 export function setAssetBase(url) { setBase(url); }

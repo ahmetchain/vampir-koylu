@@ -202,6 +202,8 @@ export function createChoreo(world) {
       // yönetmenin devraldığı karakterlere dokunma; bırakıldığında yeniden planlanır
       if (ch.claimed && !snap) { goals.delete(p.id); continue; }
       ch.fresh = false;
+      // doğrudan sürülen kendi karakteri: sunucunun (gecikmeli) konumlarına yürütme
+      if (ch.isMe && world.driving && goal.kind === 'plaza' && !snap) { goals.set(p.id, 'drive'); } else
       if (prev !== key || snap) {
         goals.set(p.id, key);
         // aşama değişiminde doğal dağınıklık
@@ -219,9 +221,11 @@ export function createChoreo(world) {
       if (showGhost) {
         const g = world.ensureGhost(p);
         if (g) {
-          const w = plazaToWorld(L, p.pos ? p.pos.x : 0.5, p.pos ? p.pos.y : 0.8);
+          const lpg = p.id === me.id && world.localMove && performance.now() < world.localMove.until ? world.localMove : null;
+          const w = lpg ? { x: lpg.x, z: lpg.z } : plazaToWorld(L, p.pos ? p.pos.x : 0.5, p.pos ? p.pos.y : 0.8);
           const gk = 'g:' + w.x.toFixed(2) + ',' + w.z.toFixed(2);
-          if (goals.get('g' + p.id) !== gk || g.fresh) {
+          if (p.id === me.id && world.driving && !g.fresh) goals.set('g' + p.id, 'drive');
+          else if (goals.get('g' + p.id) !== gk || g.fresh) {
             goals.set('g' + p.id, gk);
             if (g.fresh) { g.pos.set(w.x, 0, w.z); g.fresh = false; g.yaw = restFacing(w.x, w.z); world.fx.emit('magic', w.x, 1, w.z, '#d8d0ff', 12); }
             g.isMe = p.id === me.id;

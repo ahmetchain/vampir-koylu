@@ -64,6 +64,12 @@ export function initChat() {
   };
   el.input.addEventListener('focus', () => setTimeout(kbd, 50));
   el.input.addEventListener('blur', kbd);
+  // Yazarken yön/WASD tuşları dünyaya ulaşmasın (karakter yürümesin, kısayollar tetiklenmesin).
+  const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'W', 'A', 'S', 'D', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ']);
+  document.addEventListener('keydown', (e) => {
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) && MOVE_KEYS.has(e.key)) e.stopPropagation();
+  }, true);
   if (window.visualViewport) window.visualViewport.addEventListener('resize', kbd);
   window.addEventListener('resize', kbd);
   kbd();
@@ -71,6 +77,7 @@ export function initChat() {
   docked.addEventListener && docked.addEventListener('change', () => { if (docked.matches) closeChat(); syncUnread(); });
 
   setInterval(markStale, 2000);
+  setInterval(() => trackSeen(500), 500);
 }
 
 function markStale() {
@@ -88,6 +95,7 @@ export function openChat() {
   el.chat.dataset.open = 'true';
   el.room.classList.add('chat-open');
   unread = 0;
+  trackSeen(0);
   syncUnread();
   requestAnimationFrame(() => { el.list.scrollTop = el.list.scrollHeight; });
 }
@@ -113,6 +121,7 @@ function push(node) {
   list.appendChild(node);
   while (list.children.length > MAX) list.firstElementChild.remove();
   if (atBottom || !isOpen) list.scrollTop = list.scrollHeight;
+  trackSeen(0);
 }
 
 export function appendChat(m) {
@@ -123,12 +132,41 @@ export function appendChat(m) {
   node.className = `msg msg-${m.channel}${mine ? ' me' : ''}`;
   const tag = m.channel === 'vampir' ? `<span class="tag">${roleIcon('vampir')}Vampirler</span>`
     : m.channel === 'olu' ? `<span class="tag">${icon('ghost')}Ölüler</span>` : '';
-  node.innerHTML = `${tag}<b style="color:${lighten(color)}">${esc(m.from)}</b><span>${esc(m.text)}</span><time>${fmtTime(m.ts || Date.now())}</time>`;
+  node.innerHTML = `${tag}<b style="color:${lighten(color)}">${esc(m.from)}</b>${p && p.bot ? `<span class="bot-mark">${icon('bot')}bot</span>` : ''}<span>${esc(m.text)}</span><time>${fmtTime(m.ts || Date.now())}</time>`;
+  // Okunmamış sayımı: mesaj şeritte ~2,5 sn görünmeden kayarsa ya da görünmeden eskirse okunmamış sayılır.
+  node.vkTrack = !mine;
+  node.vkSeen = 0;
   push(node);
   W.bubble(m.fromId, m.text, m.channel);
-  if (!mine) {
-    sfx('message', { volume: 0.5 });
-    if (!isOpen && !docked.matches) { unread += 1; syncUnread(); }
+  if (!mine) sfx('message', { volume: 0.5 });
+}
+
+const TICKER_N = 3;
+const SEEN_MS = 2500;
+// Şerit gerçekten görünüyor mu (sohbet sayfası kapalı, duyuru/rol kartı/oyun sonu üstünde değil)?
+function tickerVisible() {
+  if (isOpen || docked.matches || el.room.hidden) return false;
+  if (!$('#announce').hidden) return false;
+  if (document.querySelector('#overlay .ov')) return false;
+  return true;
+}
+function settle(node, seen) {
+  if (!node.vkTrack || node.vkDone) return;
+  node.vkDone = true;
+  if (!seen) { unread += 1; syncUnread(); }
+}
+function trackSeen(dtMs) {
+  const kids = el.list.children;
+  const vis = tickerVisible();
+  const now = Date.now();
+  for (let i = kids.length - 1, k = 0; i >= 0; i--, k++) {
+    const n = kids[i];
+    if (!n.vkTrack || n.vkDone) continue;
+    if (isOpen || docked.matches) { settle(n, true); continue; }
+    const stale = now - Number(n.dataset.t || now) > 25000;
+    if (k < TICKER_N && vis && !stale) n.vkSeen += dtMs;
+    if (n.vkSeen >= SEEN_MS) settle(n, true);
+    else if (k >= TICKER_N || stale) settle(n, false);
   }
 }
 

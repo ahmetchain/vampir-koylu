@@ -171,7 +171,14 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
       rooms.delete(room.id);
       broadcastRoomList();
     },
-    finished(room, { results }) {
+    // Botların sohbet mesajları (insan mesajlarıyla aynı alıcı kuralları).
+    chat(room, recipients, message) {
+      if (closing) return;
+      sendToPlayers(room, recipients, 'chat', message);
+    },
+    finished(room, { results, ranked }) {
+      // Botlu oyunlar istatistiğe ve liderlik tablosuna yazılmaz.
+      if (ranked === false) return;
       const rows = results.filter((r) => r.userId);
       if (rows.length) track(accounts.recordResults(rows), `Oyun sonucu kaydedilemedi (${room.id})`);
     },
@@ -355,6 +362,14 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
     handle('room:leave', (data, reply) => {
       leaveCurrent(socket);
       reply({ ok: true });
+    });
+
+    // Oda sahibi lobide bot ekler: { ok:true, playerId }.
+    handle('room:addBot', (data, reply) => {
+      const c = ctx(socket);
+      if (!c) return reply({ ok: false, error: 'Bir odada değilsin.' });
+      const res = c.room.addBot(c.player.id);
+      reply(res.error ? { ok: false, error: res.error } : { ok: true, playerId: res.id });
     });
 
     act('room:kick', ({ room, player }, data) => {

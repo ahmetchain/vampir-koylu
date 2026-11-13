@@ -118,9 +118,57 @@ function compose(x, y, z, rotY, s = 1) {
   return new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(UP, rotY), new THREE.Vector3(s, s, s));
 }
 
-// Tür+doku başına ev örnekleyici
+// Evler: malzeme başına TEK çizim (BatchedMesh) - tüm ev türleri ve kapılar aynı toplu ağda, örnek başına matris ve renk.
+// Toplu ağ desteklenmezse (öznitelikler uyuşmazsa) parça kendi InstancedMesh'ine düşer.
+// Malzemeler kopyalanır: aynı malzemeyi düz Mesh ile paylaşmak her çizimde program değişimine yol açar.
+class HouseBatches {
+  constructor(root) {
+    this.root = root;
+    this.map = new Map();   // malzeme uuid -> { mesh, geo: Map(geometry -> id), maxI, maxV, maxIdx, usedV, usedIdx }
+  }
+  batchFor(mat) {
+    let b = this.map.get(mat.uuid);
+    if (!b) {
+      const m = mat.clone();
+      m.name = mat.name;
+      m.userData = { ...mat.userData, houseBatch: true };
+      const mesh = new THREE.BatchedMesh(64, 16384, 32768, m);
+      mesh.sortObjects = false;          // opak: sıralamaya gerek yok
+      mesh.perObjectFrustumCulled = true;
+      mesh.frustumCulled = false;
+      mesh.name = 'houses-' + mat.name;
+      this.root.add(mesh);
+      b = { mesh, geo: new Map(), maxI: 64, maxV: 16384, maxIdx: 32768, usedV: 0, usedIdx: 0, cast: true };
+      this.map.set(mat.uuid, b);
+    }
+    return b;
+  }
+  geometryId(b, geometry) {
+    if (b.geo.has(geometry)) return b.geo.get(geometry);
+    const nv = geometry.attributes.position.count;
+    const ni = geometry.index ? geometry.index.count : 0;
+    if (b.usedV + nv > b.maxV || b.usedIdx + ni > b.maxIdx) {
+      b.maxV = Math.max(b.maxV * 2, b.usedV + nv); b.maxIdx = Math.max(b.maxIdx * 2, b.usedIdx + ni);
+      b.mesh.setGeometrySize(b.maxV, b.maxIdx);
+    }
+    const id = b.mesh.addGeometry(geometry);
+    b.usedV += nv; b.usedIdx += ni;
+    b.geo.set(geometry, id);
+    return id;
+  }
+  addInstance(b, gid) {
+    if (b.mesh.instanceCount >= b.maxI) { b.maxI *= 2; b.mesh.setInstanceCount(b.maxI); }
+    return b.mesh.addInstance(gid);
+  }
+  dispose() {
+    for (const b of this.map.values()) { b.mesh.parent && b.mesh.parent.remove(b.mesh); b.mesh.dispose(); b.mesh.material.dispose(); }
+    this.map.clear();
+  }
+}
+
+// Tür+doku başına ev grubu (parçalar ortak toplu ağlarda)
 class HouseGroup {
-  constructor(type, variant, root) {
+  constructor(type, variant, root, batches) {
     this.type = type; this.variant = variant;
     this.group = new THREE.Group();
     this.parts = [];
@@ -142,21 +190,41 @@ class HouseGroup {
         if (mat.name === 'window') colorMode = 'window';
         else if (mat.name.startsWith('tint')) { colorMode = 'owner'; mat = A.tinted(mat.name, '#ffffff'); }
         else if (variant === 1 && mat.name === 'fantasy-town') mat = A.altKitMaterial();
-        const im = new THREE.InstancedMesh(o.geometry, mat, MAXH);
-        im.count = 0;
-        im.castShadow = colorMode !== 'window';
-        im.receiveShadow = colorMode !== 'window';
-        im.frustumCulled = false;
-        if (colorMode) im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAXH * 3).fill(1), 3);
-        this.group.add(im);
-        this.parts.push({ im, kind: nodeName, nodeM, local, colorMode, nodePos: new THREE.Vector3().setFromMatrixPosition(nodeM), nodeQ: new THREE.Quaternion().setFromRotationMatrix(nodeM) });
+        const part = { kind: nodeName, nodeM, local, colorMode, nodePos: new THREE.Vector3().setFromMatrixPosition(nodeM), nodeQ: new THREE.Quaternion().setFromRotationMatrix(nodeM), ids: [] };
+        try {
+          const b = batches.batchFor(mat);
+          part.batch = b; part.batches = batches;
+          part.gid = batches.geometryId(b, o.geometry);
+          if (colorMode === 'window') { b.mesh.castShadow = false; b.mesh.receiveShadow = false; } else { b.mesh.castShadow = true; b.mesh.receiveShadow = true; }
+        } catch (e) {
+          // yedek: ayrı örnekli ağ
+          part.batch = null;
+          const im = new THREE.InstancedMesh(o.geometry, mat, MAXH);
+          im.count = 0;
+          im.castShadow = colorMode !== 'window';
+          im.receiveShadow = colorMode !== 'window';
+          im.frustumCulled = false;
+          if (colorMode) im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAXH * 3).fill(1), 3);
+          this.group.add(im);
+          part.im = im;
+        }
+        this.parts.push(part);
       });
     }
     root.add(this.group);
   }
+  // örnek sayısını listeye eşitle (fazlası gizlenir)
+  ensure(p, n) {
+    if (!p.batch) { p.im.count = n; return; }
+    const mesh = p.batch.mesh;
+    while (p.ids.length < n) p.ids.push(p.batches.addInstance(p.batch, p.gid));
+    for (let i = 0; i < p.ids.length; i++) mesh.setVisibleAt(p.ids[i], i < n);
+  }
+  setM(p, i, m) { if (p.batch) p.batch.mesh.setMatrixAt(p.ids[i], m); else p.im.setMatrixAt(i, m); }
+  setC(p, i, c) { if (p.batch) p.batch.mesh.setColorAt(p.ids[i], c); else p.im.setColorAt(i, c); }
   write() {
     const n = this.list.length;
-    for (const p of this.parts) p.im.count = n;
+    for (const p of this.parts) this.ensure(p, n);
     for (let i = 0; i < n; i++) {
       const h = this.list[i];
       const hm = tmpM2.compose(tmpV.set(h.cx, 0, h.cz), tmpQ.setFromAxisAngle(UP, h.crot), tmpS.set(h.scale, h.scale * h.scaleY, h.scale));
@@ -169,12 +237,13 @@ class HouseGroup {
         } else {
           m = tmpM.multiplyMatrices(hm, p.nodeM).multiply(p.local);
         }
-        p.im.setMatrixAt(i, m);
-        if (p.colorMode === 'owner') p.im.setColorAt(i, h.ownerColor);
-        else if (p.colorMode === 'window') p.im.setColorAt(i, h.winColor);
+        this.setM(p, i, m);
+        if (p.colorMode === 'owner') this.setC(p, i, h.ownerColor);
+        else if (p.colorMode === 'window') this.setC(p, i, h.winColor);
       }
     }
     for (const p of this.parts) {
+      if (p.batch) continue;
       p.im.instanceMatrix.needsUpdate = true;
       if (p.im.instanceColor) p.im.instanceColor.needsUpdate = true;
     }
@@ -182,22 +251,51 @@ class HouseGroup {
   writeColors() {
     for (const p of this.parts) {
       if (p.colorMode !== 'window') continue;
-      for (let i = 0; i < this.list.length; i++) p.im.setColorAt(i, this.list[i].winColor);
-      p.im.instanceColor.needsUpdate = true;
+      for (let i = 0; i < this.list.length; i++) this.setC(p, i, this.list[i].winColor);
+      if (!p.batch) p.im.instanceColor.needsUpdate = true;
     }
   }
   dispose() {
-    for (const p of this.parts) p.im.dispose();
+    for (const p of this.parts) if (p.im) p.im.dispose();
     this.group.parent && this.group.parent.remove(this.group);
   }
 }
+
+// Kamera engelleri: dekor şablonlarının boyutundan dikey silindir (x, z, yarıçap, yükseklik). Ad başına bir kez ölçülür.
+const propSizes = new Map();
+const tmpBox = new THREE.Box3();
+const tmpSize = new THREE.Vector3();
+function propSize(bundle, name) {
+  const key = bundle + ':' + name;
+  if (propSizes.has(key)) return propSizes.get(key);
+  const tpl = A.prop(bundle, name);
+  let out = null;
+  if (tpl) {
+    tpl.updateWorldMatrix(true, true);
+    tmpBox.setFromObject(tpl).getSize(tmpSize);
+    out = { r: Math.max(tmpSize.x, tmpSize.z) / 2, h: tmpSize.y };
+  }
+  propSizes.set(key, out);
+  return out;
+}
+const NO_BLOCK = /grass|patch|rock-flat|campfire/;
 
 export function createVillage(scene, q, fx, terrain) {
   const root = new THREE.Group();
   root.name = 'village';
   scene.add(root);
   const groups = new Map();
+  const houseBatches = new HouseBatches(root);
   const houses = new Map(); // id -> house
+  let blockers = [], themeBlockers = [], blockersAll = null;
+  function addBlocker(arr, bundle, name, x, z, s) {
+    if (NO_BLOCK.test(name) || !L) return;
+    if (Math.hypot(x, z) > L.R + 4) return;       // orman: takip kamerası ev halkasının içinde kalır
+    const sz = propSize(bundle, name);
+    if (!sz) return;
+    arr.push({ x, z, r: sz.r * s, h: sz.h * s, name });
+    blockersAll = null;
+  }
   let L = null;
   let dressing = null;
   let fireRoot = null;
@@ -216,7 +314,7 @@ export function createVillage(scene, q, fx, terrain) {
 
   function groupFor(type, variant) {
     const key = type + '-' + variant;
-    if (!groups.has(key)) groups.set(key, new HouseGroup(type, variant, root));
+    if (!groups.has(key)) groups.set(key, new HouseGroup(type, variant, root, houseBatches));
     return groups.get(key);
   }
 
@@ -296,7 +394,9 @@ export function createVillage(scene, q, fx, terrain) {
     pendingLayout = false;
     const R = rng(2024 + L.n);
     const batches = new Map();
+    blockers = []; blockersAll = null;
     const put = (name, x, z, rotY, s = 1, bundle = 'village', y = null) => {
+      addBlocker(blockers, bundle, name, x, z, s);
       const key = bundle + ':' + name;
       if (!batches.has(key)) batches.set(key, []);
       const yy = y == null ? terrain.heightAt(x, z) : y;
@@ -611,17 +711,20 @@ export function createVillage(scene, q, fx, terrain) {
     if (fair && themeBulbs) for (let i = 0; i < themeBulbs.length; i++) { const b = themeBulbs[i]; glow.add(b.x, b.y, b.z, 0.7, FAIR_COLS[i % FAIR_COLS.length], 0.8 * k * (0.8 + 0.2 * Math.sin(time * 3 + i))); }
     for (const h of houses.values()) {
       if (h.scale < 0.9) continue;
-      const v = { x: h.cx, z: h.cz, rotY: h.crot };
-      const ln = toWorld(v, h.info.door[0] + 0.95, h.info.front + 0.45);
+      if (!h.gp || h.gp.x !== h.cx || h.gp.z !== h.cz || h.gp.r !== h.crot) {
+        const v = { x: h.cx, z: h.cz, rotY: h.crot };
+        h.gp = { x: h.cx, z: h.cz, r: h.crot, ln: toWorld(v, h.info.door[0] + 0.95, h.info.front + 0.45), w: toWorld(v, h.info.frontWin[0], h.info.frontWin[2] + 0.25), wp: toWorld(v, h.info.frontWin[0], h.info.frontWin[2] + 1.6) };
+      }
+      const ln = h.gp.ln;
       const live = h.dead ? 0.25 : 1;
       glow.add(ln.x, 0.62, ln.z, 0.9, glowColor, 0.9 * k * live);
       pool.add(ln.x, 0.03, ln.z, 3.6, poolColor, 0.26 * k * live);
       // içeride biri varken pencere ışığı hafifçe titrer (mum)
       const wk = h.lit * k * (0.86 + 0.08 * Math.sin(time * 6.3 + h.seat * 2.1) + 0.06 * Math.sin(time * 13.7 + h.seat));
       if (wk > 0.02) {
-        const w = toWorld(v, h.info.frontWin[0], h.info.frontWin[2] + 0.25);
+        const w = h.gp.w;
         glow.add(w.x, 1.35, w.z, 1.7, winGlow, 0.5 * wk);
-        const wp = toWorld(v, h.info.frontWin[0], h.info.frontWin[2] + 1.6);
+        const wp = h.gp.wp;
         pool.add(wp.x, 0.03, wp.z, 4.2, winGlow, 0.22 * wk);
       }
     }
@@ -654,12 +757,13 @@ export function createVillage(scene, q, fx, terrain) {
   function buildTheme() {
     if (themeRoot) { root.remove(themeRoot); themeRoot.traverse((o) => { if (o.userData.merged || o.userData.themeGeo) o.geometry.dispose(); if (o.userData.themeMat) o.material.dispose(); }); themeRoot = null; }
     themeBulbs = null;
+    themeBlockers = []; blockersAll = null;
     if (!theme || !theme.dress || !L) return;
     themeRoot = new THREE.Group();
     themeRoot.name = 'theme';
     const R = rng(99 + L.n);
     const batches = new Map();
-    const put = (name, x, z, rotY, s = 1) => { if (!batches.has(name)) batches.set(name, []); batches.get(name).push(compose(x, terrain.heightAt(x, z), z, rotY, s)); };
+    const put = (name, x, z, rotY, s = 1) => { addBlocker(themeBlockers, 'village', name, x, z, s); if (!batches.has(name)) batches.set(name, []); batches.get(name).push(compose(x, terrain.heightAt(x, z), z, rotY, s)); };
     if (theme.dress === 'harvest') {
       // kapı önlerinde balkabakları, meydan kenarında saman balyaları ve yük arabası
       for (const h of houses.values()) {
@@ -757,12 +861,15 @@ export function createVillage(scene, q, fx, terrain) {
     get busy() { return animT < 1; },
     get version() { return version; },
     lampList: () => lamps,
+    // takip kamerası için dekor engelleri (dikey silindirler)
+    get blockers() { if (!blockersAll) blockersAll = blockers.concat(themeBlockers); return blockersAll; },
     setLayout, setOwner, setLit, setDead, setTheme, openDoor, anchors, update, emitGlows, pickHouse, onExtraLoaded,
     house: (id) => houses.get(id),
     tombOf: (id) => tombs.get(id),
     dispose() {
       setFrost(false);
       for (const g of groups.values()) g.dispose();
+      houseBatches.dispose();
       if (dressing) disposeGroup(dressing);
       if (graveRoot) disposeGroup(graveRoot);
       if (themeRoot) themeRoot.traverse((o) => { if (o.userData.merged || o.userData.themeGeo) o.geometry.dispose(); if (o.userData.themeMat) o.material.dispose(); });

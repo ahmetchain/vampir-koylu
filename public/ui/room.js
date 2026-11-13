@@ -25,7 +25,9 @@ let inviteOrigin = location.origin + location.pathname.replace(/index\.html$/, '
 let roleSheet = null;
 let lastPlayerCount = 0;
 
-const initial = (name) => (String(name || '?').trim()[0] || '?').toLocaleUpperCase('tr');
+const initial = (name) => (String(name || '?').replace(/^Bot\s+/, '').trim()[0] || '?').toLocaleUpperCase('tr');
+const hadBots = (s) => !!(s && s.players.some((p) => p.bot));
+const botChip = (p) => (p && p.bot ? `<span class="chip chip-bot">${icon('bot')}Bot</span>` : '');
 const nameJob = (p) => (p && p.job && p.job.label ? `${esc(p.name)} · <span class="job">${esc(p.job.label)}</span>` : esc(p ? p.name : ''));
 
 export function initRoom() {
@@ -38,6 +40,14 @@ export function initRoom() {
   });
   $('#prompt').addEventListener('click', onPromptClick);
   $('#lobby-card').addEventListener('click', onLobbyClick);
+  // "Bot ekle": arka arkaya hızlı dokunmalar serbest, her biri bir bot ister.
+  $('#lobby-card').addEventListener('pointerup', (e) => {
+    if (e.button > 0) return;
+    const b = e.target.closest('[data-l="bot"]');
+    if (!b || b.disabled) return;
+    sfx('click');
+    send('room:addBot', {});
+  });
   $('#overlay').addEventListener('click', onOverlayClick);
   setInterval(tick, 250);
   window.addEventListener('resize', scheduleInsets);
@@ -96,11 +106,11 @@ function openPlayerInfo(p) {
   const sheet = openSheet({
     title: p.name, cls: 'sheet-small',
     body: `<div class="pinfo"><span class="pinfo-av" style="background:${c};color:${inkOn(c)}">${esc(initial(p.name))}</span>
-      <div><h3>${esc(p.name)}${p.isHost ? ` <span class="chip chip-fire">${icon('crown')}Oda sahibi</span>` : ''}</h3>
+      <div><h3>${esc(p.name)} ${botChip(p)}${p.isHost ? ` <span class="chip chip-fire">${icon('crown')}Oda sahibi</span>` : ''}</h3>
       ${p.job && p.job.label ? `<p>Köydeki işi: <b>${esc(p.job.label)}</b></p>` : ''}
       <p>${state}${p.role ? ` · Rolü: <b>${ROLES[p.role].name}</b>` : ''}</p></div></div>`,
     footer: host
-      ? `<button type="button" class="btn btn-ghost" data-close>Kapat</button><button type="button" class="btn btn-danger" data-kick>${icon('door')}Odadan çıkar</button>`
+      ? `<button type="button" class="btn btn-ghost" data-close>Kapat</button><button type="button" class="btn btn-danger" data-kick>${icon('door')}${p.bot ? 'Botu çıkar' : 'Odadan çıkar'}</button>`
       : '<button type="button" class="btn btn-primary" data-close>Kapat</button>',
   });
   const k = sheet.foot.querySelector('[data-kick]');
@@ -137,11 +147,14 @@ function onPromptClick(e) {
     if (target) { sfx('click'); send('night:select', { targetId: target, action: ctx.witchMode }); }
   }
   if (a === 'role') openRoleSheet();
+  if (a === 'expand') { promptOpenKey = phaseKey; sfx('click'); renderPrompt(s); }
+  if (a === 'collapse') { promptOpenKey = ''; sfx('click'); renderPrompt(s); }
 }
 
 async function onLobbyClick(e) {
   const b = e.target.closest('[data-l]');
   if (!b) return;
+  if (b.dataset.l === 'bot' && e.detail !== 0) return; // pointerup işledi
   sfx('click');
   const s = ctx.state;
   const link = inviteLink(s.room.id);
@@ -157,6 +170,8 @@ async function onLobbyClick(e) {
     case 'look': openLookEditor(); break;
     case 'settings': openRoomSettings(); break;
     case 'start': send('game:start'); break;
+    // Fare/dokunma pointerup ile işlenir (kart arada yenilense de dokunuş kaybolmaz); burada sadece klavye.
+    case 'bot': if (e.detail === 0) send('room:addBot', {}); break;
     case 'min': lobbyMin = !lobbyMin; store.set('vk.lobbyMin', lobbyMin); renderLobby(s); scheduleInsets(); break;
     default: break;
   }
@@ -235,7 +250,7 @@ function onPhaseChange(s, prev) {
   if (ph === 'lobby') ctx.statsBefore = null;
   if (['night', 'day', 'hunter'].includes(ph) && prev) vibrate(60);
   audioScene({ lobby: 'lobby', reveal: 'night', night: 'night', day: 'day', hunter: 'day', ended: 'ended' }[ph] || 'lobby');
-  if (ph === 'ended') fetchStatsDelta();
+  if (ph === 'ended') { if (hadBots(s)) ctx.statsAfter = null; else fetchStatsDelta(); }
 }
 
 function phaseLabel(s) {
@@ -315,25 +330,30 @@ function promptFor(s) {
         out.html += teamLine();
         if (night.framer) out.html += `<br><span class="muted">İftiracı ${name(night.framer)} kişisine iftira atıyor.</span>`;
         out.actions = clear;
+        if (sel) out.short = `Hedefin: ${name(sel)}`;
         break;
       case 'iftiraci':
         out.tone = 'vampir';
         out.html = sel ? `İftiran: ${name(sel)}. Kahin ona bakarsa VAMPİR görecek.` : '<b>Kime iftira atacaksın?</b> Kahin bu gece ona bakarsa VAMPİR görür.';
         out.html += teamLine();
         out.actions = clear;
+        if (sel) out.short = `İftiran: ${name(sel)}`;
         break;
       case 'doktor':
         out.tone = 'good';
         out.html = sel ? `Koruman: ${name(sel)}. Bu gece ona kimse dokunamaz.` : '<b>Bu gece kimi koruyacaksın?</b> Kendini de seçebilirsin.';
         out.actions = clear;
+        if (sel) out.short = `Koruman: ${name(sel)}`;
         break;
       case 'kahin':
         out.html = sel ? `Kristal küren ${name(sel)} için hazır. Sonucu sabah öğreneceksin.` : '<b>Kimin geleceğine bakmak istersin?</b> Birini seç.';
         out.actions = clear;
+        if (sel) out.short = `Bakılacak: ${name(sel)}`;
         break;
       case 'gozcu':
         out.html = sel ? `${name(sel)} evinin penceresinin altına gizlendin. Sabah eve kimlerin girdiğini öğreneceksin.` : '<b>Bu gece kimin evini gözetleyeceksin?</b> Kendi evin de olur.';
         out.actions = clear;
+        if (sel) out.short = `Gözetlenen: ${name(sel)}`;
         break;
       case 'cadi': {
         const w = night && night.witch;
@@ -369,6 +389,11 @@ function promptFor(s) {
     if (me.role === 'muhtar') out.html += ' <span class="muted">Muhtar olarak oyun iki sayılır.</span>';
     out.actions = `<button type="button" class="btn btn-s sleep-btn${mv === 'sleep' ? ' on' : ''}" data-a="sleep">${icon('zz')}Hızlı Uyu ${day.sleepers}/${day.voters}</button>
       ${mv && mv !== 'sleep' ? `<button type="button" class="btn btn-ghost btn-s" data-a="unvote">${icon('close')}Oyumu geri al</button>` : ''}`;
+    if (mv) {
+      out.short = day.shortened ? '<b>Herkes oy verdi!</b>' : mv === 'sleep' ? '<b>Hızlı Uyu</b> dedin' : `Oyun: ${name(mv)}`;
+      out.mini = `<button type="button" class="btn btn-s sleep-btn mini${mv === 'sleep' ? ' on' : ''}" data-a="sleep" aria-label="Hızlı Uyu, ${day.sleepers}/${day.voters}">${icon('zz')}${day.sleepers}/${day.voters}</button>`
+        + (mv !== 'sleep' ? `<button type="button" class="btn btn-ghost btn-s mini" data-a="unvote" aria-label="Oyumu geri al">${icon('close')}</button>` : '');
+    }
     return out;
   }
   return null;
@@ -379,10 +404,19 @@ function renderPrompt(s) {
   const p = promptFor(s);
   el.hidden = !p;
   if (!p) return;
-  const html = `<span class="prompt-lead">${p.lead}</span><div class="prompt-text">${p.html}</div><div class="prompt-actions">${p.actions}</div>`;
-  if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; }
+  // Seçim/oy yapıldıktan sonra istem tek satıra iner (dünya daha çok görünsün); dokununca açılır.
+  if (p.short && !p.mini && /data-a="clear"/.test(p.actions)) p.mini = `<button type="button" class="btn btn-ghost btn-s mini" data-a="clear" aria-label="Seçimi kaldır">${icon('close')}</button>`;
+  const compact = !!p.short && promptOpenKey !== phaseKey;
+  const toggle = p.short ? `<button type="button" class="iconbtn prompt-tog" data-a="${compact ? 'expand' : 'collapse'}" aria-label="${compact ? 'Ayrıntıları göster' : 'Küçült'}">${icon(compact ? 'chevUp' : 'chevDown')}</button>` : '';
+  const html = compact
+    ? `<span class="prompt-lead">${p.lead}</span><div class="prompt-text" data-a="expand">${p.short}</div><div class="prompt-mini">${p.mini || ''}${toggle}</div>`
+    : `<span class="prompt-lead">${p.lead}</span><div class="prompt-text">${p.html}</div>${toggle ? `<div class="prompt-mini">${toggle}</div>` : ''}<div class="prompt-actions">${p.actions}</div>`;
+  if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; scheduleInsets(); }
   el.dataset.tone = p.tone;
+  el.classList.toggle('compact', compact);
+  el.classList.toggle('has-tog', !!toggle);
 }
+let promptOpenKey = '';
 
 function renderLobby(s) {
   const el = $('#lobby-card');
@@ -398,11 +432,16 @@ function renderLobby(s) {
   if (need > 0) why = `Başlamak için en az ${room.minPlayers} bağlı oyuncu gerekli (şu an ${connected}). ${need} kişi daha davet et!`;
   else if (connected < total) why = 'Bağlantısı kopan oyuncular başlarken odadan çıkarılır.';
   const iftiraOff = room.settings.roles.iftiraci && total < 7 ? ' İftiracı 7 oyuncudan az olduğu için dağıtılmayacak.' : '';
+  const bots = s.players.filter((p) => p.bot && !p.left).length;
+  const full = total >= room.maxPlayers;
+  const botBtn = (cls = '') => `<button type="button" class="btn btn-secondary ${cls}" data-l="bot" ${full ? 'disabled' : ''} aria-label="Bot ekle${full ? ' (oda dolu)' : ''}">${icon('bot')}Bot ekle</button>`;
   const startBtn = host
-    ? `<button type="button" class="btn btn-primary btn-lg lobby-start" data-l="start" ${need > 0 ? 'disabled' : ''}>${icon('play')}Oyunu Başlat</button>`
+    ? `<div class="lobby-start-row">${botBtn('btn-lg')}<button type="button" class="btn btn-primary btn-lg lobby-start" data-l="start" ${need > 0 ? 'disabled' : ''}>${icon('play')}Oyunu Başlat</button></div>`
     : '';
+  const botNote = bots ? `<p class="lobby-bots">${icon('bot')}<span>Odada ${bots} bot var. Botlu oyunlar istatistiğe sayılmaz.</span></p>`
+    : host ? `<p class="lobby-bots">${icon('bot')}<span>Tek başına denemek için bot ekle. Botlu oyunlar istatistiğe sayılmaz.</span></p>` : '';
   el.classList.toggle('min', !!lobbyMin);
-  el.innerHTML = `
+  setHTML(el, `
     <div class="lobby-row">
       <button type="button" class="lobby-code btn btn-ghost btn-s" data-l="code" aria-label="Oda kodunu kopyala">Kod <code>${esc(room.id)}</code></button>
       ${room.hasPassword ? `<span class="chip" title="Şifreli oda" aria-label="Şifreli oda">${icon('lock')}</span>` : ''}
@@ -411,20 +450,30 @@ function renderLobby(s) {
     </div>
     <div class="lobby-full" style="display:grid;gap:10px">
       ${total >= MIN_PLAYERS ? `<div class="dist" aria-label="Rol dağılımı">${distChips(room.distribution)}</div>` : ''}
+      ${host ? (why || iftiraOff ? `<p class="lobby-why">${esc(why + iftiraOff)}</p>` : '') : `<p class="lobby-why">${esc(hostP ? hostP.name : 'Oda sahibi')} oyunu başlatınca roller dağıtılacak.${need > 0 ? ` En az ${room.minPlayers} oyuncu gerekli (şu an ${connected}).` : ''}</p>`}
+      ${botNote}
       <div class="lobby-btns">
         <button type="button" class="btn btn-secondary" data-l="share">${icon('share')}Davet Et</button>
         <button type="button" class="btn btn-secondary" data-l="look">${icon('palette')}Görünüm</button>
         <button type="button" class="btn btn-secondary" data-l="settings">${icon('gear')}${host ? 'Ayarlar' : 'Kurallar'}</button>
         ${startBtn}
       </div>
-      ${host ? (why || iftiraOff ? `<p class="lobby-why">${esc(why + iftiraOff)}</p>` : '') : `<p class="lobby-why">${esc(hostP ? hostP.name : 'Oda sahibi')} oyunu başlatınca roller dağıtılacak.${need > 0 ? ` En az ${room.minPlayers} oyuncu gerekli (şu an ${connected}).` : ''}</p>`}
     </div>
     <div class="lobby-mini" style="gap:8px">
       <button type="button" class="btn btn-secondary btn-s" data-l="share" style="flex:1">${icon('share')}Davet</button>
       <button type="button" class="btn btn-secondary btn-s" data-l="look" style="flex:1">${icon('palette')}Görünüm</button>
       <button type="button" class="btn btn-secondary btn-s" data-l="settings" aria-label="${host ? 'Oda ayarları' : 'Oda kuralları'}">${icon('gear')}</button>
+      ${host ? `<button type="button" class="btn btn-secondary btn-s" data-l="bot" ${full ? 'disabled' : ''} aria-label="Bot ekle">${icon('bot')}</button>` : ''}
       ${host ? `<button type="button" class="btn btn-primary btn-s" data-l="start" style="flex:1.4" ${need > 0 ? 'disabled' : ''}>${icon('play')}Başlat</button>` : ''}
-    </div>`;
+    </div>`);
+}
+
+// Sadece içerik değiştiyse yeniden çizer (hareket yayınları her 100 ms'de gelir; dokunuşlar kaybolmasın).
+function setHTML(el, html) {
+  if (el.dataset.html === html) return false;
+  el.dataset.html = html;
+  el.innerHTML = html;
+  return true;
 }
 
 function railOrder(s) {
@@ -469,18 +518,19 @@ function renderRail(s) {
     let tag = '';
     if (p.isHost && (room.phase === 'lobby' || room.phase === 'ended')) tag = `<span class="pchip-tag host">${icon('crown')}</span>`;
     else if (evilMe && isEvil(p.role) && !isMe) tag = `<span class="pchip-tag evil">${icon('moon')}</span>`;
+    else if (p.bot) tag = `<span class="pchip-tag bot" title="Bot">${icon('bot')}</span>`;
     let st = '';
     if (!p.alive || p.left) st = `<span class="pchip-state">${icon(p.left ? 'door' : 'tomb')}</span>`;
     else if (!p.connected) st = `<span class="pchip-state">${icon('wifiOff')}</span>`;
     else if (day && day.sleeping.includes(p.id)) st = `<span class="pchip-state sleep">${icon('zz')}</span>`;
     else if (day && day.voted.includes(p.id)) st = `<span class="pchip-state voted">${icon('check')}</span>`;
     const roleKnown = p.role && !isMe && (room.phase === 'ended' || !p.alive) ? ` (${ROLES[p.role].name})` : '';
-    const label = `${p.name}${p.job && p.job.label ? `, ${p.job.label}` : ''}${roleKnown}${!p.alive ? ', öldü' : ''}${votes ? `, ${votes} oy` : ''}${can ? ', seçilebilir' : ''}`;
+    const label = `${p.name}${p.bot ? ' (bot)' : ''}${p.job && p.job.label ? `, ${p.job.label}` : ''}${roleKnown}${!p.alive ? ', öldü' : ''}${votes ? `, ${votes} oy` : ''}${can ? ', seçilebilir' : ''}`;
     return `<button type="button" role="listitem" class="${cls.join(' ')}" data-pid="${p.id}" ${sel ? `style="--sel:${sel}"` : ''} aria-label="${esc(label)}">
       ${mark ? `<span class="pchip-mark">${esc(mark)}</span>` : ''}
       <span class="pchip-av" style="background:${c};color:${inkOn(c)}">${esc(initial(p.name))}${st}</span>
       ${tag}${votes ? `<span class="pchip-votes">${votes}</span>` : ''}
-      <span class="pchip-name">${isMe ? 'Sen' : esc(p.name)}</span>
+      <span class="pchip-name">${isMe ? 'Sen' : esc(p.bot ? p.name.replace(/^Bot\s+/, '') : p.name)}</span>
       ${p.job && p.job.label ? `<span class="pchip-job">${esc(p.job.label)}</span>` : ''}
     </button>`;
   });
@@ -579,7 +629,7 @@ function endHTML(s) {
     const r = p.role ? ROLES[p.role] : null;
     return `<div class="end-role${winners.has(p.id) ? ' won' : ''}${!p.alive ? ' dead' : ''}">
       <span class="pchip-av" style="width:34px;height:34px;font-size:14px;background:${c};color:${inkOn(c)}">${esc(initial(p.name))}</span>
-      <span class="end-name">${esc(p.name)}${p.id === me.id ? ' <small>(sen)</small>' : ''}
+      <span class="end-name">${esc(p.name)}${p.id === me.id ? ' <small>(sen)</small>' : ''}${p.bot ? ` <span class="bot-mark">${icon('bot')}bot</span>` : ''}
         <span class="sub">${p.job && p.job.label ? `${esc(p.job.label)} · ` : ''}${p.left ? 'ayrıldı' : p.alive ? 'hayatta' : 'öldü'}${winners.has(p.id) ? ' · kazandı' : ''}</span></span>
       <span class="chip">${r ? `${emblem(p.role, 's')}${r.name}` : '?'}</span>
     </div>`;
@@ -599,7 +649,9 @@ function endHTML(s) {
     const key = (s.log || []).filter((l) => ['death', 'win', 'safe'].includes(l.kind));
     tale = key.length ? key.map((l) => `<p>${esc(l.text)}</p>`).join('') : '<p>Köy bu oyunu sessizce geride bıraktı.</p>';
   }
-  const delta = statsDeltaHTML();
+  const delta = hadBots(s)
+    ? `<div class="note note-moon">${icon('bot')}<span>Bu oyunda bot vardı; istatistiklere ve liderlik tablosuna sayılmadı.</span></div>`
+    : statsDeltaHTML();
   return `<section class="end" data-winner="${esc(room.winner || '')}">
     <div class="end-hero">${emblem(winRole, 'xl')}<h2>${WIN_TITLE[room.winner] || 'Oyun bitti'}</h2>
       <span class="end-me ${won ? 'win' : 'lose'}">${won ? 'Tebrikler, kazandın!' : 'Bu sefer kaybettin.'}</span></div>
@@ -670,7 +722,15 @@ export function scheduleInsets() {
     let right = 0;
     if (isDocked()) right = chat.width;
     else bottomEdge = Math.min(bottomEdge, chat.top + 40);
-    W.setInsets({ top, bottom: Math.max(0, app.bottom - bottomEdge), left: 0, right });
+    const bottom = Math.max(0, app.bottom - bottomEdge);
+    // Dokunmatik cihazda joystick için ayrılmış boş alan: dünyanın görünen kısmının sol alt köşesi.
+    // Arayüz bu kareye hiçbir kontrol koymaz; dünya joystick'i burada çizer (container'a göre px).
+    const touch = window.matchMedia('(pointer: coarse)').matches;
+    const size = Math.round(Math.max(104, Math.min(140, app.width * 0.34, (bottomEdge - app.top - top) * 0.45)));
+    const joystick = touch ? { left: 12, bottom: bottom + 10, size } : null;
+    $('#app').style.setProperty('--joy-bottom', `${bottom + 10}px`);
+    $('#app').style.setProperty('--joy-size', touch ? `${size}px` : '0px');
+    W.setInsets({ top, bottom, left: 0, right, joystick });
   });
 }
 

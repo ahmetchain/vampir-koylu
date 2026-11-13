@@ -78,25 +78,76 @@ function prepare(path, gltf) {
   if (path.includes('/villager-') && !path.includes('anims')) mergeSkin(gltf);
 }
 
-// Gövde (villager malzemesi) ve kafa aynı iskelete bağlı: tek geometride birleştir -> karakter başına 1 çizim çağrısı eksik
+// Gövde, kafa ve kumaş aynı iskelete bağlı: tek geometride birleştir -> karakter başına tek çizim çağrısı.
+// Kumaş köşeleri aCloth özniteliğiyle işaretlenir (değer: kumaş dokusundaki gölge tonu); renk malzemede (villagerTinted).
+function clothShade(o) {
+  const g = o.geometry;
+  const n = g.attributes.position.count;
+  const out = new Float32Array(n).fill(1);
+  try {
+    const img = o.material.map && o.material.map.image;
+    const uv = g.attributes.uv;
+    if (!img || !uv) return out;
+    const cv = document.createElement('canvas');
+    cv.width = img.width; cv.height = img.height;
+    const c2 = cv.getContext('2d');
+    c2.drawImage(img, 0, 0);
+    const d = c2.getImageData(0, 0, img.width, img.height).data;
+    const flip = o.material.map.flipY;
+    for (let i = 0; i < n; i++) {
+      let u = uv.getX(i) % 1, v = uv.getY(i) % 1;
+      if (u < 0) u += 1; if (v < 0) v += 1;
+      const x = Math.min(img.width - 1, Math.floor(u * img.width));
+      const y = Math.min(img.height - 1, Math.floor((flip ? 1 - v : v) * img.height));
+      out[i] = Math.max(0.05, d[(y * img.width + x) * 4] / 255);
+    }
+  } catch (e) { /* doku okunamazsa düz renk */ }
+  return out;
+}
 function mergeSkin(gltf) {
   const skinned = [];
   gltf.scene.traverse((o) => { if (o.isSkinnedMesh) skinned.push(o); });
   const vill = skinned.filter((o) => o.material.name === 'villager');
-  if (vill.length < 2) return;
-  const [a, ...rest] = vill;
+  if (!vill.length) return;
+  const cloth = skinned.filter((o) => o.material.name === 'cloth' && o.skeleton && o.skeleton.bones.length === vill[0].skeleton.bones.length);
+  const parts = vill.concat(cloth);
+  if (parts.length < 2) return;
+  const [a, ...rest] = parts;
   try {
-    const geos = vill.map((o) => {
+    const geos = parts.map((o) => {
       const g = o.geometry.clone();
       for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'skinIndex', 'skinWeight'].includes(k)) g.deleteAttribute(k);
+      const isCloth = o.material.name === 'cloth';
+      g.setAttribute('aCloth', new THREE.BufferAttribute(isCloth ? clothShade(o) : new Float32Array(g.attributes.position.count), 1));
       return g;
     });
     const merged = mergeGeometries(geos, false);
     if (!merged) return;
     a.geometry.dispose();
     a.geometry = merged;
+    a.userData.clothMerged = cloth.length > 0;
     for (const o of rest) { o.parent.remove(o); o.geometry.dispose(); }
   } catch (e) { /* birleştirilemezse ayrı kalır */ }
+}
+
+// Birleşik gövde malzemesi: kumaş köşeleri oyuncu rengini alır (renk başına bir malzeme, tek program)
+const villCache = new Map();
+export function villagerTinted(hex) {
+  if (villCache.has(hex)) return villCache.get(hex);
+  const src = mats.get('villager');
+  if (!src) return null;
+  const m = src.clone();
+  m.name = 'villager';
+  const u = { value: new THREE.Color(hex) };
+  m.userData.uCloth = u;
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uCloth = u;
+    sh.vertexShader = 'attribute float aCloth;\nvarying float vCloth;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vCloth = aCloth;');
+    sh.fragmentShader = 'uniform vec3 uCloth;\nvarying float vCloth;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n  if (vCloth > 0.01) diffuseColor.rgb = uCloth * vCloth;');
+  };
+  m.customProgramCacheKey = () => 'vkw-villager-cloth';
+  villCache.set(hex, m);
+  return m;
 }
 
 export function load(path, onDone) {
@@ -191,5 +242,6 @@ export function releaseGPU() {
   }
   for (const m of mats.values()) { rel(m); if (m.map) rel(m.map); }
   for (const m of tintCache.values()) rel(m);
+  for (const m of villCache.values()) rel(m);
   if (altTexture) rel(altTexture);
 }

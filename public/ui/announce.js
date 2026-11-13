@@ -33,6 +33,7 @@ const KIND = {
 export function initAnnounce() {
   $('#announce').addEventListener('click', () => { if (skipFn) skipFn(); });
   document.addEventListener('keydown', (e) => {
+    if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     if ((e.key === ' ' || e.key === 'Enter' || e.key === 'Escape') && playing && skipFn && !$('#announce').hidden) { e.preventDefault(); skipFn(); }
   });
 }

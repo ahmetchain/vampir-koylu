@@ -14,6 +14,8 @@ import { initAnnounce, pushAnnounce, clearAnnounces } from './ui/announce.js';
 import { initChronicle, resetChronicle, chronicleOnState, closeChronicle } from './ui/chronicle.js';
 import { initRoom, renderAll, resetRoomUI, pick, scheduleInsets } from './ui/room.js';
 import { openLookEditor } from './ui/look.js';
+import { initSoundButtons, closeSoundPopover } from './ui/sound.js';
+import { syncFps } from './ui/fps.js';
 
 const ROOM_KEY = 'vk.room';
 const INVITE_KEY = 'vk.invite';
@@ -51,6 +53,8 @@ function show(view) {
   if (view === 'room') W.setView('game'); else W.setView('menu');
   if (view === 'menu') { enterMenu(); audioScene('menu'); document.title = 'Vampir Köylü'; }
   if (view === 'auth') { renderAuthInvite(); audioScene('menu'); document.title = 'Vampir Köylü · Giriş'; }
+  closeSoundPopover();
+  syncFps();
   scheduleInsets();
 }
 
@@ -204,6 +208,7 @@ async function boot() {
     history.replaceState(null, '', location.pathname);
   }
 
+  initSoundButtons();
   initAuth(afterLogin);
   initMenu();
   initChat();

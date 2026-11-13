@@ -7,7 +7,7 @@ exactly. When this file and `docs/V2-PLAN.md` disagree, this file describes what
 Contents: 1 Conventions · 2 Constants · 3 Roles · 4 Room settings · 5 REST API · 6 Socket.IO
 connection · 7 Client → server events · 8 Server → client events · 9 The `state` view ·
 10 Announces · 11 Chat · 12 Game flow and rules · 13 Stats · 14 Static files, health, caching ·
-15 Client recipes · 16 Story: scenario, jobs, scenes, chronicle.
+15 Client recipes · 16 Story: scenario, jobs, scenes, chronicle · 17 Bots.
 
 ---
 
@@ -235,7 +235,7 @@ Unless stated otherwise the success ack is `{ ok: true }`.
 | `rooms:unwatch` | – | `{ ok:true }` |
 | `room:info` | `{ roomId }` | `{ ok:true, room: RoomInfo }` / "Oda bulunamadı." |
 
-`RoomInfo = { id, name, players /* seats not left */, maxPlayers: 20, phase, hasPassword, hostName }`.
+`RoomInfo = { id, name, players /* seats not left, bots included */, bots /* bots among them */, maxPlayers: 20, phase, hasPassword, hostName }`.
 Lists contain rooms with ≥ 1 player, sorted: `lobby` first, then `ended`, then running games, then by name.
 Binding to a seat removes the socket from the browse list.
 
@@ -267,7 +267,8 @@ player is marked `left`, dies (announce `left`) and their seat stays in the list
 
 | Event | Payload | Who / when | Errors |
 |---|---|---|---|
-| `room:kick` | `{ playerId }` | host, lobby | "Sadece oda sahibi oyuncu çıkarabilir.", "Oyun sırasında oyuncu çıkarılamaz.", "Kendini çıkaramazsın.", "Oyuncu bulunamadı." The kicked socket gets `kicked` "Oda sahibi seni odadan çıkardı." |
+| `room:addBot` | – (`{}`) | host, lobby, room not full | Ack `{ ok:true, playerId }` (`playerId` starts with `bot-`). Errors: "Bot ekleyebilmek için oda sahibi olmalısın.", "Bot sadece lobide eklenebilir.", "Oda dolu (en fazla 20 kişi)." See §17. |
+| `room:kick` | `{ playerId }` | host, lobby | "Sadece oda sahibi oyuncu çıkarabilir.", "Oyun sırasında oyuncu çıkarılamaz.", "Kendini çıkaramazsın.", "Oyuncu bulunamadı." The kicked socket gets `kicked` "Oda sahibi seni odadan çıkardı." Also removes bots. |
 | `room:settings` | `{ settings }` (partial §4) | host, lobby | "Ayarları sadece oda sahibi değiştirebilir.", "Ayarlar sadece lobide değiştirilebilir." |
 | `game:start` | – | host, lobby, ≥ 5 connected | "Oyunu sadece oda sahibi başlatabilir.", "Oyun zaten başladı.", "Oyunu başlatmak için en az 5 oyuncu gerekli." Disconnected seats are dropped at start. |
 | `game:lobby` | – | host, ended | "Sadece oda sahibi lobiye döndürebilir.", "Oyun henüz bitmedi." Seats that left or are disconnected are removed; everyone else keeps seat, look and position. |
@@ -350,9 +351,10 @@ Sent per viewer. Full shape:
       seat: 0,                         // fixed for the game; houses are laid out by seat
       job: null | { id: "terzi", label: "Terzi" },   // public cosmetic village job (§16), same for every viewer; null in lobby
       alive: true,
-      connected: true,
+      connected: true,                 // bots are always true
       left: false,                     // left a running game (counts as dead)
       isHost: true,
+      bot: false,                      // true for server-controlled bots (§17); same for every viewer
       role: null | "<role id>",        // visibility rules below
       look: { color: 0..19, hat: 0..8, skin: 0..11 },
       pos: { x: 0..1, y: 0..1 },       // normalized plaza coordinates, see §12.1
@@ -537,7 +539,11 @@ evil player when this happens.
   any time with the same account. Timers keep running while they are away. A room in which nobody is
   connected is deleted after 10 minutes. During the day, disconnected players are not counted as
   voters.
-- Host: if the host disconnects or leaves, the first connected seat becomes host (log entry).
+- Room closing: bots never keep a room alive. When no human seat is left (every human removed in
+  the lobby/ended, or marked `left` in a running game) the room is closed immediately, in any phase.
+  If humans still hold seats but none is connected, the 10-minute rule above applies.
+- Host: if the host disconnects or leaves, the first connected **human** seat becomes host (log entry).
+  A bot never becomes host; if no other human is connected the host id stays on the absent human.
 
 ## 13. Stats
 
@@ -546,6 +552,10 @@ When a game ends, every seat with a role gets `games + 1` and `teams[team].games
 (İftiracı and promoted İftiracı → `vampir`, Soytarı → `soytari`, all others → `koylu`). Players who
 left mid-game count as a loss. Recording happens in the background; a storage failure is logged and
 never blocks the room. `/api/me` shows the new numbers a moment after the `win` announce.
+
+**Games with bots are not recorded.** If at least one bot held a seat when `game:start` was
+accepted, the finished game is written to no account's stats and does not affect the leaderboard
+(UI note: "Botlu oyunlar istatistiğe sayılmaz").
 
 ## 14. Static files, health, caching
 
@@ -603,4 +613,42 @@ reveal a hidden role or night action (covered by `test/narration.test.js`).
   scenes, no rumour, `room.epilogue: null`, and `room.scenario` may be `null`. Clients must render
   without any of these fields.
 - **Seed** – the room keeps the seed of the current game (server-side only, for reproducing a game).
+
+## 17. Bots
+
+Bots let one person start and test a full game alone (`MIN_PLAYERS` counts bots).
+
+- **Adding/removing:** `room:addBot` (host, lobby, room not full) and `room:kick { playerId }` (§7).
+  Bots stay in the room across `game:lobby`.
+- **Identity:** `players[i].bot === true` for every viewer. Name `"Bot <Turkish first name>"`
+  (e.g. "Bot Ayşe"), unique in the room (a number is appended if all names are taken). Random look
+  with a free colour, a seat (house) like anyone else, `connected: true` always, no account
+  (`userId: null`, no stats), no socket. A bot's `job` and narration work like a human's.
+  Bots are dealt roles exactly like humans; their roles are hidden by the same rules (§9).
+- **Behaviour** (server-side, through the same game actions as human players, so every rule,
+  validation and the story/rumour record apply unchanged):
+  - night: every living bot with a night role acts once at a random moment in the first half of the
+    night (the cadı later, at 55–85 %, so she can see the victim): vampires pick a living non-evil
+    player (usually joining a team-mate's pick, which a vampire can see anyway); İftiracı frames a
+    living non-evil player; doktor protects a random living player (self allowed); kahin inspects
+    someone not inspected before; gözcü watches someone else; cadı heals the victim with 40 %
+    chance and poisons a random player with 12 % chance per night while the potions last.
+    Evil bots never target their own team.
+  - day: each living bot votes for a random living player (10 % "Hızlı Uyu") at 15–60 % of the
+    day length, sometimes (15 %) changes the vote late; may say one short canned line in the public
+    channel and stroll on the plaza. The vote does **not** use what the bot learned at night.
+  - hunter: a bot hunter shoots a random living player after a few seconds.
+  - lobby / ended: now and then a bot strolls; a newly added bot may greet once.
+  - pace: while a human is alive and connected, delays scale with the room's timers; once no
+    living, connected human remains, day and hunter delays shrink to 35 % so a watching (dead)
+    player sees the game finish quickly. Night length is unchanged (always `nightSec`).
+- **Chat:** bots send ordinary `chat` events (channel `genel`, only in lobby and by day, only while
+  alive). Lines come from a fixed list chosen independently of role and night results, contain no
+  role words and never reveal anything. Bots never use the `vampir` or `olu` channels.
+- **Robustness:** all bot timers are dropped on every phase change, game end, `game:lobby`, kick and
+  room close; a failing bot action is logged and the phase still ends by its timer.
+- **Typical length** with default timers (`nightSec` 30, `daySec` 120, doktor + kahin), 1 human +
+  6 bots, measured over 60 simulated games each: human votes early each day ≈ 5.4 min (3.6 rounds);
+  human never votes ≈ 7 min (days run the full 120 s because the day only shortens when every
+  living connected player has voted); human dead on night 1 ≈ 2.5 min.
 

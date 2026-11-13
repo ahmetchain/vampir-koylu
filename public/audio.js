@@ -4,8 +4,10 @@
  *   VKAudio.init()                         idempotent; AudioContext ilk kullanıcı dokunuşunda açılır/devam eder
  *   VKAudio.setScene('menu'|'lobby'|'night'|'day'|'ended'|'none')   müzik + ortam sesi çapraz geçiş
  *   VKAudio.sfx(name, { volume })          tek seferlik efekt; bilinmeyen isimler sessizce yok sayılır
- *   VKAudio.setVolume({ master, music, sfx, amb }); VKAudio.getVolume()
+ *   VKAudio.setVolume({ master, music, sfx, amb }); VKAudio.getVolume()   dört bağımsız kaydırıcı 0..1
  *   VKAudio.mute(bool); VKAudio.isMuted()
+ *   VKAudio.setMenuTrack('harp'|'lute'); VKAudio.getMenuTrack(); VKAudio.menuTracks()   menü müziği seçimi
+ *   VKAudio.defaults()                     varsayılan kaydırıcı değerleri (UI "sıfırla" için)
  *   VKAudio._debug()                       test için durum özeti (sahne, kazançlar, yüklenen/başarısız dosyalar)
  *
  * Tasarım notları:
@@ -33,8 +35,11 @@
 
   // ---------- içerik tablosu ----------
   // loopStart/loopEnd saniye; dosyalar build betiğiyle üretildi (CREDITS.md'de kaynaklar).
+  // Menü/lobi müziği için iki aday (sahibi kulakla seçsin): setMenuTrack('harp'|'lute').
+  // Varsayılan 'harp': ölçümle daha düz dinamik, en az tiz enerji, daha temiz döngü dikişi.
   var MUSIC = {
-    menu:  { file: 'music/menu.mp3',  loopStart: 0.3, loopEnd: 73.33039, gain: 1.0 },
+    'menu-harp': { file: 'music/menu-harp.mp3', loopStart: 0.3, loopEnd: 52.32472, gain: 1.0 },
+    'menu-lute': { file: 'music/menu-lute.mp3', loopStart: 0.3, loopEnd: 59.36177, gain: 1.0 },
     day:   { file: 'music/day.mp3',   loopStart: 0.3, loopEnd: 62.5246,  gain: 1.0 },
     night: { file: 'music/night.mp3', loopStart: 0.3, loopEnd: 57.01075, gain: 1.0 }
   };
@@ -76,32 +81,58 @@
   // gece rastgele baykuş (iç efekt, genel sfx listesinde değil)
   var OWL = { files: ['sfx/owl.mp3'] };
 
-  // sahne -> müzik + ortam katman seviyeleri (0..1)
+  var MENU_TRACKS = ['harp', 'lute'];
+  // sahne -> müzik + ortam katman seviyeleri (0..1); 'menu' = seçili menü parçası
   var SCENES = {
-    menu:  { music: 'menu',  amb: { fire: 0.3 } },
+    menu:  { music: 'menu',  amb: { fire: 0.25 } },
     lobby: { music: 'menu',  amb: { fire: 0.8 } },
     day:   { music: 'day',   amb: { fire: 0.45, day: 0.75 } },
     night: { music: 'night', amb: { fire: 0.55, night: 0.85 }, owl: true },
     ended: { music: 'menu',  amb: { fire: 0.6 } },
     none:  { music: null,    amb: {} }
   };
-  var FADE_OUT = 1.8, FADE_IN = 2.4, AMB_FADE = 2.0;
+  var FADE_OUT = 1.8, FADE_IN = 2.4, FIRST_FADE_IN = 4.0, AMB_FADE = 2.0;
   var MAX_VOICES = 14, MAX_DECODED_MUSIC = 2, LATE_MS = 350;
 
   // ---------- ayarlar ----------
-  var KEY = 'vk.audio';
-  var settings = { master: 0.9, music: 0.7, sfx: 0.9, amb: 1, muted: false };
+  // Dört bağımsız kaydırıcı, her biri 0..1. Gerçek kazanç = değer² (kare eğri, kulağa daha düzgün).
+  //   müzik çıkışı  = master² · music²
+  //   ortam çıkışı  = master² · amb²   (kamp ateşi, gece/gündüz zemini, baykuş)
+  //   efekt çıkışı  = master² · sfx²
+  // mute(true) hepsini susturur (master → 0, bağlam askıya alınır); kaydırıcı değerleri korunur.
+  var KEY = 'vk.audio', VERSION = 2;
+  var DEFAULTS = { master: 0.9, music: 0.5, sfx: 0.9, amb: 0.6, muted: false, menuTrack: 'harp' };
+  var settings = JSON.parse(JSON.stringify(DEFAULTS)), migrated = false;
   function clamp01(v, d) { v = Number(v); return isFinite(v) ? Math.max(0, Math.min(1, v)) : d; }
   try {
     var saved = JSON.parse(window.localStorage.getItem(KEY) || 'null');
     if (saved && typeof saved === 'object') {
       ['master', 'music', 'sfx', 'amb'].forEach(function (k) { if (k in saved) settings[k] = clamp01(saved[k], settings[k]); });
       settings.muted = !!saved.muted;
+      if (MENU_TRACKS.indexOf(saved.menuTrack) >= 0) settings.menuTrack = saved.menuTrack;
+      if (saved.v !== VERSION) {
+        // v1 göçü: v1'de ortam efekt kaydırıcısına bağlıydı (kazanç amb²·sfx²) ve varsayılanlar
+        // müzik 0.7 / ortam 1 idi. Kullanıcının değiştirmediği eski varsayılanlar yeni varsayılana
+        // döner; değiştirdiyse duyduğu ortam seviyesi korunur (amb = amb·sfx).
+        var oldMusic = 'music' in saved ? clamp01(saved.music, 0.7) : 0.7;
+        var oldSfx = 'sfx' in saved ? clamp01(saved.sfx, 0.9) : 0.9;
+        var oldAmb = 'amb' in saved ? clamp01(saved.amb, 1) : 1;
+        settings.music = oldMusic === 0.7 ? DEFAULTS.music : oldMusic;
+        settings.amb = (oldAmb === 1 && oldSfx === 0.9) ? DEFAULTS.amb : clamp01(oldAmb * oldSfx, DEFAULTS.amb);
+        migrated = true;
+      }
     }
   } catch (e) { /* gizli mod vb. */ }
-  function persist() { try { window.localStorage.setItem(KEY, JSON.stringify(settings)); } catch (e) { } }
+  function persist() {
+    try {
+      window.localStorage.setItem(KEY, JSON.stringify({ v: VERSION, master: settings.master, music: settings.music,
+        sfx: settings.sfx, amb: settings.amb, muted: settings.muted, menuTrack: settings.menuTrack }));
+    } catch (e) { }
+  }
+  if (migrated) persist();   // göç edilmiş şekli hemen yaz
   // kaydırıcı -> kazanç: algıya yakın olsun diye kare eğri
   function curve(v) { return v * v; }
+  function musicId(id) { return id === 'menu' ? 'menu-' + settings.menuTrack : id; }
 
   // ---------- durum ----------
   var AC = window.AudioContext || window.webkitAudioContext;
@@ -120,7 +151,7 @@
   var voices = [];                // aktif sfx sesleri { name, src, gain, t }
   var lastPlay = {}, lastTake = {}, seqIdx = {};
   var stats = { sfxPlayed: 0, sfxDropped: 0, lastSfx: null, errors: [] };
-  var owlTimer = null, duckUntil = 0;
+  var owlTimer = null, duckUntil = 0, firstMusic = true;   // ilk müzik daha yavaş girer
 
   function logErr(where, e) {
     var m = where + ': ' + (e && e.message ? e.message : String(e));
@@ -150,7 +181,7 @@
     nodes.music = c.createGain(); nodes.duck = c.createGain();
     nodes.sfx = c.createGain(); nodes.amb = c.createGain();
     nodes.music.connect(nodes.duck); nodes.duck.connect(nodes.master);
-    nodes.amb.connect(nodes.sfx);                  // ortam sesi "efektler" kaydırıcısına bağlı
+    nodes.amb.connect(nodes.master);               // ortam kendi kaydırıcısıyla, efektlerden bağımsız
     nodes.sfx.connect(nodes.master);
     nodes.master.connect(nodes.comp); nodes.comp.connect(c.destination);
     nodes.duck.gain.value = 1; targets.duck = 1;
@@ -242,7 +273,7 @@
   function prefetchSceneBytes() {
     var d = SCENES[scene];
     if (!d || !inited) return;
-    if (d.music) getBytes(MUSIC[d.music].file).then(null, function () { });
+    if (d.music) getBytes(MUSIC[musicId(d.music)].file).then(null, function () { });
     Object.keys(d.amb).forEach(function (id) { getBytes(AMB[id].file).then(null, function () { }); });
   }
   function prefetchSfx() {
@@ -303,7 +334,7 @@
     if (!ctx) return;
     var def = SCENES[scene] || SCENES.none, token = sceneToken;
     // --- müzik ---
-    var wantId = def.music, want = wantId && MUSIC[wantId];
+    var wantId = def.music && musicId(def.music), want = wantId && MUSIC[wantId];
     if (music && (!want || music.id !== wantId)) {
       var old = music; music = null;
       fadingMusic.push(old);
@@ -321,7 +352,8 @@
           var delay = fadingMusic.length ? 0.6 : 0;
           var t = ctx.currentTime;
           v.gain.gain.setValueAtTime(0, t + delay);
-          v.gain.gain.linearRampToValueAtTime(want.gain, t + delay + FADE_IN);
+          v.gain.gain.linearRampToValueAtTime(want.gain, t + delay + (firstMusic ? FIRST_FADE_IN : FADE_IN));
+          firstMusic = false;
           targets['music:' + wantId] = want.gain;
           trimMusicCache(want.file);
         } catch (e) { logErr('music', e); }
@@ -500,6 +532,17 @@
       } catch (e) { logErr('mute', e); }
     },
     isMuted: function () { return !!settings.muted; },
+    // menü/lobi/bitiş müziği seçimi ('harp' | 'lute'), kalıcı; çalıyorsa çapraz geçer
+    setMenuTrack: function (id) {
+      try {
+        if (MENU_TRACKS.indexOf(id) < 0 || id === settings.menuTrack) return;
+        settings.menuTrack = id; persist();
+        if (ctx && SCENES[scene] && SCENES[scene].music === 'menu') { sceneToken++; syncScene(); }
+      } catch (e) { logErr('setMenuTrack', e); }
+    },
+    getMenuTrack: function () { return settings.menuTrack; },
+    menuTracks: function () { return MENU_TRACKS.slice(); },
+    defaults: function () { return { master: DEFAULTS.master, music: DEFAULTS.music, sfx: DEFAULTS.sfx, amb: DEFAULTS.amb }; },
     // test/ayıklama: kulaksız doğrulama için durum
     _debug: function () {
       var g = function (n) { try { return n ? +n.gain.value.toFixed(4) : null; } catch (e) { return null; } };
@@ -508,7 +551,7 @@
       return {
         supported: !!AC, inited: inited, state: ctx ? ctx.state : 'none', unlocked: unlocked,
         sampleRate: ctx ? ctx.sampleRate : null, time: ctx ? +ctx.currentTime.toFixed(3) : 0,
-        scene: scene, muted: settings.muted, volume: API.getVolume(),
+        scene: scene, muted: settings.muted, volume: API.getVolume(), menuTrack: settings.menuTrack,
         gains: {
           master: g(nodes.master), music: g(nodes.music), duck: g(nodes.duck), sfx: g(nodes.sfx), amb: g(nodes.amb),
           musicTrack: music ? { id: music.id, gain: g(music.gain) } : null,

@@ -46,6 +46,13 @@ const CSS = `
 @keyframes vkw-rip{from{transform:scale(.2);opacity:1}to{transform:scale(1.4);opacity:0}}
 .vkw-recenter{position:absolute;width:40px;height:40px;border-radius:50%;border:0;background:rgba(21,18,43,.75);color:#f4e4c1;font-size:20px;line-height:40px;text-align:center;pointer-events:auto;cursor:pointer;opacity:0;transform:scale(.6);transition:opacity .25s,transform .25s;box-shadow:0 2px 6px rgba(0,0,0,.4);padding:0}
 .vkw-recenter.show{opacity:1;transform:scale(1)}
+.vkw-camtoggle{position:absolute;width:40px;height:40px;border-radius:50%;border:0;background:rgba(21,18,43,.75);color:#f4e4c1;pointer-events:auto;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);transition:opacity .25s}
+.vkw-camtoggle[hidden]{display:none}
+.vkw-camtoggle svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.vkw-tag.far{opacity:.55}
+.vkw-tag.far .vkw-name{font-size:10.5px;padding:1px 5px 1px 4px}
+.vkw-tag.far .vkw-job{display:none}
+.vkw-tag.gone{visibility:hidden}
 .vkw-recenter:not(.show){pointer-events:none}
 @media (max-width:540px){.vkw-job{font-size:9.5px}.vkw-tag.sel .vkw-name{padding:3px 8px 3px 5px;font-size:12.5px}.vkw-plaque.sel{font-size:11.5px;padding:3px 7px 3px 4px}.vkw-plaque span{max-width:64px}.vkw-plaque{font-size:10.5px}}
 @media (min-width:900px){.vkw-name{font-size:13px}.vkw-plaque{font-size:12px}}
@@ -89,7 +96,17 @@ export function createOverlay(root, handlers) {
   recenter.setAttribute('aria-label', 'Görünümü sıfırla');
   recenter.textContent = '⌖';
   recenter.addEventListener('click', (e) => { e.stopPropagation(); handlers.onRecenter(); });
+  // takip / genel bakış geçişi
+  const camBtn = document.createElement('button');
+  camBtn.className = 'vkw-camtoggle';
+  camBtn.type = 'button';
+  camBtn.hidden = true;
+  const ICON_FOLLOW = '<svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.2"/><path d="M5.5 20c.8-3.6 3.4-5.6 6.5-5.6s5.7 2 6.5 5.6"/></svg>';
+  const ICON_OVER = '<svg viewBox="0 0 24 24"><path d="M3 9l9-6 9 6v11H3z"/><path d="M9 20v-6h6v6"/></svg>';
+  camBtn.addEventListener('click', (e) => { e.stopPropagation(); handlers.onCamToggle && handlers.onCamToggle(); });
+  camBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
   ov.appendChild(recenter);
+  ov.appendChild(camBtn);
 
   // Etiketlere dokunma: küçük kaymalarda tıklama say
   function bindTap(el, fn) {
@@ -196,11 +213,16 @@ export function createOverlay(root, handlers) {
 
   // Ekrana yansıtma ve çakışma giderme
   const placed = [];
+  const byPrio = (a, b) => a.prio - b.prio;
+  const listBuf = [];
+  const plBuf = [];
   function project(camera, anchorFn, plaqueAnchorFn, tagVisibleFn) {
-    const list = [];
+    const list = listBuf;
+    list.length = 0;
     for (const [id, t] of tags) {
       const ok = anchorFn(id, tmp) && tagVisibleFn(id);
       if (!ok) { if (t.shown) { t.el.style.transform = 'translate3d(-9999px,0,0)'; t.shown = false; } t.vis = false; continue; }
+      t.dist = tmp.distanceTo(camera.position);
       tmp.project(camera);
       if (tmp.z > 1 || tmp.x < -1.2 || tmp.x > 1.2 || tmp.y < -1.2 || tmp.y > 1.3) { if (t.shown) { t.el.style.transform = 'translate3d(-9999px,0,0)'; t.shown = false; } t.vis = false; continue; }
       if (!t.measured) { t.w = t.el.offsetWidth || 60; t.h = t.el.offsetHeight || 20; t.measured = true; }
@@ -209,10 +231,13 @@ export function createOverlay(root, handlers) {
       list.push(t);
     }
     // yakındakiler (ekranda aşağıdakiler) önce yerleşir, diğerleri yukarı kayar
-    list.sort((a, b) => b.sy - a.sy);
+    for (const t of list) t.prio = (t.data && (t.data.me || t.data.picked || t.data.mark || t.data.votes) ? 0 : 1) * 1000 + t.dist;
+    list.sort(byPrio);
     placed.length = 0;
+    const crowd = list.length > 6;
     for (const t of list) {
       let x = t.sx - t.w / 2, y = t.sy - t.h;
+      let shifts = 0;
       for (let iter = 0; iter < 6; iter++) {
         let moved = false;
         for (const p of placed) {
@@ -221,13 +246,26 @@ export function createOverlay(root, handlers) {
           }
         }
         if (!moved) break;
+        shifts++;
       }
+      // kalabalıkta: uzaktaki, önemsiz ve itilmek zorunda kalan etiket solar; çok itilen (sıkışan) gizlenir
+      const important = t.data && (t.data.me || t.data.sel || t.data.picked || t.data.mark || t.data.votes);
+      const far = crowd && !important && (t.dist > 15 || shifts > 0);
+      // üst boşluğun (üst çubuk / tellal) üstüne taşan önemsiz etiket oraya yığılmaz, gizlenir
+      const gone = (crowd && !important && shifts >= 3) || (!important && y < ins.top + 2);
+      const fc = (far ? ' far' : '') + (gone ? ' gone' : '');
+      if (fc !== t.fc) { t.fc = fc; t.el.classList.toggle('far', far); t.el.classList.toggle('gone', gone); t.measured = false; }
+      if (gone) { t.x = -1e4; t.y = -1e4; continue; }
       x = Math.max(ins.left + 2, Math.min(W - ins.right - t.w - 2, x));
       y = Math.max(ins.top + 2, Math.min(H - ins.bottom - t.h - 2, y));
       placed.push({ x, y, w: t.w, h: t.h, t });
       t.x = x; t.y = y;
-      t.el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`;
-      t.el.style.zIndex = String(10 + Math.round((1 - t.depth) * 1000));
+      if (!t.shown || Math.abs(x - (t.wx ?? -1e4)) > 0.4 || Math.abs(y - (t.wy ?? -1e4)) > 0.4) {
+        t.el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`;
+        t.wx = x; t.wy = y;
+      }
+      const z = 10 + Math.round((1 - t.depth) * 1000);
+      if (z !== t.wz) { t.el.style.zIndex = String(z); t.wz = z; }
       t.shown = true;
     }
     // balonlar etiketin üstünde; yeniden eskiye yerleşir, çakışan yukarı kayar, eskiler solar
@@ -259,7 +297,8 @@ export function createOverlay(root, handlers) {
       b.el.style.zIndex = String(2000 + (100 - i));
     });
     // ev tabelaları: yansıt, sonra birbirinden it (en fazla ~28 px kayma)
-    const pl = [];
+    const pl = plBuf;
+    pl.length = 0;
     for (const [id, p] of plaques) {
       const ok = plaqueAnchorFn(id, tmp) && !(p.data && p.data.hidden);
       if (!ok) { if (p.shown) { p.el.style.transform = 'translate3d(-9999px,0,0)'; p.shown = false; } continue; }
@@ -290,8 +329,12 @@ export function createOverlay(root, handlers) {
     }
     for (const p of pl) {
       const x = Math.max(ins.left + 2, Math.min(W - ins.right - p.w - 2, p.px - p.w / 2)), y = Math.max(ins.top + 2, Math.min(H - ins.bottom - p.h - 2, p.py - p.h / 2));
-      p.el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`;
-      p.el.style.zIndex = p.data && p.data.sel ? '900' : '5';
+      if (!p.shown || Math.abs(x - (p.wx ?? -1e4)) > 0.4 || Math.abs(y - (p.wy ?? -1e4)) > 0.4) {
+        p.el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`;
+        p.wx = x; p.wy = y;
+      }
+      const z = p.data && p.data.sel ? '900' : '5';
+      if (z !== p.wz) { p.el.style.zIndex = z; p.wz = z; }
       p.shown = true;
     }
   }
@@ -312,6 +355,19 @@ export function createOverlay(root, handlers) {
     setTag, setPlaque, bubble, project, ripple,
     tags, plaques,
     sync(tagIds, plaqueIds) { removeMissing(tags, tagIds); removeMissing(plaques, plaqueIds); for (const [id, b] of bubbles) if (!tagIds.has(id)) { b.el.remove(); bubbles.delete(id); } },
+    setCamToggle(show, mode, insets) {
+      camBtn.hidden = !show;
+      if (!show) return;
+      const m = mode === 'follow' ? 'f' : 'o';
+      if (camBtn.dataset.m !== m) {
+        camBtn.dataset.m = m;
+        camBtn.innerHTML = mode === 'follow' ? ICON_OVER : ICON_FOLLOW;
+        const t = mode === 'follow' ? 'Köye genel bakış' : 'Karakterini takip et';
+        camBtn.title = t; camBtn.setAttribute('aria-label', t);
+      }
+      camBtn.style.right = (12 + (insets.right || 0)) + 'px';
+      camBtn.style.bottom = (60 + (insets.bottom || 0)) + 'px';
+    },
     setRecenter(show, insets) {
       recenter.classList.toggle('show', !!show);
       recenter.style.right = (12 + (insets.right || 0)) + 'px';

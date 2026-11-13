@@ -522,3 +522,35 @@ details.box summary { cursor: pointer; font-weight: 800; list-style: none; displ
 details.box summary::-webkit-details-marker { display: none; }
 details.box summary .ic { width: 18px; height: 18px; color: var(--fire); }
 details.box[open] summary { margin-bottom: 8px; }
+
+/* ---------- ses açılır penceresi, kalite listesi (2. tur) ---------- */
+.corner-btns { position: absolute; top: calc(var(--sat) + 12px); right: calc(var(--sar) + 12px); z-index: 2; display: flex; gap: 8px; }
+.iconbtn.is-muted { color: #ff9aa8; }
+.pop {
+  position: absolute; z-index: var(--z-toast); overflow-y: auto; overscroll-behavior: contain;
+  padding: 6px 14px 12px; border-radius: var(--r-l);
+  background: linear-gradient(180deg, #2a2254, var(--night-1)); border: 1px solid var(--line-2);
+  box-shadow: var(--shadow-2); animation: pop-in var(--t-med) var(--ease-spring); transform-origin: top right;
+}
+.pop.closing { opacity: 0; transform: scale(.96); transition: opacity .15s, transform .15s; }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-6px) scale(.96); } }
+.pop-head { display: flex; align-items: center; justify-content: space-between; margin: 0 -6px 0 0; }
+.pop-head b { font-family: var(--font-display); font-size: 19px; }
+.pop-x { width: 40px; height: 40px; }
+.pop .set-row { padding: 9px 0; }
+.pop-more { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: var(--fs-s); }
+.pop-more .ic { width: 16px; height: 16px; }
+.range-ic { color: var(--fire); display: inline-grid; }
+.range-ic .ic { width: 18px; height: 18px; }
+.sound.is-muted .range { opacity: .45; }
+.qlist { display: grid; gap: 6px; }
+.qopt {
+  display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; text-align: left; min-height: 52px;
+  padding: 8px 12px; border-radius: var(--r-m); background: rgba(255, 255, 255, .045); border: 1.5px solid var(--line); color: var(--text);
+}
+.qopt b { display: block; font-weight: 900; }
+.qopt small { display: block; color: var(--text-3); font-size: 12px; font-weight: 700; line-height: 1.3; }
+.qopt.on { border-color: rgba(255, 179, 71, .75); background: rgba(255, 179, 71, .1); }
+.qdot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line-2); display: grid; place-items: center; }
+.qopt.on .qdot { border-color: var(--fire); }
+.qopt.on .qdot::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--fire); }
