@@ -1,5 +1,6 @@
 // VKWorld.create(): oluşturucu, döngü, ışık ve günün saati, giriş, seçim, katmanlar, aşama koreografisi.
 import * as THREE from 'three';
+import { applyToonDefines, addOutlines, removeOutlines, disposeOutlineMats } from './style.js';
 import * as A from './assets.js';
 import { createSky } from './sky.js';
 import { createTerrain } from './terrain.js';
@@ -70,7 +71,9 @@ export function create(container, handlers = {}) {
   const cutEl = document.createElement('div');
   cutEl.style.cssText = 'position:absolute;inset:0;pointer-events:none;opacity:0;background:#07050f';
   root.appendChild(cutEl);
+  // Eskiden kesmelerde ekran 0.4 sn kararıyordu ("göz kırpma" gibi görünüyordu): artık yalnız sert kesme
   function flashCut() {
+    if (!flashCut.enabled) return;
     cutEl.style.transition = 'none';
     cutEl.style.opacity = '1';
     void cutEl.offsetWidth;
@@ -99,7 +102,7 @@ export function create(container, handlers = {}) {
 
   // ---------- kalite ----------
   let qualityMode = 'auto';
-  const auto = new AutoQuality(guessTier(mobile));
+  const auto = new AutoQuality(guessTier(mobile), { noRetry: !mobile });
   const drs = new DynamicRes();
   world0.renderScale = 1;
   let tier = TIERS[auto.level];
@@ -143,6 +146,10 @@ export function create(container, handlers = {}) {
   let roomMode = null;            // 'visit' | 'window' | 'cine'
   let roomKey = '';
   let moonOverrideCol = null;
+  let lastDeaths = null;
+  let styleT = 0;
+  let lastNightPhase = null;              // son 'death' duyurusunun hedefleri
+  const lastNightAlive = new Set();   // gece başında yaşayanlar (izlenen ev sahibi bu gece mi öldü?)
   let fogBoostK = 1;
   let labelsDirty = false;
   let scenarioId = null;
@@ -207,6 +214,15 @@ export function create(container, handlers = {}) {
     houseAnchors(id) { const h = village && village.house(id); return h ? village.anchors(h) : null; },
     layoutR() { return village && village.layout ? village.layout.R : 15; },
     meId() { return state && state.me ? state.me.id : null; },
+    flickerRoom(dur = 1.4) { roomFlick = { t: 0, dur }; },
+    toon: false,
+    flickerHouse(id, dur) { if (village) village.flicker(id, dur); },
+    // bu şafakta gerçekten ölenler (death duyurusu ya da durum): yalnız onların ışıkları titrer
+    diedTonight(id) {
+      if (lastDeaths && lastDeaths.ids.includes(id) && Date.now() - lastDeaths.at < 90000) return true;
+      const p = state && state.players.find((x) => x.id === id);
+      return !!(p && (!p.alive || heldDeaths.has(id)) && state.room.phase !== 'lobby' && lastNightAlive.has(id));
+    },
     // gece girişi için kalan süre (sn): sunucu room.timerFrom gönderiyorsa ona göre, yoksa ~3.6 sn
     leadInLeft() {
       const tf = state && state.room && state.room.timerFrom;
@@ -221,6 +237,7 @@ export function create(container, handlers = {}) {
       flashT = setTimeout(() => { flashEl.style.opacity = '0'; }, 380);
     },
     poofAt(x, z) { bursts.emit('poof', x, 0.4, z, null, 16); world.sfxThrottled('poof', 0.2); },
+    isHeldDeath(id) { return heldDeaths.has(id); },
     holdDeaths(ids) { heldDeaths.clear(); for (const id of ids) heldDeaths.add(id); },
     releaseDeaths() { if (heldDeaths.size) { heldDeaths.clear(); world.reapply(); } },
     markDead(id, o = {}) {
@@ -298,24 +315,42 @@ export function create(container, handlers = {}) {
   }
 
   // ---------- kalite uygula ----------
+  // Çözünürlük değişimi bir sonraki karenin başında, çizimden hemen önce uygulanır: tuval boyutu değişince
+  // tampon temizlenir; çizimden sonra değişirse o kare boş (kara) görünüyordu.
+  let pendingPx = null;
+  function setPxDeferred(v) { pendingPx = v; }
+  function applyPending() {
+    if (pendingPx == null) return;
+    renderer.setPixelRatio(pendingPx);
+    renderer.setSize(W, Hh, false);
+    pendingPx = null;
+  }
+  // Gölge kipi: masaüstünde gölgeler hiç kapatılmaz (açıp kapamak tüm gölgelendiricileri yeniden derletir ->
+  // takılma); düşük kademelerde seyrek yenilenen küçük harita kullanılır. Telefonda düşük kademede kapalı.
+  let shMode = 0;
   function applyTier(name, announce = true) {
     tier = TIERS[name];
     const dpr = window.devicePixelRatio || 1;
     px = Math.min(dpr, mobile ? tier.pxMobile : tier.px);
-    renderer.setPixelRatio(px * (world0.renderScale || 1));
-    renderer.setSize(W, Hh, false);
-    const want = tier.shadows > 0;
+    // çizim görünümünde telefon: görüntü hep keskin (piksel oranı 1'in altına inmez); performans özellik kısarak
+    if (world.toon && mobile) px = Math.max(px, Math.min(dpr, 1));
+    drs.min = world.toon && mobile ? Math.min(1, 1 / px) : 0.6;
+    if ((world0.renderScale || 1) < drs.min) { world0.renderScale = Math.max(drs.min, world0.renderScale || 1); drs.scale = world0.renderScale; }
+    setPxDeferred(px * (world0.renderScale || 1));
+    shMode = world.toon ? 0 : (tier.shadows || (mobile ? 0 : 1));
+    const want = shMode > 0;
     if (renderer.shadowMap.enabled !== want) {
       renderer.shadowMap.enabled = want;
       scene.traverse((o) => { if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.needsUpdate = true; }); } });
     }
     sun.castShadow = want;
     if (want) {
-      if (sun.shadow.mapSize.x !== tier.shadowSize) {
-        sun.shadow.mapSize.set(tier.shadowSize, tier.shadowSize);
+      const size = tier.shadowSize || 1024;
+      if (sun.shadow.mapSize.x !== size) {
+        sun.shadow.mapSize.set(size, size);
         if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
       }
-      renderer.shadowMap.autoUpdate = tier.shadows === 2;
+      renderer.shadowMap.autoUpdate = shMode === 2;
     }
     for (const ch of chars.values()) applyCharShadow(ch);
     q.clouds = tier.clouds;
@@ -347,15 +382,18 @@ export function create(container, handlers = {}) {
     .then(() => {
       if (disposed) return;
       build();
+      prewarm();
       ready = true;
+      if (H.style === 'toon') try { api.setStyle('toon'); } catch (e) { report('görünüm', e); }
       if (state && view === 'game') applyState(true);
       if (H.onReady) try { H.onReady(); } catch (e) { /* yok say */ }
       // arka planda: mezarlık ve hayalet
       return A.loadGroups(['extra']).then(() => {
         if (disposed) return;
         village.onExtraLoaded();
+        prewarm();
         if (state) applyState(false);
-        return A.loadGroups(['cine']);
+        return A.loadGroups(['cine']).then(() => { if (!disposed) { if (!room) room = createInterior(world); prewarm(true); } });
       });
     })
     .catch((e) => {
@@ -363,6 +401,36 @@ export function create(container, handlers = {}) {
       if (H.onError) try { H.onError(e); } catch (er) { /* yok say */ }
     });
   void total;
+
+  // Gölgelendiricileri önceden derle: oyun sırasında ilk kez görünen nesne (efekt, iç mekân, sinematik dekoru)
+  // görünür karede derleme takılmasına yol açıyordu. Gizli nesneler derleme süresince görünür sayılır (çizim yok).
+  function prewarm(withCine) {
+    try {
+      const hidden = [];
+      const reveal = (o) => o.traverse((c) => { if (!c.visible) { c.visible = true; hidden.push(c); } });
+      reveal(scene);
+      const extra = [];
+      if (room && room.group) { if (!room.group.parent) scene.add(room.group); reveal(room.group); }
+      if (withCine) {
+        for (const p of ['props/village.glb', 'props/graveyard.glb', 'interior/furniture.glb', 'interior/clues.glb', 'characters/ghost.glb', 'characters/vampire.glb', 'characters/bat.glb']) {
+          const g = A.get(p);
+          if (g) extra.push(g.scene);
+        }
+      }
+      const done = () => { for (const c of hidden) c.visible = false; };
+      if (renderer.compileAsync && renderer.extensions.has('KHR_parallel_shader_compile')) {
+        const jobs = [renderer.compileAsync(scene, camera)];
+        for (const o of extra) jobs.push(renderer.compileAsync(o, camera, scene));
+        // compileAsync çağrıldığı anda görünürlüğü okur; geri almak güvenli
+        done();
+        Promise.all(jobs).catch(() => {});
+      } else {
+        renderer.compile(scene, camera);
+        for (const o of extra) renderer.compile(o, camera, scene);
+        done();
+      }
+    } catch (e) { report('ön derleme', e); }
+  }
 
   function build() {
     village = createVillage(scene, q, null, terrain);
@@ -407,6 +475,18 @@ export function create(container, handlers = {}) {
     world.obstacles = obs;
   }
 
+  // İç mekân ışığının titreyip sönmesi (ölüm sahneleri): düzensiz kesintiler, sonra loş
+  let roomFlick = null;
+  function roomFlickK(dt) {
+    if (!roomFlick) return 1;
+    roomFlick.t += dt;
+    const e = roomFlick.t, d = roomFlick.dur;
+    if (e >= d) return 0.12;
+    const step = Math.floor(e / 0.07);
+    const r = Math.abs(Math.sin(step * 12.9898 + 3.1) * 43758.5453) % 1;
+    return r > 0.12 + 0.75 * (e / d) ? 1 - 0.4 * (e / d) : 0.06;
+  }
+
   // ---------- iç mekân ----------
   function openRoomFor(id, mode) {
     if (!room) room = createInterior(world);
@@ -423,6 +503,7 @@ export function create(container, handlers = {}) {
     if (room) room.hide();
     const was = roomMode;
     roomMode = null;
+    roomFlick = null;
     roomKey = '';
     if (was) { if (was === 'cine' || !director.running) rig.setOverride(null, true); flashCut(); }
     labelsDirty = true;
@@ -532,6 +613,10 @@ export function create(container, handlers = {}) {
     for (const [id, ch] of chars) if (!seen.has(id)) { ch.dispose(); chars.delete(id); choreo.forget(id); }
     for (const id of [...ghosts.keys()]) if (!seen.has(id)) world.removeGhost(id);
     if (room.phase === 'lobby') for (const p of players) if (village.tombOf(p.id)) village.setDead(p.id, false);
+    if (room.phase === 'night' && !lastNightAlive.size) for (const p of players) if (p.alive) lastNightAlive.add(p.id);
+    if (room.phase !== 'night' && room.phase !== 'day' && room.phase !== 'hunter') lastNightAlive.clear();
+    if (room.phase === 'night' && lastNightPhase !== 'night') { lastNightAlive.clear(); for (const p of players) if (p.alive) lastNightAlive.add(p.id); }
+    lastNightPhase = room.phase;
     choreo.apply(state, snapAll || changed && room.phase !== 'lobby');
     // seçilebilirler
     selectableIds = new Set(players.filter((p) => Rules.selectable(state, p, ui.witchMode)).map((p) => p.id));
@@ -917,6 +1002,7 @@ export function create(container, handlers = {}) {
     lastRender = now;
     const t0 = performance.now();
     try { step(dt); } catch (e) { report('kare', e); }
+    applyPending();
     const tm = performance.now();
     try { renderer.render(scene, camera); } catch (e) { report('çizim', e); }
     const t1 = performance.now();
@@ -941,7 +1027,7 @@ export function create(container, handlers = {}) {
     // dinamik çözünürlük (GPU/dolgu sınırlıysa); elle seçilen kademede de çalışır
     if (ready && !contextLost) {
       const sc = drs.sample(frameMs, t1 - t0, now, tier.fps === 30 ? 36 : 24);
-      if (sc != null) { world0.renderScale = sc; renderer.setPixelRatio(px * sc); renderer.setSize(W, Hh, false); }
+      if (sc != null) { world0.renderScale = sc; setPxDeferred(px * sc); }
     }
   }
 
@@ -980,6 +1066,8 @@ export function create(container, handlers = {}) {
     rimLight.position.set(-camera.position.x * 0.6, 60, -camera.position.z * 0.6 - 40);
     hemi.color.copy(tod.sky); hemi.groundColor.copy(tod.gnd); hemi.intensity = tod.hi;
     sun.color.copy(tod.sun); sun.intensity = tod.si;
+    // çizim görünümü: daha düz ışık (ortam ağır basar)
+    if (world.toon) { hemi.intensity *= 1.3; sun.intensity *= 0.75; }
     const L = village && village.layout;
     const span = L ? L.R + 14 : 40;
     sun.position.copy(tod.lightDir).multiplyScalar(120);
@@ -987,7 +1075,8 @@ export function create(container, handlers = {}) {
     if (sun.castShadow) {
       const sc = sun.shadow.camera;
       if (sc.right !== span) { sc.left = -span; sc.right = span; sc.top = span; sc.bottom = -span; sc.near = 20; sc.far = 260; sc.updateProjectionMatrix(); shadowDirty = true; }
-      if (lastLightDir.angleTo(tod.lightDir) > 0.026) { lastLightDir.copy(tod.lightDir); shadowDirty = true; }
+      // küçük eşik: güneş/ay yönü değişince gölgeler fark edilmeyecek kadar küçük adımlarla güncellenir
+      if (lastLightDir.angleTo(tod.lightDir) > 0.0045) { lastLightDir.copy(tod.lightDir); shadowDirty = true; }
     }
     // ateş
     const flick = 0.82 + 0.1 * Math.sin(time * 13.1) + 0.06 * Math.sin(time * 23.7 + 1) + 0.05 * Math.sin(time * 5.3);
@@ -997,7 +1086,10 @@ export function create(container, handlers = {}) {
       // pencere görünümü: dış duvar ve gözcü ay ışığında seçilebilsin (kare kenarları kapkara kalmasın)
       if (winView) { const lp = room.W({ x: -2.4, y: 2.3, z: -1.2 }); fireLight.position.copy(lp); hemi.color.lerp(moonCol, 0.6); hemi.groundColor.lerp(moonCol, 0.35); hemi.intensity = tod.hi + 1.1; }
       else { const lp = room.lanternWorld(); fireLight.position.set(lp.x, lp.y + 0.9, lp.z + 0.8); }
-      fireLight.intensity = (winView ? 13 : 9 + 5 * tod.night) * flick;
+      const rk = roomFlickK(dt);
+      fireLight.intensity = (winView ? 13 : 9 + 5 * tod.night) * flick * rk;
+      // titremede ortam ışığı da düşer (yoksa oda yine aydınlık görünür)
+      if (roomFlick) hemi.intensity *= 0.3 + 0.7 * rk;
       fireLight.distance = 12;
     } else {
       fireLight.intensity = (2 + 17 * tod.night * tod.night) * tod.fire * flick;
@@ -1040,7 +1132,7 @@ export function create(container, handlers = {}) {
       lodSphere.center.set(ch.pos.x, ch.pos.y + 0.9, ch.pos.z);
       const inView = ch.visible && camFrustum.intersectsSphere(lodSphere);
       // görünenler her karede (seyrek güncelleme uzakta da göze takılıyordu); yalnız görüş dışındakiler seyrek
-      ch.animEvery = inView ? 1 : 4;
+      ch.animEvery = !ch.visible || ch.inside ? -1 : inView ? 1 : 4;
       try { ch.update(dt, time); } catch (e) { report('karakter', e); recoverChar(ch); }
       if (ch.visible && !ch.claimed) list.push(ch);
     }
@@ -1070,7 +1162,9 @@ export function create(container, handlers = {}) {
     glow.add(0, 1.0, 0, 3.4, colorOf('#ff8a2a'), 0.55 * tod.fire * flick);
     pool.add(0, 0.04, 0, 13 + 3 * tod.night, colorOf('#ff7a1a'), (0.18 + 0.3 * tod.night) * tod.fire * flick);
     if (village) village.emitGlows(tod, time, glow, pool);
-    const blobA = tier.blob ? 0.55 : 0.32;
+    const blobA = world.toon ? 0.62 : tier.blob ? 0.55 : 0.32;
+    // çizim görünümü: gerçek gölge yok, evlerin altında da yumuşak leke
+    if (world.toon && village) for (const h of village.houses.values()) if (h.scale > 0.5) blobs.add(h.cx, 0.03, h.cz, h.info.size * 1.25 * h.scale, blobCol, 0.32);
     const selC = state ? colorOf(Rules.selColor(state, ui.witchMode)) : null;
     const act = state && view === 'game' ? Rules.action(state) : null;
     for (const ch of list) {
@@ -1104,7 +1198,7 @@ export function create(container, handlers = {}) {
     if (view === 'game' && state && followCheckT <= 0) { followCheckT = 0.4; if ((shotKind === 'follow') !== wantFollow() && (shotKind === 'follow' || shotKind === 'plaza')) updateShot(false); }
     if (shotKind === 'follow') { try { updateFollow(dt); } catch (e) { report('takip', e); } }
     rig.update(dt, time);
-    try { camOccluders(); } catch (e) { report('örtme', e); }
+    try { camOccluders(dt); } catch (e) { report('örtme', e); }
     const togg = view === 'game' && state && !director.current && !roomMode && followable();
     overlay.setCamToggle(!!togg, shotKind === 'follow' ? 'follow' : 'overview', insets);
     overlay.setRecenter(view === 'game' && (shotKind === 'follow' ? followOffset() : rig.offset), insets);
@@ -1112,9 +1206,10 @@ export function create(container, handlers = {}) {
     // gölge haritası (orta kalite: sadece gerektiğinde)
     shadowCool -= dt;
     // gece gölgeleri neredeyse görünmez: ay dönerken her 2 sn'de bir yenile
-    if (tod.night > 0.7 && shadowDirty && shadowCool <= 0 && !layoutMoving()) shadowCool = 2;
-    if (sun.castShadow && tier.shadows === 1 && shadowDirty && shadowCool <= 0) { renderer.shadowMap.needsUpdate = true; shadowDirty = false; shadowCool = layoutMoving() ? 0.25 : 1.5; }
+    if (sun.castShadow && shMode === 1 && shadowDirty && shadowCool <= 0) { renderer.shadowMap.needsUpdate = true; shadowDirty = false; shadowCool = layoutMoving() ? 0.1 : 0.2; }
 
+    // çizim görünümü: sahneye sonradan giren malzemelere tanımı uygula
+    if (world.toon) { styleT -= dt; if (styleT <= 0) { styleT = 0.5; applyToonDefines(scene, true); } }
     // HTML katmanı
     labelT -= dt;
     if (view === 'game' && state && labelT <= 0) {
@@ -1232,28 +1327,35 @@ export function create(container, handlers = {}) {
     rig.shot.dynamic = false;
   }
   // Takip kamerasının dibindeki ya da kamerayla karakter arasındaki diğer köylüler gizlenir (dev ön plan başları olmasın)
-  function camOccluders() {
+  // Solma (0.25 sn) ve histerezis: aniden belirip kaybolma (pop) yok; eşiğin iki yanında gidip gelmez.
+  function camOccluders(dt) {
     const follow = shotKind === 'follow' && !rig.override && rig.ovW < 0.05;
     const me = follow ? followTarget() : null;
     const c = camera.position;
     for (const ch of chars.values()) {
-      let hide = false;
+      let want = ch.camWant || false;
       if (me && ch !== me && ch.visible && !ch.claimed) {
         const dx = ch.pos.x - c.x, dz = ch.pos.z - c.z;
-        const d2 = dx * dx + dz * dz;
-        if (d2 < 3.6 * 3.6) hide = true;
-        else {
+        const d = Math.hypot(dx, dz);
+        const near = want ? 4.3 : 3.4;           // gizliyken daha uzağa çıkınca geri gelir
+        let block = d < near;
+        if (!block) {
           // kamera -> hedef doğrusu üzerinde, hedeften önce ve çizgiye yakın
           const tx = me.pos.x - c.x, tz = me.pos.z - c.z;
           const tl2 = tx * tx + tz * tz || 1;
           const t = (dx * tx + dz * tz) / tl2;
-          if (t > 0 && t < 0.82) { const px = dx - tx * t, pz = dz - tz * t; if (px * px + pz * pz < 0.9 * 0.9) hide = true; }
+          const w = want ? 1.15 : 0.85;
+          if (t > 0 && t < 0.82) { const px = dx - tx * t, pz = dz - tz * t; if (px * px + pz * pz < w * w) block = true; }
         }
-      }
-      if (hide !== !!ch.camHidden) {
-        ch.camHidden = hide;
-        ch.root.visible = ch.visible && !hide;
-        labelsDirty = true;
+        want = block;
+      } else want = false;
+      ch.camWant = want;
+      const f0 = ch.camFade == null ? 1 : ch.camFade;
+      const f = want ? Math.max(0, f0 - dt * 4) : Math.min(1, f0 + dt * 4);
+      if (f !== f0) {
+        ch.setFade(f);
+        const hid = f < 0.5;
+        if (hid !== !!ch.camHidden) { ch.camHidden = hid; labelsDirty = true; }
       }
     }
   }
@@ -1516,6 +1618,7 @@ export function create(container, handlers = {}) {
     for (const b of [glow, pool, blobs, rings]) b.dispose();
     overlay.dispose();
     controls.dispose();
+    disposeOutlineMats();
     if (sun.shadow.map) sun.shadow.map.dispose();
     renderer.dispose();
     renderer.forceContextLoss();
@@ -1533,6 +1636,7 @@ export function create(container, handlers = {}) {
       if (disposed) return Promise.resolve();
       if (!ready || view !== 'game') { director.skip(); return Promise.resolve(); }
       if (msg && msg.kind === 'start' && msg.scenario) applyScenario(msg.scenario.id);
+      if (msg && msg.kind === 'death') lastDeaths = { ids: (msg.targets || []).map((t) => t.id), at: Date.now() };
       return director.announce(msg);
     },
     skip() { director.skip(); },
@@ -1575,13 +1679,26 @@ export function create(container, handlers = {}) {
     },
     resetStats() { ftCount = 0; ftIdx = 0; },
     setScenario(id) { applyScenario(id); },
+    // Görünüm (deneme): 'toon' (çizim) | 'default'
+    setStyle(s) {
+      const on = s === 'toon';
+      if (on === world.toon) return;
+      world.toon = on;
+      applyTier(tier.name, false);
+      for (const ch of [...chars.values(), ...ghosts.values()]) { if (on) addOutlines(ch.model, 0.012); else removeOutlines(ch.model); }
+      for (const a of cineActors.values()) { if (on) addOutlines(a.ch.model, 0.012); else removeOutlines(a.ch.model); }
+      if (village) village.setOutlines(on);
+      applyToonDefines(scene, on);
+      styleT = 0;
+    },
+    getStyle() { return world.toon ? 'toon' : 'default'; },
     _debug: { world, scene, renderer, camera, rig, fol, get village() { return village; }, get room() { return room; }, get roomMode() { return roomMode; }, setHour(h) { hour = h; } },
   };
   // saat farkı (serverNow) her state'te güncellenir
   const origUpdate = api.update;
   api.update = (st, o) => { if (st && st.serverNow) skew = st.serverNow - Date.now(); origUpdate(st, o); };
   // Dışarıdan çağrılan her yöntem hatayı içeride tutar (arayüzü asla bozmasın)
-  for (const k of ['announce', 'bubble', 'setView', 'setQuality', 'resize', 'reset', 'setInsets', 'recenter', 'setMood', 'skip', 'setScenario', 'setCameraMode']) {
+  for (const k of ['announce', 'bubble', 'setView', 'setQuality', 'resize', 'reset', 'setInsets', 'recenter', 'setMood', 'skip', 'setScenario', 'setCameraMode', 'setStyle']) {
     const f = api[k];
     api[k] = function (...args) { try { return f.apply(api, args); } catch (e) { report('api.' + k, e); return k === 'announce' ? Promise.resolve() : undefined; } };
   }

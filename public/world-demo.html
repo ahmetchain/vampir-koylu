@@ -44,6 +44,7 @@
       <button data-view="menu">Menü</button><button data-view="game" class="on">Oyun</button>
       <select id="quality"><option>auto</option><option>saver</option><option>low</option><option>medium</option><option>high</option></select>
       <label><input type="checkbox" id="insets"> UI boşlukları</label>
+      <select id="style"><option value="default">Görünüm: varsayılan</option><option value="toon">Görünüm: çizim</option></select>
       <select id="cam"><option value="follow">Kamera: takip</option><option value="overview">Kamera: genel</option></select>
     </div>
     <h3>Oyuncular</h3>
@@ -185,7 +186,7 @@
   function makeWorld() {
     world = VKWorld.create($('#stage'), {
       onProgress(d, t) { $('#prog').textContent = `Yükleniyor ${d}/${t}`; },
-      onReady() { window.__readyAt = performance.now(); $('#prog').style.display = 'none'; push(); },
+      onReady() { window.__readyAt = performance.now(); $('#prog').style.display = 'none'; if (/[?&]style=toon/.test(location.search) && world.setStyle) world.setStyle('toon'); push(); },
       onQuality(q) { log('kalite → ' + q); },
       onPick(id) {
         const p = S.players.find((x) => x.id === id);
@@ -247,7 +248,7 @@
     let msg = { kind, title: kind, text: '' };
     switch (kind) {
       case 'death': {
-        const ts = [t];
+        const ts = [o.me ? m : t];
         if (o.two) { const t2 = rnd(others.filter((x) => x !== t)); if (t2) ts.push(t2); }
         msg = { kind, title: 'Sabah oldu', text: ts.map((x) => x.name).join(', ') + ' öldü!', targets: ts.map((x, i) => {
           const sc = i === 0 ? (o.scene || 'bite') : rnd(['bite', 'bats', 'vanish']);
@@ -260,6 +261,7 @@
       case 'seer': msg = { kind, title: 'Kristal küre konuştu', text: t.name + (o.cause === 'vampir' ? ' bir VAMPİR!' : ' vampir değil.'), targets: [{ id: S.night.inspect || t.id, cause: o.cause || 'temiz' }] }; break;
       case 'watch': {
         const wid = S.night.watch || t.id;
+        if (o.died) { killP(wid); push(); }
         const pool = alivePs().filter((p) => p.id !== wid && p.id !== m.id);
         const vis = pool.sort(() => Math.random() - 0.5).slice(0, o.n == null ? 2 : o.n).sort((a, b) => a.name.localeCompare(b.name, 'tr')).map((p) => p.id);
         msg = { kind, title: 'Gözcünün raporu', text: '', targets: [{ id: wid }], visitors: vis };
@@ -295,7 +297,7 @@
   });
   const ANN = [
     ['start'], ['night'], ['safe'], ['nohang'], ['sleep'], ['left'], ['promote'],
-    ['death', { scene: 'bite' }, 'ölüm:ısırık'], ['death', { scene: 'bats' }, 'ölüm:yarasa'], ['death', { scene: 'vanish' }, 'ölüm:kayıp'], ['death', { scene: 'poison' }, 'ölüm:zehir'], ['death', { two: true }, 'ölüm×2'],
+    ['death', { scene: 'bite' }, 'ölüm:ısırık'], ['death', { scene: 'bats' }, 'ölüm:yarasa'], ['death', { scene: 'vanish' }, 'ölüm:kayıp'], ['death', { scene: 'poison' }, 'ölüm:zehir'], ['death', { two: true }, 'ölüm×2'], ['death', { scene: 'bite', me: true }, 'ölüm:ben'], ['death', { scene: 'poison', me: true }, 'ölüm:ben-zehir'], ['watch', { n: 2, died: true }, 'gözcü:ölü'],
     ['hanged', { scene: 'gallows' }, 'darağacı'], ['hanged', { scene: 'exile' }, 'sürgün'], ['hanged', { scene: 'cellar' }, 'mahzen'],
     ['hunter'], ['shot', {}, 'avcı oku'], ['nohunt'],
     ['seer', { cause: 'vampir' }, 'kahin:VAMPİR'], ['seer', { cause: 'temiz' }, 'kahin:temiz'],
@@ -354,6 +356,8 @@
   $('#revive').onclick = () => { S.players.forEach((p) => { p.alive = true; p.left = false; }); S.alive = true; $('#alive').checked = true; push(); };
   $('#quality').onchange = (e) => world.setQuality(e.target.value);
   $('#cam').onchange = (e) => world.setCameraMode(e.target.value);
+  $('#style').onchange = (e) => world.setStyle && world.setStyle(e.target.value);
+  if (/[?&]style=toon/.test(location.search)) $('#style').value = 'toon';
   setInterval(() => { if (world && world.getCameraMode && $('#cam').value !== world.getCameraMode()) $('#cam').value = world.getCameraMode(); }, 700);
   document.querySelectorAll('[data-view]').forEach((b) => b.onclick = () => { currentView = b.dataset.view; document.querySelectorAll('[data-view]').forEach((x) => x.classList.toggle('on', x === b)); world.setView(currentView); push(); });
   $('#insets').onchange = () => { document.body.classList.toggle('insets', $('#insets').checked); applyInsets(); };

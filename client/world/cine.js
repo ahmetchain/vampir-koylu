@@ -234,6 +234,7 @@ export function registerCinematics(director, world) {
     ctx.tod(5.7);
     for (const t of ts) {
       const scene = t.cause === 'zehir' ? 'poison' : (['bite', 'bats', 'vanish'].includes(t.scene) ? t.scene : 'bite');
+      if (t.id === world.meId() && await victimScene(ctx, t, scene === 'poison')) continue;
       await deathScene(ctx, t.id, scene, ts.length > 1 ? 0.8 : 1);
     }
   });
@@ -280,12 +281,62 @@ export function registerCinematics(director, world) {
       }
       world.flash(0.35, '#5fbf2a');
     }
+    // evin pencereleri titreyip söner (yalnız gerçek ölümde; bu sahne zaten yalnız ölüler için)
+    world.flickerHouse(id, 1.3 * speed);
+    await ctx.wait(0.9 * speed);
     const gx = a.door.x * 0.4 + a.approach.x * 0.6, gz = a.door.z * 0.4 + a.approach.z * 0.6;
     const gr = ghostRise(ctx, look, gx, gz, 0.2, 2.2 * speed);
     await ctx.wait(0.7 * speed);
     tombDrop(ctx, id);
     await gr;
     await ctx.wait(0.2);
+  }
+
+  // Kurbanın kendi sahnesi (yalnız ölen izleyiciye): kendi evinde uyurken kapı açılır, kimliği belirsiz pelerinli
+  // bir siluet yatağın üstüne eğilir (zehirde kapkara bir gölge), ışıklar titreyip söner, sonra hayalet yükselir.
+  // Katilin gerçek görünümü asla gösterilmez: herkes için aynı pelerin.
+  async function victimScene(ctx, t, poison) {
+    const room = world.openRoom(t.id);
+    if (!room) return false;
+    const me = world.playerById(t.id);
+    const S = room.shot('inside', world.rig.portrait);
+    ctx.cut(S.pos, S.look, { fov: S.fov });
+    const L2 = room.L;
+    const bedW = room.W({ x: L2.bedside.x, z: L2.bedside.z });
+    const sleeperW = room.W({ x: L2.sleeper.x, z: L2.sleeper.z });
+    await ctx.wait(1.1);
+    ctx.sfx('door', { volume: 0.6 });
+    const from = room.W(L2.doorStep), mid = room.W(L2.doorIn);
+    const f = figure(ctx, from.x, from.z, Math.atan2(mid.x - from.x, mid.z - from.z));
+    if (f) {
+      if (poison) f.root.traverse((o) => { if (o.isMesh) { const m = new THREE.MeshBasicMaterial({ color: '#0b0a12', transparent: true, opacity: 0.82 }); o.material = m; o.userData.cleanup = () => m.dispose(); } });
+      f.play('walk');
+      const path = [from, mid, bedW];
+      const lens = [Math.hypot(mid.x - from.x, mid.z - from.z), Math.hypot(bedW.x - mid.x, bedW.z - mid.z)];
+      const tot = lens[0] + lens[1];
+      await ctx.tween(tot / 1.6, (k) => {
+        const d = k * tot;
+        const [a, b, l0] = d < lens[0] ? [path[0], path[1], d / lens[0]] : [path[1], path[2], (d - lens[0]) / lens[1]];
+        f.root.position.x = a.x + (b.x - a.x) * l0; f.root.position.z = a.z + (b.z - a.z) * l0;
+        f.root.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
+      }, (x) => x);
+      // yatağa dön, eğil
+      f.play('idle');
+      const yaw0 = f.root.rotation.y, yaw1 = Math.atan2(sleeperW.x - f.root.position.x, sleeperW.z - f.root.position.z);
+      await ctx.tween(0.5, (k) => { f.root.rotation.y = yaw0 + (((yaw1 - yaw0 + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI) * k; f.root.rotation.x = 0.35 * k; });
+      f.play('interact-right');
+    }
+    world.flickerRoom(1.5);
+    ctx.sfx(poison ? 'potion' : 'bite', { volume: 0.7 });
+    if (!poison) world.flash(0.25, '#d7263d');
+    await ctx.wait(1.6);
+    if (f) { world.fx.emit('smoke', f.root.position.x, 1.0, f.root.position.z, '#2a2238', 16); f.root.visible = false; }
+    await ctx.wait(0.3);
+    const gr = ghostRise(ctx, me && me.look, sleeperW.x, sleeperW.z, 0.9, 2.2);
+    world.markDead(t.id, { quiet: true, drop: true });
+    await gr;
+    await ctx.wait(0.4);
+    return true;
   }
 
   director.register('safe', async (ctx) => {
@@ -751,7 +802,11 @@ export function registerCinematics(director, world) {
     if (me) { const g = room.addActor('gozcu', me.look, '', room.L.winOut, Math.PI / 2); g.setBase('peek', 0); }
     const vis = (msg.visitors || []).map((id) => world.playerById(id)).filter(Boolean);
     const spots = [{ x: -1.0, z: -1.25 }, { x: -1.05, z: -0.2 }, { x: -2.2, z: 0.85 }, { x: -1.4, z: 0.75 }, { x: -0.5, z: -0.7 }, { x: -2.9, z: 0.6 }];
-    if (!vis.length) { await ctx.wait(3.6); return; }
+    if (!vis.length) {
+      await ctx.wait(2.2);
+      if (world.diedTonight(t.id)) { world.flickerRoom(1.4); await ctx.wait(1.6); } else await ctx.wait(1.4);
+      return;
+    }
     const gap = clamp(4.0 / vis.length, 0.8, 1.4);
     for (let i = 0; i < vis.length; i++) {
       const v = vis[i];
@@ -761,6 +816,8 @@ export function registerCinematics(director, world) {
       ctx.sfx('door', { volume: 0.35 });
       await ctx.wait(gap);
     }
-    await ctx.wait(2.8);
+    await ctx.wait(1.6);
+    // izlenen ev sahibi bu gece gerçekten öldüyse ışıklar titreyip söner (kurtulduysa hiçbir şey olmaz)
+    if (world.diedTonight(t.id)) { world.flickerRoom(1.4); await ctx.wait(1.8); } else await ctx.wait(1.2);
   });
 }

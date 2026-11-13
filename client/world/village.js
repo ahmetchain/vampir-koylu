@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import * as A from './assets.js';
 import { HOUSE_INFO, toWorld } from './layout.js';
+import { outlineMat } from './style.js';
 import { rng, TAU, clamp, damp, lerp, COLOR_HEX, smooth } from './constants.js';
 
 const MAXH = 20;
@@ -126,7 +127,7 @@ class HouseBatches {
     this.root = root;
     this.map = new Map();   // malzeme uuid -> { mesh, geo: Map(geometry -> id), maxI, maxV, maxIdx, usedV, usedIdx }
   }
-  batchFor(mat) {
+  batchFor(mat, noOutline) {
     let b = this.map.get(mat.uuid);
     if (!b) {
       const m = mat.clone();
@@ -138,7 +139,16 @@ class HouseBatches {
       mesh.frustumCulled = false;
       mesh.name = 'houses-' + mat.name;
       this.root.add(mesh);
-      b = { mesh, geo: new Map(), maxI: 64, maxV: 16384, maxIdx: 32768, usedV: 0, usedIdx: 0, cast: true };
+      b = { mesh, geo: new Map(), maxI: 64, maxV: 16384, maxIdx: 32768, usedV: 0, usedIdx: 0, cast: true, out: null };
+      // "çizim" görünümü için dış çizgi aynası (aynı geometri ve örnekler, gizli başlar)
+      if (!noOutline) {
+        const out = new THREE.BatchedMesh(64, 16384, 32768, outlineMat(0.05));
+        out.sortObjects = false; out.perObjectFrustumCulled = true; out.frustumCulled = false;
+        out.visible = !!this.outlines; out.castShadow = false; out.receiveShadow = false;
+        out.name = mesh.name + '-outline';
+        this.root.add(out);
+        b.out = out;
+      }
       this.map.set(mat.uuid, b);
     }
     return b;
@@ -150,18 +160,23 @@ class HouseBatches {
     if (b.usedV + nv > b.maxV || b.usedIdx + ni > b.maxIdx) {
       b.maxV = Math.max(b.maxV * 2, b.usedV + nv); b.maxIdx = Math.max(b.maxIdx * 2, b.usedIdx + ni);
       b.mesh.setGeometrySize(b.maxV, b.maxIdx);
+      if (b.out) b.out.setGeometrySize(b.maxV, b.maxIdx);
     }
     const id = b.mesh.addGeometry(geometry);
+    if (b.out) b.outGeo = (b.outGeo || new Map()).set(id, b.out.addGeometry(geometry));
     b.usedV += nv; b.usedIdx += ni;
     b.geo.set(geometry, id);
     return id;
   }
   addInstance(b, gid) {
-    if (b.mesh.instanceCount >= b.maxI) { b.maxI *= 2; b.mesh.setInstanceCount(b.maxI); }
-    return b.mesh.addInstance(gid);
+    if (b.mesh.instanceCount >= b.maxI) { b.maxI *= 2; b.mesh.setInstanceCount(b.maxI); if (b.out) b.out.setInstanceCount(b.maxI); }
+    const id = b.mesh.addInstance(gid);
+    if (b.out) { b.outIds = b.outIds || new Map(); b.outIds.set(id, b.out.addInstance(b.outGeo.get(gid))); }
+    return id;
   }
+  setOutlines(on) { this.outlines = on; for (const b of this.map.values()) if (b.out) b.out.visible = on; }
   dispose() {
-    for (const b of this.map.values()) { b.mesh.parent && b.mesh.parent.remove(b.mesh); b.mesh.dispose(); b.mesh.material.dispose(); }
+    for (const b of this.map.values()) { b.mesh.parent && b.mesh.parent.remove(b.mesh); b.mesh.dispose(); b.mesh.material.dispose(); if (b.out) { b.out.parent && b.out.parent.remove(b.out); b.out.dispose(); } }
     this.map.clear();
   }
 }
@@ -192,7 +207,7 @@ class HouseGroup {
         else if (variant === 1 && mat.name === 'fantasy-town') mat = A.altKitMaterial();
         const part = { kind: nodeName, nodeM, local, colorMode, nodePos: new THREE.Vector3().setFromMatrixPosition(nodeM), nodeQ: new THREE.Quaternion().setFromRotationMatrix(nodeM), ids: [] };
         try {
-          const b = batches.batchFor(mat);
+          const b = batches.batchFor(mat, colorMode === 'window');
           part.batch = b; part.batches = batches;
           part.gid = batches.geometryId(b, o.geometry);
           if (colorMode === 'window') { b.mesh.castShadow = false; b.mesh.receiveShadow = false; } else { b.mesh.castShadow = true; b.mesh.receiveShadow = true; }
@@ -218,9 +233,15 @@ class HouseGroup {
     if (!p.batch) { p.im.count = n; return; }
     const mesh = p.batch.mesh;
     while (p.ids.length < n) p.ids.push(p.batches.addInstance(p.batch, p.gid));
-    for (let i = 0; i < p.ids.length; i++) mesh.setVisibleAt(p.ids[i], i < n);
+    for (let i = 0; i < p.ids.length; i++) {
+      mesh.setVisibleAt(p.ids[i], i < n);
+      if (p.batch.out) p.batch.out.setVisibleAt(p.batch.outIds.get(p.ids[i]), i < n);
+    }
   }
-  setM(p, i, m) { if (p.batch) p.batch.mesh.setMatrixAt(p.ids[i], m); else p.im.setMatrixAt(i, m); }
+  setM(p, i, m) {
+    if (p.batch) { p.batch.mesh.setMatrixAt(p.ids[i], m); if (p.batch.out) p.batch.out.setMatrixAt(p.batch.outIds.get(p.ids[i]), m); }
+    else p.im.setMatrixAt(i, m);
+  }
   setC(p, i, c) { if (p.batch) p.batch.mesh.setColorAt(p.ids[i], c); else p.im.setColorAt(i, c); }
   write() {
     const n = this.list.length;
@@ -286,6 +307,7 @@ export function createVillage(scene, q, fx, terrain) {
   scene.add(root);
   const groups = new Map();
   const houseBatches = new HouseBatches(root);
+  let outlinesOn = false;
   const houses = new Map(); // id -> house
   let blockers = [], themeBlockers = [], blockersAll = null;
   function addBlocker(arr, bundle, name, x, z, s) {
@@ -688,10 +710,21 @@ export function createVillage(scene, q, fx, terrain) {
       h.doorOpen += (h.doorTarget - h.doorOpen) * damp(h.doorTarget > h.doorOpen ? 9 : 5, dt);
       if (Math.abs(h.doorOpen - prev) > 0.0005) moved = true;
       h.doorAngle = h.doorOpen * 1.35 * h.info.openSign;
-      const lt = h.dark || h.dead ? 0 : Math.max(h.litTarget, 0);
+      const lt = h.dark || h.dead || h.flickOut ? 0 : Math.max(h.litTarget, 0);
       h.lit += (lt - h.lit) * damp(1.6, dt);
       // pencere rengi: gündüz koyu iç, alacakaranlıkta yanar; boş ev / uyuyan ev karanlık
-      const lightK = clamp(h.lit * (0.25 + 0.75 * lampK), 0, 1);
+      let lightK = clamp(h.lit * (0.25 + 0.75 * lampK), 0, 1);
+      if (h.flickT > 0) {
+        // düzensiz birkaç kesinti, sonra karanlık
+        h.flickT -= dt;
+        const e = h.flickDur - h.flickT, step = Math.floor(e / 0.075);
+        const r = Math.abs(Math.sin(step * 12.9898 + h.seat * 78.233) * 43758.5453) % 1;
+        const fade = 1 - clamp(e / h.flickDur, 0, 1);
+        // başta çoğunlukla yanık, giderek daha sık kesilir; sonunda karanlık
+        lightK = r > 0.12 + 0.75 * (1 - fade) ? 0.45 + 0.55 * fade : 0.03;
+        if (h.flickT <= 0) { h.lit = 0; lightK = 0; h.flickOut = true; }
+        colorDirty = true;
+      }
       tmpC.copy(WIN_DAY).lerp(WIN_DARK, clamp(tod.night * 1.2, 0, 1)).lerp(WIN_NIGHT, lightK);
       const wc = h.winColor;
       if (Math.abs(tmpC.r - wc.r) + Math.abs(tmpC.g - wc.g) + Math.abs(tmpC.b - wc.b) > 0.006) { wc.copy(tmpC); colorDirty = true; }
@@ -877,9 +910,16 @@ export function createVillage(scene, q, fx, terrain) {
     get busy() { return animT < 1; },
     get version() { return version; },
     lampList: () => lamps,
+    // "çizim" görünümü: ev ve dekor dış çizgileri
+    setOutlines(on) {
+      outlinesOn = on;
+      houseBatches.setOutlines(on);
+    },
     // takip kamerası için dekor engelleri (dikey silindirler)
     get blockers() { if (!blockersAll) blockersAll = blockers.concat(themeBlockers); return blockersAll; },
     setLayout, setOwner, setLit, setDead, setTheme, openDoor, anchors, update, emitGlows, pickHouse, onExtraLoaded,
+    // ölen evin pencereleri titreyip söner (sn)
+    flicker(id, dur = 1.5) { const h = houses.get(id); if (h) { h.flickT = dur; h.flickDur = dur; } },
     house: (id) => houses.get(id),
     tombOf: (id) => tombs.get(id),
     dispose() {

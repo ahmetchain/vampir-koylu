@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import * as A from './assets.js';
+import { addOutlines } from './style.js';
 import { COLOR_HEX, HAT_NODES, HAT_Y_OFFSET, clamp, damp, wrapAngle } from './constants.js';
 
 export const SCALE = 1.12;
@@ -96,6 +97,7 @@ export class Character {
       }
     }
     model.scale.multiplyScalar(SCALE);
+    if (this.world.toon) addOutlines(model, 0.012);
     this.model = model;
     this.root.add(model);
     this.mixer = new THREE.AnimationMixer(model);
@@ -198,7 +200,31 @@ export class Character {
 
   setVisible(v) {
     this.visible = v;
-    this.root.visible = v && !this.camHidden; // takip kamerasının önündeyse gizli kalır
+    this.root.visible = v && (this.camFade == null || this.camFade > 0.001); // takip kamerasının önündeyse gizli kalır
+  }
+  // Takip kamerasının önünde yumuşak solma: yalnız solarken karakterin kendi saydam malzeme kopyaları kullanılır
+  // (saydamlık programı değiştirmez -> gölgelendirici derlemesi yok)
+  setFade(f) {
+    this.camFade = f;
+    if (!this.model) return;
+    if (f >= 0.999) {
+      if (this.fadeMats) { this.model.traverse((o) => { if (o.isMesh && o.userData.origMat) { o.material = o.userData.origMat; o.userData.origMat = null; } }); this.fadeMats = null; }
+      this.root.visible = this.visible;
+      return;
+    }
+    if (!this.fadeMats) {
+      this.fadeMats = [];
+      this.model.traverse((o) => {
+        if (!o.isMesh || Array.isArray(o.material)) return;
+        const m = o.material.clone();
+        m.transparent = true; m.depthWrite = true;
+        o.userData.origMat = o.material;
+        o.material = m;
+        this.fadeMats.push(m);
+      });
+    }
+    for (const m of this.fadeMats) m.opacity = f;
+    this.root.visible = this.visible && f > 0.001;
   }
 
   update(dt, time) {
@@ -318,8 +344,9 @@ export class Character {
     }
     if (this.once) this.actions[this.once.name].setEffectiveWeight(onceW);
     // animasyon seviyesi: uzak/görüş dışı karakterler daha seyrek güncellenir (dt birikir)
-    this.animAcc = (this.animAcc || 0) + dt;
-    this.animTick = ((this.animTick || 0) + 1) % (this.animEvery || 1);
+    // animEvery -1: evde/gizli -> karıştırıcı tamamen durur (biriktirmez; geri gelince kaldığı yerden)
+    if (this.animEvery === -1) this.animAcc = 0; else this.animAcc = Math.min(0.25, (this.animAcc || 0) + dt);
+    this.animTick = this.animEvery === -1 ? 1 : ((this.animTick || 0) + 1) % (this.animEvery || 1);
     if (this.animTick === 0) {
       if (this.headBone) this.headBone.quaternion.copy(this.headBaseQ); // klipte baş izi yoksa birikmesin
       this.mixer.update(this.animAcc);
@@ -401,6 +428,7 @@ export class Character {
   gaze(target, seconds, time) { this.lookAt = target ? { x: target.x, z: target.z } : null; this.lookUntil = seconds ? time + seconds : 0; }
 
   dispose() {
+    if (this.fadeMats) { for (const m of this.fadeMats) m.dispose(); this.fadeMats = null; }
     this.dropProps();
     if (this.model) this.model.traverse((o) => { if (o.isSkinnedMesh && o.skeleton) o.skeleton.dispose(); });
     if (this.mixer) { this.mixer.stopAllAction(); if (this.model) this.mixer.uncacheRoot(this.model); }
