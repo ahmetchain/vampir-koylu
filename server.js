@@ -393,6 +393,10 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
       room.selectNight(player.id, String(data.targetId || ''), data.action === 'poison' ? 'poison' : 'heal')
     ));
     act('hunter:shoot', ({ room, player }, data) => room.shoot(player.id, String(data.targetId || '')));
+    // Gardiyan gündüz gelecek gecenin kilidini seçer (targetId: null = vazgeç).
+    act('day:lock', ({ room, player }, data) => (
+      room.lockHouse(player.id, data.targetId == null ? null : String(data.targetId))
+    ));
     act('room:settings', ({ room, player }, data) => room.updateSettings(player.id, data.settings || {}));
 
     // Odada seçilen görünüm hesabın profiline de kaydedilir.

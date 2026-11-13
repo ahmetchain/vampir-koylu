@@ -5,13 +5,14 @@ import { $, esc, sleep, sfx, vibrate, reducedMotion } from './util.js';
 import { icon, emblem } from './icons.js';
 import { W } from './world-host.js';
 import { appendSystem } from './chat.js';
+import { EVENTS } from './data.js';
 
 const queue = [];
 let playing = false;
 let skipFn = null;
 let gen = 0;
 
-const PRIVATE = { seer: true, watch: true, promote: true };
+const PRIVATE = { seer: true, watch: true, promote: true, locked: true, bounced: true, lockreport: true };
 const KIND = {
   start: ['sparkle', '#f4e4c1', 'start'],
   night: ['moon', '#8fb4ff', 'night'],
@@ -28,6 +29,11 @@ const KIND = {
   sleep: ['zz', '#8fb4ff', 'night'],
   win: ['trophy', '#ffb347', 'win'],
   left: ['door', '#8fb4ff', 'leave'],
+  event: ['bell', '#ffb347', 'bell'],
+  locked: ['lock', '#7f9cc4', 'door'],
+  bounced: ['lock', '#7f9cc4', 'door'],
+  lockreport: ['role:gardiyan', null, 'door'],
+  trial: ['gavel', '#ffb347', 'bell'],
 };
 
 export function initAnnounce() {
@@ -75,7 +81,8 @@ async function next(g) {
   const priv = !!PRIVATE[a.kind];
   el.dataset.kind = a.kind;
   el.dataset.private = String(priv);
-  $('#lt-emblem').innerHTML = ic.startsWith('role:') ? emblem(ic.slice(5), 'l') : `<span class="emblem emblem-l" style="--rc:${color}">${icon(ic)}</span>`;
+  const evIc = a.kind === 'event' && a.event && EVENTS[a.event.id] ? EVENTS[a.event.id].icon : null;
+  $('#lt-emblem').innerHTML = evIc ? `<span class="emblem emblem-l" style="--rc:${color}">${icon(evIc)}</span>` : ic.startsWith('role:') ? emblem(ic.slice(5), 'l') : `<span class="emblem emblem-l" style="--rc:${color}">${icon(ic)}</span>`;
   $('#lt-title').textContent = a.title || '';
   const text = a.text || '';
   $('#lt-text').textContent = text;

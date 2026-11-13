@@ -63,6 +63,8 @@ export async function initWorld(el, h) {
   try {
     world = W.create(container, wrappedHandlers());
     if (!world || typeof world.update !== 'function') throw new Error('create() geçersiz');
+    // Varsayılan görünüm: çizim (toon) tarzı
+    if (typeof world.setStyle === 'function') safe(() => world.setStyle('toon'));
     lib = W;
     document.documentElement.dataset.world = '3d';
     const q = store.get('vk.quality', 'auto');

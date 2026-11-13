@@ -16,7 +16,7 @@ function setup(count = 5) {
   const room = new Room({
     id: 'TEST2',
     name: 'Test',
-    settings: {},
+    settings: { events: 'off' },
     hooks: {
       update(r, kind) { events.updates.push(kind || 'state'); },
       announce(r, a, to) { events.announces.push({ ...a, to }); },
@@ -40,6 +40,7 @@ function startWithRoles(room, roles) {
 const of = (events, kind) => events.announces.filter((a) => a.kind === kind);
 const visibleRoles = (room, id) => room.viewFor(id).players.filter((p) => p.role).map((p) => p.id).sort();
 const dist = (pos) => Math.hypot(pos.x - 0.5, pos.y - 0.5);
+const pick = (obj, keys) => Object.fromEntries(keys.map((k) => [k, obj[k]]));
 
 // ---------- dağıtım ----------
 
@@ -50,8 +51,10 @@ test('iftiracı 7+ oyuncuda vampirlere ek verilir, özel roller yeni sırayla ek
   assert.deepEqual(rolesFor(5, [D, S, G, W, H, M, J, F]), [V, D, S, G, K]);
   assert.deepEqual(rolesFor(7, [D, S, G, W, H, M, J, F]), [V, F, D, S, G, W, K], 'en az bir köylü kalır');
   assert.deepEqual(normalizeSettings({}).roles, {
-    doktor: true, kahin: true, gozcu: false, cadi: false, avci: false, muhtar: false, soytari: false, iftiraci: false,
+    doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false, avci: false, muhtar: false, soytari: false, iftiraci: false,
   });
+  assert.deepEqual(rolesFor(8, [D, S, G, ROLE.JAILER, W]), [V, D, S, G, ROLE.JAILER, W, K, K], 'gardiyan gözcüden sonra');
+  assert.equal(teamOf(ROLE.JAILER), K);
   assert.equal(teamOf(F), V);
   assert.equal(teamOf(G), K);
 });
@@ -102,21 +105,26 @@ test('iftiracı öldürme seçimine katılmaz; kural dışı seçimler reddedili
   assert.match(room.selectNight('p0', 'p1'), /İftiracı/);
   assert.equal(room.selectNight('p1', 'p4'), null);
   assert.equal(room.nightFrame, 'p4');
-  assert.equal(room.nightVampire.size, 0, 'iftiracının seçimi öldürme oyu değildir');
+  assert.equal(room.teamTarget, null, 'iftiracının seçimi öldürme hedefi değildir');
   assert.deepEqual(room.vampireTargets(), []);
 
-  assert.deepEqual(room.viewFor('p0').night, { mySelection: null, team: [], framer: 'p4' });
+  const keys = ['mySelection', 'team', 'framer', 'teamTarget'];
+  assert.deepEqual(pick(room.viewFor('p0').night, keys), {
+    mySelection: null, team: [{ vampId: 'p0', name: 'Oyuncu0', targetId: null }], framer: 'p4', teamTarget: null,
+  });
   assert.equal(room.selectNight('p0', 'p5'), null);
-  assert.deepEqual(room.viewFor('p1').night, {
+  assert.deepEqual(pick(room.viewFor('p1').night, keys), {
     mySelection: 'p4', team: [{ vampId: 'p0', name: 'Oyuncu0', targetId: 'p5' }], framer: 'p4',
+    teamTarget: { targetId: 'p5', by: 'p0', byName: 'Oyuncu0' },
   });
   assert.equal(room.viewFor('p4').night, null, 'köylünün gece görünümü yok');
   assert.equal(room.selectNight('p3', 'p3'), null, 'gözcü kendi evini izleyebilir');
-  assert.deepEqual(room.viewFor('p3').night, { mySelection: 'p3', team: [], framer: null });
-  assert.deepEqual(room.viewFor('p2').night, { mySelection: null, team: [], framer: null });
-  // Aynı kişiye tekrar dokunmak seçimi kaldırır.
-  room.selectNight('p1', 'p4');
-  assert.equal(room.nightFrame, null);
+  assert.equal(room.viewFor('p3').night.mySelection, 'p3');
+  assert.equal(room.viewFor('p3').night.framer, null);
+  assert.equal(room.viewFor('p2').night.mySelection, null);
+  // Seçimler kesindir: aynı kişiye tekrar dokunmak seçimi kaldırmaz.
+  assert.match(room.selectNight('p1', 'p4'), /kesindir/);
+  assert.equal(room.nightFrame, 'p4');
 
   const msg = room.chat('p1', 'kimi suçlayalım');
   assert.equal(msg.channel, 'vampir');
@@ -185,35 +193,27 @@ test('gözcü izlediği eve girenleri isim sırasıyla öğrenir; duyuru sadece 
   assert.deepEqual(watch[0].to, ['p5']);
   assert.deepEqual(watch[0].targets, [{ id: 'p7' }]);
   assert.deepEqual(watch[0].visitors, ['p0', 'p1', 'p2', 'p3', 'p4', 'p6']);
-  assert.match(watch[0].text, /Oyuncu7'nin evine girenler: Oyuncu0, Oyuncu1, Oyuncu2, Oyuncu3, Oyuncu4, Oyuncu6\./);
+  assert.match(watch[0].text, /Oyuncu7'nin evine gelenler: Oyuncu0, Oyuncu1, Oyuncu2, Oyuncu3, Oyuncu4, Oyuncu6\./);
   assert.match(room.players.get('p5').notes[0].text, /^👁️ 1\. gece/);
   assert.equal(room.players.get('p7').notes.length, 0);
   room.destroy();
 });
 
-test('gözcü: sadece seçilen kurbana giden vampirler sayılır (eşitlik kurayla bozulur)', (t) => {
+test('vampir takımı tek eve gider: ilk onaylayan hedefi seçer, diğer vampir de oraya gider', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const seen = new Set();
-  for (let i = 0; i < 60 && seen.size < 2; i++) {
-    const { room, events } = setup(10);
-    startWithRoles(room, [V, V, G, K, K, K, K, K, K, K]);
-    room.selectNight('p0', 'p3');
-    room.selectNight('p1', 'p4');
-    room.selectNight('p2', 'p3');
-    room.endNight();
-    const watch = of(events, 'watch')[0];
-    if (!room.players.get('p3').alive) {
-      assert.deepEqual(watch.visitors, ['p0']);
-      seen.add('kurban');
-    } else {
-      assert.equal(room.players.get('p4').alive, false);
-      assert.deepEqual(watch.visitors, []);
-      assert.match(watch.text, /kimse girmedi/);
-      seen.add('diğeri');
-    }
-    room.destroy();
-  }
-  assert.equal(seen.size, 2, 'iki durum da denenmeli');
+  const { room, events } = setup(10);
+  startWithRoles(room, [V, V, G, K, K, K, K, K, K, K]);
+  room.selectNight('p2', 'p3');
+  assert.equal(room.selectNight('p0', 'p3'), null);
+  assert.match(room.selectNight('p1', 'p4'), /Takımın hedefi zaten belli: Oyuncu3/);
+  assert.deepEqual(room.viewFor('p1').night.teamTarget, { targetId: 'p3', by: 'p0', byName: 'Oyuncu0' });
+  assert.equal(room.viewFor('p1').night.mySelection, 'p3');
+  assert.equal(room.viewFor('p1').night.canAct, false);
+  room.endNight();
+  assert.equal(room.players.get('p3').alive, false);
+  assert.equal(room.players.get('p4').alive, true, 'vampirler asla iki eve saldırmaz');
+  assert.deepEqual(of(events, 'watch')[0].visitors, ['p0', 'p1'], 'iki vampir de eve gitti');
+  room.destroy();
 });
 
 test('gözcü aynı gece ölürse rapor alamaz', (t) => {
@@ -228,7 +228,7 @@ test('gözcü aynı gece ölürse rapor alamaz', (t) => {
   room.destroy();
 });
 
-test('gözcü: cadı iki eve de girer; ev sahibi ve ayrılanlar sayılmaz', (t) => {
+test('gözcü: cadı iki eve de girer; ev sahibi sayılmaz; sonradan ayrılan da kapıya gelmiş sayılır', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { room, events } = setup(7);
   startWithRoles(room, [V, W, G, D, K, K, K]);
@@ -247,15 +247,15 @@ test('gözcü: cadı iki eve de girer; ev sahibi ve ayrılanlar sayılmaz', (t) 
   room.selectNight('p3', 'p3');
   room.selectNight('p2', 'p3');
   room.endNight();
-  assert.match(of(events, 'watch').pop().text, /kimse girmedi/);
+  assert.match(of(events, 'watch').pop().text, /kimse gelmedi/);
 
-  // 3. gece: doktor p6'yı korur ama gece oyundan ayrılır.
+  // 3. gece: doktor p6'yı korur, sonra gece oyundan ayrılır: kapıya gelmişti, gözcü onu gördü.
   room.endDay();
   room.selectNight('p3', 'p6');
   room.selectNight('p2', 'p6');
   room.removePlayer('p3');
   room.endNight();
-  assert.deepEqual(of(events, 'watch').pop().visitors, []);
+  assert.deepEqual(of(events, 'watch').pop().visitors, ['p3']);
   room.destroy();
 });
 
@@ -314,7 +314,9 @@ test('son vampir gece ayrılırsa iftiracı hemen dönüşür, iftirası düşer
   assert.equal(room.players.get('p1').role, V);
   assert.equal(room.nightFrame, null);
   assert.equal(of(events, 'promote').length, 1);
-  assert.deepEqual(room.viewFor('p1').night, { mySelection: null, team: [], framer: null });
+  assert.deepEqual(pick(room.viewFor('p1').night, ['mySelection', 'team', 'framer', 'teamTarget', 'canAct']), {
+    mySelection: null, team: [{ vampId: 'p1', name: 'Oyuncu1', targetId: null }], framer: null, teamTarget: null, canAct: true,
+  });
   assert.equal(room.selectNight('p1', 'p4'), null);
   room.endNight();
   assert.equal(room.players.get('p4').alive, false);

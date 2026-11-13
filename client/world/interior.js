@@ -189,6 +189,7 @@ export function createInterior(world) {
   return {
     L, W, show, hide, dress, update, shot, addActor, removeActor, clearActors, addTemp, resetProps,
     get visible() { return !!(group && group.visible); },
+    get group() { build(); return group; },
     get ready() { return build(); },
     get owner() { return owner; },
     get actors() { return actors; },

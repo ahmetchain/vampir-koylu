@@ -3,7 +3,7 @@ import { ctx, send, iAmHost } from './ctx.js';
 import { openSheet } from './kit.js';
 import { esc, clamp, sfx, store } from './util.js';
 import { icon, emblem } from './icons.js';
-import { ROLES, TOGGLE_ROLES, DEFAULT_ROLES, distribution, countRoles, FRAMER_MIN, MIN_PLAYERS, MAX_PLAYERS } from './data.js';
+import { ROLES, TOGGLE_ROLES, DEFAULT_ROLES, distribution, countRoles, FRAMER_MIN, MIN_PLAYERS, MAX_PLAYERS, EVENTS, EVENT_FREQ } from './data.js';
 
 const LAST_KEY = 'vk.lastSettings';
 
@@ -32,6 +32,12 @@ function formHTML(s, editable, withRoomFields, sampleN) {
     <div class="set-row"><label for="rf-reveal">Ölenlerin rolü açıklansın</label>
       <span class="switch"><input type="checkbox" id="rf-reveal" name="revealRoles" ${s.revealRoles ? 'checked' : ''} ${dis}><i></i></span>
       <small>Kapalıysa ölen oyuncuların rolü oyun bitene kadar gizli kalır (Soytarı asılırsa yine açıklanır).</small></div>
+    <div class="section-title">Köy olayları</div>
+    <div class="seg" role="radiogroup" aria-label="Köy olayları" data-evseg>
+      ${EVENT_FREQ.map(([k, l]) => `<button type="button" role="radio" class="seg-btn${(s.events || 'some') === k ? ' on' : ''}" data-ev="${k}" aria-checked="${(s.events || 'some') === k}" ${dis}>${l}</button>`).join('')}
+    </div>
+    <p class="muted small" style="margin:6px 0 0"><span data-evtxt>${esc((EVENT_FREQ.find((x) => x[0] === (s.events || 'some')) || EVENT_FREQ[1])[2])}</span>
+      Tellal duyurur: ${Object.values(EVENTS).map((e) => e.name).join(', ')}. Ayrıntılar "Nasıl Oynanır"da.</p>
     <div class="section-title">Özel roller</div>
     <div class="role-toggles">
       ${TOGGLE_ROLES.map((r) => `
@@ -46,7 +52,7 @@ function formHTML(s, editable, withRoomFields, sampleN) {
       <div class="explain">
         <p>Vampir sayısı oyuncu sayısına göre belirlenir: 5–9 kişide 1, 10–14 kişide 2, 15 ve üstünde 3 vampir.</p>
         <p>İftiracı açıksa ve en az ${FRAMER_MIN} oyuncu varsa vampirlere ek olarak 1 İftiracı dağıtılır.</p>
-        <p>Açık özel roller şu sırayla, yer kaldıkça eklenir: Doktor, Kahin, Gözcü, Cadı, Avcı, Muhtar, Soytarı. Her oyunda en az bir sade köylü kalır.</p>
+        <p>Açık özel roller şu sırayla, yer kaldıkça eklenir: Doktor, Kahin, Gözcü, Gardiyan, Cadı, Avcı, Muhtar, Soytarı. Her oyunda en az bir sade köylü kalır.</p>
       </div>
       <div class="row-between" style="margin-top:8px"><b class="small">Örnek: <span data-n>${sampleN}</span> oyuncu</b></div>
       <input type="range" min="${MIN_PLAYERS}" max="${MAX_PLAYERS}" value="${sampleN}" data-sample aria-label="Örnek oyuncu sayısı">
@@ -74,6 +80,16 @@ function bindForm(root, s, onChange) {
       update();
       return;
     }
+    const ev = e.target.closest('[data-ev]');
+    if (ev && !ev.disabled) {
+      s.events = ev.dataset.ev;
+      root.querySelectorAll('[data-ev]').forEach((b) => { b.classList.toggle('on', b === ev); b.setAttribute('aria-checked', String(b === ev)); });
+      const hint = root.querySelector('[data-evtxt]');
+      if (hint) hint.textContent = (EVENT_FREQ.find((x) => x[0] === s.events) || EVENT_FREQ[1])[2];
+      sfx('click');
+      onChange && onChange();
+      return;
+    }
     const rt = e.target.closest('.rtoggle[data-role]');
     if (rt && !rt.disabled) {
       const r = rt.dataset.role;
@@ -95,6 +111,7 @@ export function openCreateRoom() {
     roomName: `${ctx.user.username} Köyü`.slice(0, 24),
     nightSec: last.nightSec || 30, daySec: last.daySec || 120,
     revealRoles: last.revealRoles !== undefined ? last.revealRoles : true,
+    events: last.events || 'some',
     roles: { ...DEFAULT_ROLES, ...(last.roles || {}) },
   };
   const sheet = openSheet({
@@ -112,7 +129,7 @@ export function openCreateRoom() {
     const btn = sheet.foot.querySelector('[data-create]');
     btn.disabled = true;
     err.textContent = '';
-    const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, roles: s.roles };
+    const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roles: s.roles };
     store.set(LAST_KEY, settings);
     const res = await send('room:create', { roomName, password: form.password.value, settings }, { quiet: true });
     btn.disabled = false;
@@ -131,7 +148,7 @@ export function openRoomSettings() {
   if (!st) return;
   const host = iAmHost() && st.room.phase === 'lobby';
   const cur = st.room.settings;
-  const s = { nightSec: cur.nightSec, daySec: cur.daySec, revealRoles: cur.revealRoles, roles: { ...cur.roles } };
+  const s = { nightSec: cur.nightSec, daySec: cur.daySec, revealRoles: cur.revealRoles, events: cur.events || 'some', roles: { ...cur.roles } };
   const n = Math.max(MIN_PLAYERS, st.players.filter((p) => !p.left).length);
   const sheet = openSheet({
     title: host ? 'Oda Ayarları' : 'Oda Kuralları',
@@ -144,9 +161,9 @@ export function openRoomSettings() {
   bindForm(form, s);
   if (host) {
     sheet.foot.querySelector('[data-save]').addEventListener('click', async () => {
-      const res = await send('room:settings', { settings: { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, roles: s.roles } });
+      const res = await send('room:settings', { settings: { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roles: s.roles } });
       if (res.ok) {
-        store.set(LAST_KEY, { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, roles: s.roles });
+        store.set(LAST_KEY, { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roles: s.roles });
         sheet.close();
       }
     });

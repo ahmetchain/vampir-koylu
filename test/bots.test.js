@@ -31,6 +31,7 @@ function makeRoom({ seed = 'bot', settings = {}, humans = 1, bots = 0 } = {}) {
     name: 'Botlu',
     settings,
     botRng: mulberry(seed),
+    eventRng: mulberry(`olay-${seed}`),
     storySeed: `hikaye-${seed}`,
     hooks: {
       update() { ev.updates += 1; },
@@ -242,7 +243,7 @@ for (const humanPlays of [false, true]) {
     try {
       for (let g = 0; g < 24; g++) {
         const bots = 4 + (g % 12);
-        const settings = { roles: Object.fromEntries(OPTIONAL_ROLES.map((r) => [r, true])) };
+        const settings = { events: 'often', roles: Object.fromEntries(OPTIONAL_ROLES.map((r) => [r, true])) };
         const { room, ev } = makeRoom({ humans: 1, bots, seed: `oyun-${humanPlays}-${g}`, settings });
         watchBots(room, ev);
         room.start('h0');
@@ -254,7 +255,7 @@ for (const humanPlays of [false, true]) {
           const from = room.players.get(c.message.fromId);
           assert.ok(from && from.bot);
           assert.equal(c.message.channel, 'genel');
-          assert.ok(['day', 'lobby'].includes(c.phase), c.phase);
+          assert.ok(['day', 'trial', 'lobby'].includes(c.phase), c.phase);
           assert.ok(BOT_LINES.includes(c.message.text) || BOT_GREETINGS.includes(c.message.text));
         }
         // Cadı iksirleri en fazla birer kez (kural) ve evrensel kural: oyun sonu bildirimi istatistiksiz.

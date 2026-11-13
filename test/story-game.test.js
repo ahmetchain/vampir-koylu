@@ -129,7 +129,7 @@ test('sahne seçimi metinle tutarlı', () => {
 });
 
 // Gizli rollerde: olay girdilerindeki roller değiştirilse bile çıktı birebir aynı olmalı.
-const ROLES = ['vampir', 'iftiraci', 'doktor', 'kahin', 'gozcu', 'cadi', 'avci', 'muhtar', 'koylu', 'soytari'];
+const ROLES = ['vampir', 'iftiraci', 'doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'koylu', 'soytari'];
 function scramble(script, seed) {
   let k = seed * 7 + 3;
   const next = (list) => { k = (k * 1103515245 + 12345) % 2147483648; return list[k % list.length]; };
@@ -143,7 +143,7 @@ function scramble(script, seed) {
 }
 
 test('roller gizliyken anlatı rollerden etkilenmez ve rol adı geçmez', () => {
-  const words = ['doktor', 'kahin', 'gözcü', 'cadı', 'muhtar', 'soytarı', 'iftiracı', 'köylü'];
+  const words = ['doktor', 'kahin', 'gözcü', 'gardiyan', 'cadı', 'muhtar', 'soytarı', 'iftiracı', 'köylü'];
   for (const s of SEEDS.slice(0, 150)) {
     const g = makeScript(`gizli${s}`, { revealRoles: false });
     const a = createChronicle({ seed: `g${s}`, players: g.players, revealRoles: false });

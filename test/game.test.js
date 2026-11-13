@@ -11,7 +11,7 @@ function setup(count = 5) {
   const room = new Room({
     id: 'TEST1',
     name: 'Test',
-    settings: {},
+    settings: { events: 'off' },
     hooks: {
       update() {},
       announce(r, a) { events.announces.push(a); },

@@ -38,7 +38,9 @@ function save(o) { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (
 // bir kez başarısız olmuş kademe için 30 sn; iki kez başarısız olan kademe bu cihazda bir daha denenmez (salınım yok).
 // 30 kare/sn kademesinde (tasarruf) "iyi" = JS süresi düşük (bir üst kademe 60 kare/sn'ye yakın gidebilir). Sonuç cihazda saklanır.
 export class AutoQuality {
-  constructor(fallback) {
+  // opts.noRetry: başarısız olan kademe bu cihazda bir daha denenmez (masaüstü: hiç salınım yok)
+  constructor(fallback, opts = {}) {
+    this.noRetry = !!opts.noRetry;
     const st = load();
     this.fails = {};
     if (st && Array.isArray(st.failed)) for (const t of st.failed) this.fails[t] = 1;
@@ -78,7 +80,7 @@ export class AutoQuality {
       return this.level;
     }
     const up = ORDER[i + 1];
-    if (up && this.good >= ((this.fails[up] || 0) ? 30 : 12) && (this.fails[up] || 0) < 2) {
+    if (up && this.good >= ((this.fails[up] || 0) ? 30 : 12) && (this.fails[up] || 0) < (this.noRetry ? 1 : 2)) {
       this.level = up;
       this.good = 0; this.warm = now + 800;
       this.persist();
@@ -113,9 +115,10 @@ export class DynamicRes {
     }
     if (now - this.lastChange < 1500) return null;
     const gpuBound = cpu < p90 * 0.55;
-    if (p90 > targetMs * 1.2 && gpuBound && this.scale > 0.6) {
+    const lo = this.min || 0.6;
+    if (p90 > targetMs * 1.2 && gpuBound && this.scale > lo + 0.001) {
       this.trial = { at: now, p90, prev: this.scale };
-      this.scale = Math.max(0.6, +(this.scale - 0.1).toFixed(2)); this.lastChange = now; this.goodFor = 0;
+      this.scale = Math.max(lo, +(this.scale - 0.05).toFixed(2)); this.lastChange = now; this.goodFor = 0;
       return this.scale;
     }
     if (p90 < targetMs * 0.85) this.goodFor++; else this.goodFor = 0;

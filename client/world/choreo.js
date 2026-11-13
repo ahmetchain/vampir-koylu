@@ -314,7 +314,9 @@ export function createChoreo(world) {
     for (const p of players) {
       const h = V.house(p.id);
       if (!h) continue;
-      h.dead = inGame || phase === 'ended' ? (!p.alive || p.left) : false;
+      if (phase === 'lobby') h.flickOut = false;   // yeni oyun: titreyip sönen ev yeniden yanar
+      // sinematiğin göstereceği ölüm (tutulan) henüz evi karartmaz
+      h.dead = inGame || phase === 'ended' ? ((!p.alive || p.left) && !(world.isHeldDeath && world.isHeldDeath(p.id))) : false;
       if (phase === 'night') {
         // kapıdan girince yanar, birkaç saniye sonra söner (uyku); ziyaret edilen ev yanık kalır
         let lit = (litUntil.get(p.id) || 0) > world.time ? 1 : 0;
