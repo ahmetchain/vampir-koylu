@@ -5,7 +5,7 @@ import { Api, auth } from './api.js';
 import { openSheet, promptBox, toast, confirmBox } from './kit.js';
 import { $, $$, esc, sfx, store, session } from './util.js';
 import { icon, emblem, logoMark } from './icons.js';
-import { ROLES, ROLE_LIST, COLORS, inkOn, levelOf, checkUsername, checkPassword, TEAM_NAME } from './data.js';
+import { ROLES, ROLE_LIST, COLORS, inkOn, levelOf, checkUsername, checkPassword, TEAM_NAME, EVENTS, EVENTS_UI } from './data.js';
 import { preview, W, prefers2D, setPrefers2D, isFallback } from './world-host.js';
 import { openLookEditor } from './look.js';
 import { openCreateRoom } from './roomform.js';
@@ -287,14 +287,17 @@ export function openHowto() {
       <div><div class="section-title">Oyun akışı</div>
       <ol class="steps">
         <li><strong>Roller dağıtılır.</strong> Herkes sadece kendi kartını görür. Rolünü kimseye söyleme! Vampirler ve İftiracı birbirini tanır.</li>
-        <li><strong>Gece.</strong> Herkes evine çekilir, köylüler konuşamaz. Gece görevi olanlar birini seçer ve karakterleri o kişinin evine gizlice gider. Bunu sadece kendileri görür; vampirler birbirinin seçimini de görür. Seçimini süre bitene kadar değiştirebilirsin.</li>
-        <li><strong>Sabah.</strong> Gece ne olduğu duyurulur. Kahin baktığı kişinin sonucunu, Gözcü gözetlediği eve kimlerin girdiğini gizlice öğrenir. Ölen kişi Avcıysa son atışını yapar.</li>
+        <li><strong>Gece.</strong> Herkes evine çekilir, köylüler konuşamaz. Gece görevi olanlar birini seçer, onaylar ve karakterleri o kişinin evine gizlice gider. <b>Onaylanan seçim kesindir</b>, geri alınamaz. Vampirlerin tek ortak hedefi vardır: ilk onaylayan vampir hedefi belirler, diğerleri de oraya gider. Gardiyanın gündüzden seçip kilitlediği eve kimse giremez, ev sahibi de dışarı çıkamaz.</li>
+        <li><strong>Sabah.</strong> Gece ne olduğu duyurulur. Kahin baktığı kişinin sonucunu gizlice öğrenir. Gözcü gözetlediği eve kimlerin geldiğini gece boyunca canlı görür, sabah da raporunu alır. Gardiyan kilitlediği kapıyı kaç kişinin zorladığını öğrenir. Ölen kişi Avcıysa son atışını yapar.</li>
         <li><strong>Gündüz.</strong> Herkes tartışır ve şüphelendiği kişiye oy verir: karaktere ya da alttaki oyuncu şeridine dokun. Oylar herkese açıktır. Süre bitince en çok oy alan kişi asılır; eşitlikte kimse asılmaz. Herkes oy verdiyse süre 10 saniyeye iner.</li>
         <li><strong>Hızlı Uyu.</strong> Kimseyi asmak istemiyorsanız <em>Hızlı Uyu</em>'ya basın. Yaşayan herkes basarsa hemen geceye geçilir. Hızlı Uyu "kimseyi asmayalım" oyu da sayılır.</li>
         <li>Gece ve gündüz, bir taraf kazanana kadar sırayla devam eder.</li>
       </ol></div>
       <div><div class="section-title">Roller</div><div class="role-grid">${roles}</div>
         <p class="muted small">Vampir sayısı oyuncu sayısına göre belirlenir: 5–9 kişide 1, 10–14 kişide 2, 15 ve üstünde 3. Oda sahibi özel rolleri açıp kapatır; roller sırayla eklenir ve her oyunda en az bir sade köylü kalır.</p></div>
+      ${EVENTS_UI ? `<div><div class="section-title">Köy olayları</div>
+        <p class="muted small">Oda ayarına göre (Kapalı / Ara sıra / Sık) bazı gece ya da gündüzler bir olay olur; tellal duyurur ve olay sürerken üst çubukta görünür.</p>
+        <ul class="bullets">${Object.values(EVENTS).map((e) => `<li><b>${e.name}</b> (${e.phase === 'night' ? 'gece' : 'gündüz'}): ${e.desc}</li>`).join('')}</ul></div>` : ''}
       <div><div class="section-title">Kim kazanır?</div>
         <ul class="bullets">
           <li><b>Köylüler</b>, son vampir ve İftiracı da öldüğünde kazanır.</li>

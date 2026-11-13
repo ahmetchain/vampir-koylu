@@ -188,7 +188,7 @@ function lighten(hex) {
 
 export function renderChatState(state) {
   const { room, me } = state;
-  const inGame = ['night', 'day', 'hunter', 'reveal'].includes(room.phase);
+  const inGame = ['night', 'day', 'trial', 'hunter', 'reveal'].includes(room.phase);
   let mode = ['chat', 'Herkese açık']; let disabled = false; let ph = 'Mesaj yaz…';
   if (inGame && !me.alive) { mode = ['ghost', 'Sadece ölüler görür']; ph = 'Ölülere yaz…'; }
   else if (room.phase === 'night' && (me.role === 'vampir' || me.role === 'iftiraci')) { mode = ['moon', 'Sadece vampir takımı görür']; ph = 'Vampirlere fısılda…'; }

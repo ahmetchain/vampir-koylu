@@ -49,6 +49,10 @@ const P = {
   undo: '<path d="M9 7.5L4.5 12 9 16.5"/><path d="M4.5 12H14a5.5 5.5 0 0 1 0 11h-2" transform="translate(0 -4)"/>',
   hat: '<path d="M3 16.5c3 1.5 15 1.5 18 0"/><path d="M6.5 16V9.5a5.5 3 0 0 1 11 0V16"/>',
   shirt: '<path d="M8.5 4L4 6.5l1.5 4 2-.8V20h9V9.7l2 .8 1.5-4L15.5 4a3.5 3.5 0 0 1-7 0z"/>',
+  snow: '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/><path d="M9.5 4.5L12 6l2.5-1.5M9.5 19.5L12 18l2.5 1.5M4 10.5l2.5.4.6-2.5M20 13.5l-2.5-.4-.6 2.5M4 13.5l2.5-.4.6 2.5M20 10.5l-2.5.4-.6-2.5"/>',
+  wind: '<path d="M3 8.5h11a3 3 0 1 0-3-3"/><path d="M3 12.5h15a3 3 0 1 1-3 3"/><path d="M3 16.5h6"/>',
+  fog: '<path d="M4 8h12M7 12h13M3 16h11M9 20h9"/><path d="M16 8h3" opacity=".5"/>',
+  gavel: '<path d="M13.5 4.5l6 6M11 7l6 6M12.3 5.7l5 5-2.6 2.6-5-5z"/><path d="M11.5 11.5L4 19"/><path d="M13 20.5h8"/>',
   music: '<path d="M9 18.5V6l11-2.5v12.5"/><circle cx="6.5" cy="18.5" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/><path d="M9 10l11-2.5"/>',
   flame: '<path d="M12 21c-4 0-6.5-2.6-6.5-6 0-3.6 3-5.6 3.8-9.5 2.6 1.5 3.4 3.8 3.2 6 1-.6 1.8-1.7 2-3.2 2 1.6 3 3.9 3 6.7 0 3.4-2.5 6-5.5 6z"/><path d="M12 21c-1.6 0-2.7-1.1-2.7-2.6 0-1.6 1.3-2.4 1.7-4.1 1.9 1 2.9 2.4 2.9 4 0 1.5-.8 2.7-1.9 2.7z"/>',
   bot: '<rect x="4.5" y="7.5" width="15" height="11.5" rx="3.5"/><path d="M12 7.5V4.5"/><circle cx="12" cy="3.6" r="1.1" fill="currentColor"/><circle cx="9" cy="12.5" r="1.4" fill="currentColor"/><circle cx="15" cy="12.5" r="1.4" fill="currentColor"/><path d="M9.5 16h5M2.5 12v3M21.5 12v3"/>',
@@ -69,6 +73,7 @@ const R = {
   avci: '<path d="M6 3.5c5 2 8 5.4 8 8.5s-3 6.5-8 8.5"/><path d="M6 3.5v17"/><path d="M3 12h17M17 9l3 3-3 3"/>',
   muhtar: '<circle cx="12" cy="14.5" r="5.5"/><path d="M9 3.5l3 5 3-5M8 3.5h2.5M13.5 3.5H16"/><path d="M12 11.8l.9 1.8 2 .3-1.4 1.4.3 2-1.8-.9-1.8.9.3-2-1.4-1.4 2-.3z"/>',
   soytari: '<path d="M4 9c2.5-4 5.5-5 8-2 2.5-3 5.5-2 8 2-2 0-3.4 1-4 3H8c-.6-2-2-3-4-3z"/><circle cx="4" cy="9" r="1.3"/><circle cx="20" cy="9" r="1.3"/><circle cx="12" cy="5" r="1.3"/><path d="M8 12c0 5 1.8 8 4 8s4-3 4-8"/><path d="M10 15.5c.6.7 1.3 1 2 1s1.4-.3 2-1"/>',
+  gardiyan: '<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/><path d="M9 13.5v4M12 13.5v4M15 13.5v4"/>',
   koylu: '<path d="M12 21V8"/><path d="M12 8c-2.5 0-3.5-2-3.5-4.5C11 3.5 12 5.5 12 8zM12 8c2.5 0 3.5-2 3.5-4.5C13 3.5 12 5.5 12 8z"/><path d="M12 13c-2.5 0-4-1.8-4-4.3 2.6 0 4 1.8 4 4.3zM12 13c2.5 0 4-1.8 4-4.3-2.6 0-4 1.8-4 4.3zM12 17.5c-2.5 0-4-1.8-4-4.3 2.6 0 4 1.8 4 4.3zM12 17.5c2.5 0 4-1.8 4-4.3-2.6 0-4 1.8-4 4.3z"/>',
 };
 
@@ -106,7 +111,7 @@ export function hatIcon(i, cls = '') {
 }
 
 const ROLE_COLORS = {
-  vampir: '#d7263d', iftiraci: '#b0408a', doktor: '#3fb58a', kahin: '#8f7cff', gozcu: '#e8a33a',
+  vampir: '#d7263d', iftiraci: '#b0408a', doktor: '#3fb58a', kahin: '#8f7cff', gozcu: '#e8a33a', gardiyan: '#7f9cc4',
   cadi: '#6cc04a', avci: '#c9772b', muhtar: '#f2c12e', soytari: '#ff6fae', koylu: '#c9a96e',
 };
 

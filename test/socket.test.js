@@ -43,7 +43,7 @@ test('hesaplarla oda kurma, katılma, koltuk, görünüm, oyun içi yeniden bağ
 
   assert.match((await emit(host, 'room:create', { roomName: 'x' })).error, /Oda adı/);
   const created = await emit(host, 'room:create', {
-    roomName: 'Test Odası', password: 'sifre', settings: { nightSec: 15, roles: { kahin: false } },
+    roomName: 'Test Odası', password: 'sifre', settings: { nightSec: 15, events: 'off', roles: { kahin: false } },
   });
   assert.equal(created.ok, true);
   assert.equal(typeof created.playerId, 'string');

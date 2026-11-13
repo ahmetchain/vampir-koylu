@@ -357,3 +357,50 @@ An optional on-screen FPS read-out (toggle in settings) lets the owner report re
    `NIGHT_WALK_MS` (4000 ms): selections are already allowed, but the night countdown the player
    sees (`room.deadline` stays the real end; new `room.timerFrom` = when the countdown starts)
    only starts when the lead-in is over, so the full `nightSec` is available after arriving home.
+
+## 13. Round 4 (approved by the owner on 2026-11-14)
+
+### 13.1 Night choices are final
+- A night choice is made with a confirmation step in the UI and is then **final**: no change, no
+  clearing. The character sets off immediately.
+- Vampires have **one shared target**: the first vampire to confirm sets the team's target; the
+  other vampires see it and go there too (their own pick is not possible any more). Vampires never
+  attack two houses.
+- Witch: heal and poison are each final once chosen. Same for doktor, kahin, gözcü, iftiracı.
+
+### 13.2 Gözcü (revised)
+The gözcü watches a house and sees **live**, during the night (private to the gözcü):
+- everyone who comes to that house (recognisable; also those turned back by a locked door), and
+- whether the **owner leaves**, and to **which house** they go.
+Never roles, never what anyone did. If someone died that night in a house the gözcü saw (the
+watched house, or the house the owner went to), that house's lights flicker in the dawn replay.
+The dawn report states the same in words.
+
+### 13.3 Gardiyan (new village role, `gardiyan`)
+- Chooses **during the day** which house to lock **the coming night** (secret; may change their
+  mind until the day ends; not their own house; not the same house two nights in a row). No lock
+  on night 1.
+- Locked house: the owner cannot go out (their night action is cancelled; they are told at night
+  start "Kapın dışarıdan kilitlendi"), and nobody can get in: anyone who comes (vampire, doktor,
+  kahin, cadı, iftiracı) finds the door locked, is told so at once ("Kapı kilitliydi") and goes
+  home; their action has no effect. The gözcü still sees them come to the door.
+- At dawn the gardiyan learns only how many tried the door ("Kilitlediğin kapıyı bu gece N kişi
+  zorladı"), not who. The lock holds for the night even if the gardiyan dies that night.
+- Dealing order of specials: doktor, kahin, gozcu, gardiyan, cadi, avci, muhtar, soytari.
+
+### 13.4 Village events (köy olayları)
+Room setting `events: 'off' | 'some' | 'often'`, default `'some'`. Announced by the town crier at
+the start of the phase they affect; shown in the HUD while active; the world changes the weather.
+| id | phase | effect |
+|---|---|---|
+| `tipi` (snowstorm) | night | villagers cannot leave their houses (doktor, kahin, gözcü, cadı, gardiyan's lock still holds); only the vampire team moves |
+| `ruzgar` (gale) | night | the campfire goes out, the village is pitch dark; the gözcü sees visitors only as silhouettes (count, no names) |
+| `kisa-gece` (short night) | night | night length halved |
+| `ayaz` (bitter cold) | day | day length halved |
+| `sis` (fog) | day | votes are secret: everyone sees only vote counts per player, not who voted for whom |
+| `mahkeme` (trial) | day | at the end of the day the two players with the most votes get a short defence, then the village re-votes between only those two |
+No `dolunay`, no `bereket` (rejected by the owner). Rules: at most one event per 3 rounds (`some`)
+or per 2 rounds (`often`); never the same event twice in a row; `tipi` never when the village side
+is at most one more than the evil side; `mahkeme` only with 6+ living players. Bots handle all of it.
+
+Deferred to round 5: Bombacı, vasiyet (last will), Âşıklar, Hızlı Köy mode, preset room settings.

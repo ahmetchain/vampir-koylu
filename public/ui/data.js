@@ -48,7 +48,12 @@ export const ROLES = {
   gozcu: {
     name: 'Gözcü', team: 'koylu', teamName: 'Köylüler', color: '#e8a33a',
     short: 'Bir evi gözetler.',
-    desc: 'Her gece bir evi pencereden gözetle, kendi evin de olur. Sabah o eve gece kimlerin girdiğini öğrenirsin: kurbanına giden vampirler, doktor, kahin, cadı ya da iftiracı. Kimin ne yaptığını değil, sadece kimlerin girdiğini görürsün.',
+    desc: 'Her gece bir evi pencereden gözetle, kendi evin de olur. Gece boyunca o eve kimlerin geldiğini (kapıdan dönenler dahil) ve ev sahibinin çıkıp hangi eve gittiğini canlı görürsün. Kimin ne yaptığını ya da rolünü göremezsin.',
+  },
+  gardiyan: {
+    name: 'Gardiyan', team: 'koylu', teamName: 'Köylüler', color: '#7f9cc4',
+    short: 'Gündüz bir kapıyı kilitler.',
+    desc: 'Gündüz, gelecek gece hangi evi kilitleyeceğini seçersin (gün bitene kadar değiştirebilirsin). Kilitli evin sahibi dışarı çıkamaz, gelen herkes kapıyı kilitli bulup geri döner. Kendi evini ya da arka arkaya iki gece aynı evi kilitleyemezsin; ilk gece kilit olmaz. Sabah kapıyı kaç kişinin zorladığını öğrenirsin, kimin olduğunu değil.',
   },
   cadi: {
     name: 'Cadı', team: 'koylu', teamName: 'Köylüler', color: '#6cc04a',
@@ -76,11 +81,11 @@ export const ROLES = {
     desc: 'Gece uyursun. Gündüz tartış, şüphelendiğin kişiye oy ver ve vampirleri bul.',
   },
 };
-export const ROLE_LIST = ['vampir', 'iftiraci', 'doktor', 'kahin', 'gozcu', 'cadi', 'avci', 'muhtar', 'soytari', 'koylu'];
+export const ROLE_LIST = ['vampir', 'iftiraci', 'doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'koylu'];
 // Sunucunun özel rolleri ekleme sırası (PROTOCOL §3).
-export const SPECIAL_ORDER = ['doktor', 'kahin', 'gozcu', 'cadi', 'avci', 'muhtar', 'soytari'];
-export const TOGGLE_ROLES = ['doktor', 'kahin', 'gozcu', 'cadi', 'avci', 'muhtar', 'soytari', 'iftiraci'];
-export const DEFAULT_ROLES = { doktor: true, kahin: true, gozcu: false, cadi: false, avci: false, muhtar: false, soytari: false, iftiraci: false };
+export const SPECIAL_ORDER = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari'];
+export const TOGGLE_ROLES = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'iftiraci'];
+export const DEFAULT_ROLES = { doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false, avci: false, muhtar: false, soytari: false, iftiraci: false };
 export const MIN_PLAYERS = 5;
 export const MAX_PLAYERS = 20;
 export const FRAMER_MIN = 7;
@@ -149,3 +154,22 @@ export function checkPassword(raw) {
   if (v.length > 72) return 'Şifre en fazla 72 karakter olabilir.';
   return null;
 }
+
+// Köy olayları (V2-PLAN §13.4) ertelendi: ayarı ve "Nasıl Oynanır" bölümü gizli, odalar 'off' kurulur.
+// Sunucu yine de bir olay gönderirse aşağıdaki tanımlarla gösterilir.
+export const EVENTS_UI = false;
+
+// Köy olayları (V2-PLAN §13.4). Bilinmeyen kimlikler adıyla gösterilir.
+export const EVENTS = {
+  tipi: { name: 'Tipi', icon: 'snow', phase: 'night', desc: 'Kar fırtınası: köylüler evlerinden çıkamaz. Doktor, kahin, gözcü ve cadı bu gece bir şey yapamaz; sadece vampir takımı dolaşır. Gardiyanın kilidi yine de tutar.' },
+  ruzgar: { name: 'Rüzgâr', icon: 'wind', phase: 'night', desc: 'Fırtına kamp ateşini söndürdü, köy zifiri karanlık. Gözcü gelenleri sadece gölge olarak görür: kaç kişi geldiğini bilir, kim olduklarını bilemez.' },
+  'kisa-gece': { name: 'Kısa gece', icon: 'moon', phase: 'night', desc: 'Bu gece yarı süre kadar sürer. Kararını çabuk ver!' },
+  ayaz: { name: 'Ayaz', icon: 'snow', phase: 'day', desc: 'Dondurucu soğuk: bugün gündüz yarı süre kadar sürer.' },
+  sis: { name: 'Sis', icon: 'fog', phase: 'day', desc: 'Oylar gizli: herkes kişi başına sadece oy sayısını görür, kimin kime oy verdiğini göremez. Kendi oyunu yine görürsün.' },
+  mahkeme: { name: 'Mahkeme', icon: 'gavel', phase: 'day', desc: 'Gün sonunda en çok oyu alan iki kişi kısa bir savunma yapar, sonra köy sadece bu ikisi arasında yeniden oylar.' },
+};
+export const EVENT_FREQ = [
+  ['off', 'Kapalı', 'Hiç köy olayı olmaz.'],
+  ['some', 'Ara sıra', 'En fazla 3 turda bir olay (varsayılan).'],
+  ['often', 'Sık', 'En fazla 2 turda bir olay.'],
+];

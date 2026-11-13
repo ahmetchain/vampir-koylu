@@ -346,3 +346,95 @@ lib/story/rumors.js     rumour templates + fact extraction from the public recor
 lib/story/sim.js        random game simulator (tests and samples only; the server does not use it)
 test/story-turkish.test.js, test/story-templates.test.js, test/story-game.test.js
 ```
+
+---
+
+## 9. Round 4 additions (plan §13: final choices, Gözcü, Gardiyan, village events)
+
+Nothing changes for final night choices or the revised Gözcü: both are private night mechanics
+and the engine never sees night actions. Everything below is additive: v1–3 calls keep working.
+
+### 9.1 New public-only calls
+
+```js
+story.event({ round, id })            // id: 'tipi'|'ruzgar'|'kisa-gece'|'ayaz'|'sis'|'mahkeme'
+  // -> { title, text, story, event: id }   town-crier announcement at the START of the affected phase
+story.trial({ round, defendants: [idA, idB] })   // mahkeme: the two players with the most votes
+  // -> { title: 'Mahkeme kuruldu', text: '<A> ile <B> savunma yapacak; ardından köy yalnızca bu ikisi arasında oy verecek.', story }
+story.defense({ round, id })          // call once per defendant, in speaking order (1st, then 2nd)
+  // -> { title: 'Savunma', text: "Söz <ad>'de.", story }   neutral: only the order and the name
+story.hanged({ ...as before, trial: true })   // verdict of the re-vote, ballots = RE-VOTE ballots
+story.noHang({ ...as before, trial: true })   // re-vote without a decision
+```
+`title`/`text` of `event()` are defaults (`EVENT_FACT` in `lib/story/events.js`); the server may use
+its own factual text. `story` is independent of it.
+
+New output field on two existing calls: `eventEnd: string` (`''` when nothing to close).
+- `dawn()` returns the closing line of a **night** event (tipi/rüzgâr/kısa gece): "Kar durdu, rüzgâr
+  çekildi. Kapıların önünde diz boyu kar var."
+- `night()` returns the closing line of a **day** event (ayaz/sis; mahkeme has none, its verdict
+  closes it): "Sis kalktı ama kimin kime oy verdiği sisle birlikte gitti."
+
+Log it as a separate `kind:'story'` line right after the dawn/night line (the UI may show it as a
+small second caption). It is kept separate on purpose: the dawn `story` itself is unchanged.
+
+### 9.2 Wiring (call sites in `game.js`)
+
+```js
+// when a night event starts (after startNight's narration):
+const ev = this.narrate('event', { round: this.round, id }, { title: …, text: … });
+this.storyLine(ev.story);
+this.announce('event', ev.title, ev.text, { event: id, story: ev.story });   // kind name is the server's choice
+
+// when a day event starts (after startDay's narration and rumour): same call with the day event id.
+// sis: call event() BEFORE any vote of that day (the engine then stops recording that day's votes).
+
+// dawn / night: log the closing line
+this.storyLine(dawn.eventEnd);      // after the death/safe story line
+this.storyLine(n.eventEnd);         // in startNight, after the night story line
+
+// mahkeme, at the end of the first vote:
+const t = this.narrate('trial', { round: this.round, defendants: [a.id, b.id] }, …);
+// each defence turn starts:
+const d = this.narrate('defense', { round: this.round, id: defendant.id }, …);
+// re-vote result: hanged/noHang exactly as today, with trial: true and the re-vote ballots.
+// Keep calling story.vote(...) for re-vote changes as usual.
+```
+
+### 9.3 Secrecy rules (enforced by the engine, tested)
+
+- **Gardiyan / locks are secret.** Never pass who locked which door, who was locked in, or how many
+  tried the door. The engine has no input for any of it and ignores unknown fields, so a quiet
+  night caused by a lock is narrated exactly like any other quiet night (tested by adding lock
+  fields to every input: outputs stay byte-identical). Private announces ("Kapın dışarıdan
+  kilitlendi", "Kapı kilitliydi", "Kilitlediğin kapıyı bu gece N kişi zorladı") are never narrated.
+- **Sis (secret votes).** After `event({ id: 'sis' })` for round r, that day's `vote()` calls are
+  ignored and the ballots passed to `hanged/noHang/sleep` are discarded: the
+  engine stores no voter→target link for that day. You may still pass the ballots (or omit them);
+  `votes` (the n in the text) must be passed explicitly for `hanged`. Rumours never use a sis day's
+  votes; only chat rumours (public) can refer to that day. Tested by shuffling the voters of sis-day
+  ballots and vote trails: outputs stay identical.
+- **Mahkeme.** Only the re-vote ballots are recorded, so from a trial day the engine only tells
+  rumours that are true about the decisive vote (close call, tie, voted-for-then-victim, voted for
+  the eliminated player), plus chat rumours.
+- Once a sis or trial day has happened, "whole-game" vote rumours (never voted, most/least voted,
+  always-together pairs) are switched off for the rest of the game, because the engine no longer
+  has the complete public record.
+- `trial()`/`defense()` take only ids: defence lines cannot depend on the defendant's role, and
+  their wording is neutral (no "terledi", "ikna etti", "masum", … – tested).
+
+### 9.4 Gardiyan in the role vocabulary
+
+`gardiyan` is a village-team role for public reveals (`Rolü: Gardiyan.`), with its own reactions for
+a night death / hunter shot and for an elimination, and job twists work as for any village role
+(an innocent-loss job line). Never mentioned while roles are hidden (tested). In the epilogue the
+recap counts it as village side.
+
+### 9.5 Content
+
+- Event announcements: 5 generic lines per event, plus scenario lines where they fit (Kara Kış:
+  tipi, ayaz; Sisli Vadi: sis, rüzgâr; Kanlı Ay: kısa gece, rüzgâr; Hasat Şenliği, Veba Söylentisi,
+  Panayır: mahkeme and rüzgâr/sis). Closing lines: 3 per event (+ scenario).
+- Mahkeme: 6 openings, 6 + 6 defence turns, 4 verdict codas, 5 no-decision lines.
+- Epilogue may add "Köy bu hikâye boyunca bir tipi ile bir mahkeme gördü."
+- New file: `lib/story/events.js`. New tests: `test/story-round4.test.js`.

@@ -5,7 +5,7 @@ import { $, esc, sfx, stripEmoji } from './util.js';
 import { icon } from './icons.js';
 import { openSheet } from './kit.js';
 
-const KIND_IC = { info: 'scroll', night: 'moon', day: 'sun', death: 'tomb', safe: 'sun', win: 'trophy', story: 'sparkle', rumor: 'bell', note: 'eye', epilogue: 'book' };
+const KIND_IC = { info: 'scroll', night: 'moon', day: 'sun', death: 'tomb', safe: 'sun', win: 'trophy', story: 'sparkle', rumor: 'bell', note: 'eye', epilogue: 'book', event: 'bell' };
 let lastSeenTs = 0;
 let lastRumorTs = 0;
 let crierTimer = null;
@@ -35,7 +35,7 @@ export function chronicleOnState(state) {
   const rumor = [...log].reverse().find((l) => l.kind === 'rumor');
   if (rumor && rumor.ts > lastRumorTs) {
     lastRumorTs = rumor.ts;
-    if (['day', 'night', 'hunter'].includes(state.room.phase)) showCrier(rumor.text);
+    if (['day', 'night', 'trial', 'hunter'].includes(state.room.phase)) showCrier(rumor.text);
   }
 }
 

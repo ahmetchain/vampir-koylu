@@ -648,7 +648,7 @@
       trees.forEach(function (t) { items.push({ y: proj(t.u, t.v).y, f: function () { drawTree(t, night); } }); });
       houses.forEach(function (h) { items.push({ y: proj(h.u, h.v).y, f: function () { drawHouse(h, night, now); } }); });
       var meId = state && state.me && state.me.id;
-      var viewerGhost = state && ['night', 'day', 'hunter', 'reveal'].indexOf(state.room.phase) >= 0 && state.me && !state.me.alive;
+      var viewerGhost = state && ['night', 'day', 'trial', 'hunter', 'reveal'].indexOf(state.room.phase) >= 0 && state.me && !state.me.alive;
       if (view === 'game') {
         ents.forEach(function (e) {
           // hareket
