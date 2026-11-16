@@ -437,3 +437,81 @@ Deferred to round 5: Bombacı, vasiyet (last will), Âşıklar, Hızlı Köy mod
   değil", and if the game ends before a successful theft the thief loses.
 - Dealing order of specials: doktor, kahin, gozcu, gardiyan, cadi, avci, muhtar, soytari, deli,
   hirsiz. Both default off.
+
+## 15. Round 6 (owner feedback of 2026-11-17): night in two stages, Kahin as detective, random dealing, simpler mobile UI
+
+### 15.1 Night = pick stage + show stage  (server is the source of truth; world and UI follow)
+`phase` stays `'night'`. `room.night = { stage: 'walk'|'pick'|'show', pickUntil, showUntil }`
+(ms timestamps; `room.deadline` = `pickUntil` during walk/pick and `showUntil` during show;
+`room.timerFrom` as today).
+- **walk** (4 s, as today): everyone goes home. Picks already allowed.
+- **pick** (`settings.nightSec`, default **20**, range 10–60): every night role makes its final
+  pick. New `night:pass {}` for a player who may act but chooses not to tonight (Hırsız, Cadı, or
+  anyone). When every living, unlocked player who can act has picked or passed, the pick stage ends
+  early (after a 1.5 s grace). Nothing moves in the village during this stage.
+- **show** (`NIGHT_SHOW_MS` = 14000): the server resolves the night at the start of this stage and
+  everything that happened is played back. No picks. Then dawn (public announce), as today.
+
+**Resolution order** (replaces "everything at once"):
+1. Gardiyan's lock (chosen by day) holds all night: the locked-in owner does nothing; visitors bounce.
+2. Kills in order: vampires' team target, then the Hırsız (unless the Hırsız was killed by the
+   vampires), then the Cadı's poison (unless the Cadı was killed in step 2 before her turn).
+3. A doktor's protection / Cadı's heal counts unless its owner is killed by the vampires' attack.
+   Protection stops any kill (as today); heal stops the vampire attack only.
+4. **Anyone killed this night never left home**: their own non-kill action (inspect, watch,
+   protect — subject to 3 —, frame, lock report, fake actions of a Deli) is cancelled, no trip, no result.
+5. Only actions that really happen create trips (what a Gözcü can see).
+
+**Per-viewer playback data** in `state.night.show` during the show stage (private; every field
+optional; never contains anything the viewer may not know):
+```
+show: {
+  trip:  { to, kind: 'kill'|'steal'|'protect'|'heal'|'poison'|'inspect'|'frame'|'watch',
+           outcome: 'done'|'bounced'|'saved'|'foiled', interior: bool },   // my own walk; interior only for kill/steal/poison
+  team:  [{ id, to, outcome }],            // evil team-mates walking with me (evil team only)
+  home:  [{ kind: 'attack'|'steal'|'poison'|'protect', result: 'died'|'saved' }],  // what happens in MY house, in order; visitors are anonymous
+  dead:  true,                              // I die tonight (I see it now; public at dawn)
+  watch: { houseId, arrivals: [{ id, blocked }], ownerWent: id|null, died: bool },  // gözcü; ids null in darkness events
+  saved: true                               // doktor/cadı: my protection actually stopped an attack → green plus signs
+}
+```
+Private result announces (kahin, gözcü report, steal, stealfail, bounced, lockreport, plus new
+`saved` for the protector, `attacked` for a saved victim, `killed` for a dying victim) are emitted
+by the server 9 s into the show stage, so they appear after the walking. The Gözcü no longer has a
+live panel during pick; arrivals are shown during show. Deli fakes follow the same shapes.
+
+**What each player sees in the show stage (world):** always the village from outside. Their own
+character (and evil team-mates) leaves home, walks to the target house, goes in, comes out and
+**walks back home** (no staying inside for the rest of the night). Interior view only for killers
+(vampire team, Hırsız, Cadı poisoning) while they are inside, and for the owner of a house where a
+kill is attempted: the owner sees anonymous black silhouettes (attacker; and the protector if
+saved, with green plus signs) and, if they die, their death scene right then. A doktor sees green
+plus signs rise from the house only when the protection actually stopped an attack. Players with
+nothing to see watch the quiet village. Tapping a house (body or name plaque) selects it on
+phones as well as the name strip.
+
+### 15.2 Kahin becomes a detective
+The Kahin's result is **two roles, one of which is the target's real role** (order shuffled):
+`seer` announce `{ targets:[{id}], roles:[a,b] }`, text "X şu ikisinden biri: A ya da B."
+The decoy is drawn from the roles that can be in this game (incl. köylü, vampir), is fixed per
+(kahin, target) for the whole game (re-inspecting gives the same pair), and is never the real role.
+A Deli shows as the role they believe; an İftiracı's frame makes `vampir` one of the two; a Deli
+who thinks they are Kahin gets two random roles.
+
+### 15.3 Random dealing
+`settings.roleMode: 'random' | 'all'`, default `'random'`. In `'random'`: vampires by player count
+as today; İftiracı (if enabled, 7+ players) is dealt with 60 % chance; plain köylü slots =
+max(1, round(players × 0.2)); the remaining slots are filled by a random draw from the enabled
+village specials (at least one of kahin/gözcü if enabled). Lobby shows what is certain and the
+candidate pool (`distribution` + `rolePool`, plus `rolePool.maybe` for İftiracı). `'all'` = today's rule.
+
+### 15.4 Mobile UI (phones first)
+- Lobby: no tall card. One compact bar (start button, a few icon buttons); room code in the top
+  bar; roles/settings/invite in sheets. The collapse ("−") bug that shifts the screen goes away
+  with the card.
+- Town crier: no banner on phones; the rumour is a single quiet line in the chat feed/chronicle.
+- Chat must be genuinely comfortable to use on a phone (opening, reading, typing with the
+  keyboard up, closing); speech bubbles are short and never pile up.
+- Night HUD: pick stage = prompt + countdown (+ "Bu gece bekle" where passing makes sense);
+  show stage = HUD steps back so the animation is visible; result cards after.
+- "Nasıl oynanır": each role explained properly (what, when, limits, interactions, a tip).
