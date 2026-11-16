@@ -3,12 +3,19 @@ import { ctx, send, iAmHost } from './ctx.js';
 import { openSheet } from './kit.js';
 import { esc, clamp, sfx, store } from './util.js';
 import { icon, emblem } from './icons.js';
-import { ROLES, TOGGLE_ROLES, DEFAULT_ROLES, distribution, countRoles, FRAMER_MIN, THIEF_MIN, MIN_PLAYERS, MAX_PLAYERS, EVENTS, EVENT_FREQ, EVENTS_UI } from './data.js';
+import { ROLES, TOGGLE_ROLES, DEFAULT_ROLES, distribution, distributionPlan, countRoles, FRAMER_MIN, THIEF_MIN, MIN_PLAYERS, MAX_PLAYERS, EVENTS, EVENT_FREQ, EVENTS_UI } from './data.js';
 
 const LAST_KEY = 'vk.lastSettings';
 
 export function distChips(list) {
   return countRoles(list).map(({ role, n }) => `<span class="chip">${emblem(role, 's')}${n > 1 ? `${n} × ` : ''}${ROLES[role].name}</span>`).join('');
+}
+
+// Rastgele kısım: "7 özel rolden 6'sı çıkacak" + aday roller.
+export function poolNote(pool) {
+  if (!pool) return '';
+  const names = pool.from.map((r) => `<span class="chip">${emblem(r, 's')}${ROLES[r].name}</span>`).join('');
+  return `<p class="muted" style="margin:6px 0 0">${pool.from.length} özel rolden ${pool.pick} tanesi çıkacak; hangisinin dışarıda kalacağı rastgele.</p><div class="dist">${names}</div>`;
 }
 
 function formHTML(s, editable, withRoomFields, sampleN) {
@@ -52,7 +59,7 @@ function formHTML(s, editable, withRoomFields, sampleN) {
       <div class="explain">
         <p>Vampir sayısı oyuncu sayısına göre belirlenir: 5–9 kişide 1, 10–14 kişide 2, 15 ve üstünde 3 vampir.</p>
         <p>İftiracı açıksa ve en az ${FRAMER_MIN} oyuncu varsa vampirlere ek olarak 1 İftiracı dağıtılır.</p>
-        <p>Açık özel roller şu sırayla, yer kaldıkça eklenir: Doktor, Kahin, Gözcü, Gardiyan, Cadı, Avcı, Muhtar, Soytarı, Deli, Hırsız. Hırsız sadece en az ${THIEF_MIN} oyuncuda dağıtılır. Her oyunda en az bir sade köylü kalır.</p>
+        <p>Açık özel roller şu sırayla, yer kaldıkça eklenir: Doktor, Kahin, Gözcü, Gardiyan, Cadı, Avcı, Muhtar, Soytarı, Deli, Hırsız. Hırsız sadece en az ${THIEF_MIN} oyuncuda dağıtılır. 8 kişiden az oyunda en az bir sade köylü kalır. Roller sığmazsa hangilerinin çıkacağı her oyun rastgele seçilir (kahin/gözcüden en az biri hep çıkar).</p>
       </div>
       <div class="row-between" style="margin-top:8px"><b class="small">Örnek: <span data-n>${sampleN}</span> oyuncu</b></div>
       <input type="range" min="${MIN_PLAYERS}" max="${MAX_PLAYERS}" value="${sampleN}" data-sample aria-label="Örnek oyuncu sayısı">
@@ -66,7 +73,8 @@ function bindForm(root, s, onChange) {
   const update = () => {
     const n = Number(root.querySelector('[data-sample]').value);
     root.querySelector('[data-n]').textContent = n;
-    root.querySelector('[data-dist]').innerHTML = distChips(distribution(n, s.roles));
+    const plan = distributionPlan(n, s.roles);
+    root.querySelector('[data-dist]').innerHTML = distChips(plan.list) + poolNote(plan.pool);
     onChange && onChange();
   };
   root.addEventListener('click', (e) => {

@@ -87,11 +87,12 @@ Every night choice is **final** once accepted (no change, no clearing).
 
 "Evil" / vampire team = `vampir` + `iftiraci`.
 
-Dealing (`room.distribution` shows the result for the current player count):
-`[vampires..., iftiraci?, specials..., koylu...]`. Enabled specials are added in the order
-**doktor, kahin, gozcu, gardiyan, cadi, avci, muhtar, soytari, deli, hirsiz** (Hırsız only with ≥ 7 players)
-while there is room; at least one plain
-`koylu` always remains (room for specials = players − vampires − iftiracı − 1).
+Dealing: `[vampires..., iftiraci?, specials..., koylu...]`. Slots for village specials = players − vampires − iftiracı
+− (1 if players < 8, the reserved plain `koylu`; with 8+ players all slots may go to specials). Hırsız only with ≥ 7 players.
+If the enabled specials fit, all are dealt. If more are enabled than there are slots, the dealt ones are chosen **at random
+per game**; if kahin and/or gözcü are enabled, at least one of them is always dealt.
+Lobby preview: `room.distribution` is deterministic and lists only the certain roles (vampires, iftiracı, certain specials,
+koylu) and never reveals a game's draw; the random part is `room.rolePool` (§9).
 Examples: 7 players with doktor, kahin, gözcü, iftiracı on → `vampir, iftiraci, doktor, kahin, gozcu, koylu, koylu`;
 6 players with iftiracı on → no İftiracı.
 
@@ -347,7 +348,10 @@ Sent per viewer. Full shape:
     minPlayers: 5, maxPlayers: 20,
     vampireCount: 1,                   // computed from the current number of non-left seats
     distribution: ["vampir", "doktor", "kahin", "koylu", "koylu"],  // roles that would be dealt for the current
-                                       // number of non-left seats (lobby preview; recomputed, so it shrinks when players leave mid-game)
+                                       // number of non-left seats (lobby preview; recomputed, so it shrinks when players leave mid-game);
+                                       // excludes the random part, so its length is players − rolePool.pick when rolePool is set
+    rolePool: null | { pick: 6, from: ["doktor", "kahin", ...] },   // more specials enabled than slots: `pick` of `from`
+                                       // are dealt at random per game (kahin/gozcu guaranteed at least one); null when all fit
     hunterId: "player-uuid" | null,    // the hunter who is shooting (phase 'hunter')
     scenario: null | { id, name, intro },    // theme of this game (§16); set at game:start, null again after game:lobby
     epilogue: null | { title, text, story }, // "Köy Günlüğü" recap (§16); only in phase 'ended' (null on fallback)

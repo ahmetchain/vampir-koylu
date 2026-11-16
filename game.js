@@ -196,19 +196,53 @@ function vampireCount(playerCount) {
   return 1;
 }
 
-// Oyuncu sayısına göre dağıtılacak roller. İftiracı açıksa ve en az 7 kişi varsa vampirlere ek olarak
-// bir iftiracı verilir. Özel roller verilen sırayla eklenir, en az bir sade köylü her zaman kalır.
-function rolesFor(count, specials = [ROLE.DOCTOR]) {
+const RESERVED_VILLAGER_BELOW = 8;   // bu sayının altında en az bir sade köylü ayrılır
+
+// Dağıtım planı: sabit roller ve rastgele kısmı. Özel roller sığıyorsa hepsi sabittir; sığmıyorsa
+// hangilerinin çıkacağı oyun başına rastgele seçilir (pool = { pick, from }).
+function rolePlan(count, specials = [ROLE.DOCTOR]) {
   const vampires = vampireCount(count);
   const framer = specials.includes(ROLE.FRAMER) && count >= FRAMER_MIN_PLAYERS ? 1 : 0;
-  const villageSpecials = specials.filter((r) => r !== ROLE.FRAMER && r !== ROLE.VAMPIRE && r !== ROLE.VILLAGER
+  const village = SPECIAL_ROLES.filter((r) => specials.includes(r)
     && !(r === ROLE.THIEF && count < THIEF_MIN_PLAYERS));
-  const room = Math.max(0, count - vampires - framer - 1);
-  const list = Array(vampires).fill(ROLE.VAMPIRE);
-  if (framer) list.push(ROLE.FRAMER);
-  list.push(...villageSpecials.slice(0, room));
+  const slots = Math.max(0, count - vampires - framer - (count < RESERVED_VILLAGER_BELOW ? 1 : 0));
+  const base = Array(vampires).fill(ROLE.VAMPIRE);
+  if (framer) base.push(ROLE.FRAMER);
+  if (village.length <= slots) return { base, fixed: village, pool: null, slots };
+  return { base, fixed: [], pool: slots > 0 ? { pick: slots, from: village } : null, slots };
+}
+
+// Oyuncu sayısına göre dağıtılacak roller. İftiracı açıksa ve en az 7 kişi varsa vampirlere ek olarak
+// bir iftiracı verilir. 8'den az kişide bir sade köylü ayrılır. Özel roller sığmazsa rng ile rastgele
+// seçilir; kahin/gözcüden en az biri (açıksa) her zaman çıkar.
+function rolesFor(count, specials = [ROLE.DOCTOR], rng = crypto.randomInt) {
+  const plan = rolePlan(count, specials);
+  let chosen = plan.fixed;
+  if (plan.pool) {
+    const { pick, from } = plan.pool;
+    const must = from.filter((r) => r === ROLE.SEER || r === ROLE.WATCHER);
+    const picked = [];
+    if (must.length) picked.push(must[rng(must.length)]);
+    const rest = from.filter((r) => !picked.includes(r));
+    for (let i = rest.length - 1; i > 0; i--) {
+      const j = rng(i + 1);
+      [rest[i], rest[j]] = [rest[j], rest[i]];
+    }
+    picked.push(...rest.slice(0, pick - picked.length));
+    chosen = SPECIAL_ROLES.filter((r) => picked.includes(r));
+  }
+  const list = [...plan.base, ...chosen];
   while (list.length < count) list.push(ROLE.VILLAGER);
   return list;
+}
+
+// Lobi önizlemesi: deterministik. distribution = kesin roller (+ köylüler), rolePool = rastgele kısım.
+function distributionFor(count, specials = [ROLE.DOCTOR]) {
+  const { base, fixed, pool } = rolePlan(count, specials);
+  const list = [...base, ...fixed];
+  const target = count - (pool ? pool.pick : 0);
+  while (list.length < target) list.push(ROLE.VILLAGER);
+  return { distribution: list, rolePool: pool };
 }
 
 function shuffle(arr) {
@@ -219,9 +253,9 @@ function shuffle(arr) {
   return arr;
 }
 
-function assignRoles(ids, specials = [ROLE.DOCTOR]) {
+function assignRoles(ids, specials = [ROLE.DOCTOR], rng) {
   const shuffled = shuffle([...ids]);
-  const list = rolesFor(ids.length, specials);
+  const list = rolesFor(ids.length, specials, rng);
   const roles = new Map();
   shuffled.forEach((id, i) => roles.set(id, list[i]));
   return roles;
@@ -682,7 +716,7 @@ class Room {
       ? { id: sc.id, name: typeof sc.name === 'string' ? sc.name : '', intro: cleanStory(sc.intro) }
       : null;
 
-    const summary = describeRoles(rolesFor(this.players.size, specials));
+    const summary = describeRoles([...this.players.values()].map((p) => p.role));
     this.addLog(`Oyun başladı: ${this.players.size} oyuncu (${summary}).`, 'info');
     this.storyLine(n.story);
     this.setPhase('reveal', REVEAL_MS, () => this.startNight());
@@ -1835,7 +1869,7 @@ class Room {
         hasPassword: Boolean(this.password), winner: this.winner, winners: this.winners,
         minPlayers: MIN_PLAYERS, maxPlayers: MAX_PLAYERS,
         vampireCount: vampireCount(activeCount),
-        distribution: rolesFor(activeCount, enabledSpecials(this.settings)),
+        ...distributionFor(activeCount, enabledSpecials(this.settings)),
         hunterId: this.hunterId,
         scenario: this.scenario,
         epilogue: this.phase === 'ended' ? this.epilogue : null,
@@ -1962,5 +1996,5 @@ module.exports = {
   EVENTS, EVENT_MODES, EVENT_GAP, EVENT_CHANCE, chooseEvent, LOBBY_GRACE_MS, EMPTY_ROOM_MS,
   LOG_MAX, SCENES,
   THIEF_MIN_PLAYERS, MAD_FAKE_ROLES,
-  vampireCount, assignRoles, rolesFor, winnerOf, tally, normalizeSettings, teamOf, isEvil, clampToPlaza,
+  vampireCount, assignRoles, rolesFor, rolePlan, distributionFor, winnerOf, tally, normalizeSettings, teamOf, isEvil, clampToPlaza,
 };
