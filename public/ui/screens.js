@@ -5,7 +5,7 @@ import { Api, auth } from './api.js';
 import { openSheet, promptBox, toast, confirmBox } from './kit.js';
 import { $, $$, esc, sfx, store, session } from './util.js';
 import { icon, emblem, logoMark } from './icons.js';
-import { ROLES, ROLE_LIST, COLORS, inkOn, levelOf, checkUsername, checkPassword, TEAM_NAME, EVENTS, EVENTS_UI } from './data.js';
+import { ROLES, ROLE_LIST, COLORS, inkOn, levelOf, checkUsername, checkPassword, TEAM_NAME, EVENTS, EVENTS_UI, ROLE_GROUPS, ROLE_GUIDE } from './data.js';
 import { preview, W, prefers2D, setPrefers2D, isFallback } from './world-host.js';
 import { openLookEditor } from './look.js';
 import { openCreateRoom } from './roomform.js';
@@ -274,10 +274,15 @@ async function openLeaderboard() {
 
 // ======================= NASIL OYNANIR =======================
 export function openHowto() {
-  const roles = ROLE_LIST.map((r) => `
-    <article class="role-card">${emblem(r, 'l')}
-      <div><h4>${ROLES[r].name} <span class="team-tag team-${ROLES[r].team}">${ROLES[r].teamName}</span></h4>
-      <p>${ROLES[r].desc}</p>${ROLES[r].note ? `<p><b>${ROLES[r].note}</b></p>` : ''}</div></article>`).join('');
+  const roleAcc = (r) => {
+    const g = ROLE_GUIDE[r] || {};
+    const row = (k, label) => (g[k] ? `<div><dt>${label}</dt><dd>${g[k]}</dd></div>` : '');
+    return `<details class="role-acc" style="--rc:${ROLES[r].color}">
+      <summary>${emblem(r, 'm')}<span><b>${ROLES[r].name}</b><small>${ROLES[r].short}</small></span>${icon('chevDown')}</summary>
+      <dl>${row('what', 'Ne yapar')}${row('when', 'Ne zaman')}${row('limits', 'Sınırlar')}${row('with', 'Diğer rollerle')}${row('tip', 'İpucu')}</dl></details>`;
+  };
+  const roles = ROLE_GROUPS.map(([team, title, list]) => `<div class="role-group"><h4 class="role-group-h"><span class="team-tag team-${team}">${title}</span></h4>${list.filter((r) => ROLES[r]).map(roleAcc).join('')}</div>`).join('');
+  void ROLE_LIST;
   openSheet({
     title: 'Nasıl Oynanır?',
     wide: true,
@@ -287,8 +292,9 @@ export function openHowto() {
       <div><div class="section-title">Oyun akışı</div>
       <ol class="steps">
         <li><strong>Roller dağıtılır.</strong> Herkes sadece kendi kartını görür. Rolünü kimseye söyleme! Vampirler ve İftiracı birbirini tanır.</li>
-        <li><strong>Gece.</strong> Herkes evine çekilir, köylüler konuşamaz. Gece görevi olanlar birini seçer, onaylar ve karakterleri o kişinin evine gizlice gider. <b>Onaylanan seçim kesindir</b>, geri alınamaz. Vampirlerin tek ortak hedefi vardır: ilk onaylayan vampir hedefi belirler, diğerleri de oraya gider. Gardiyanın gündüzden seçip kilitlediği eve kimse giremez, ev sahibi de dışarı çıkamaz.</li>
-        <li><strong>Sabah.</strong> Gece ne olduğu duyurulur. Kahin baktığı kişinin sonucunu gizlice öğrenir. Gözcü gözetlediği eve kimlerin geldiğini gece boyunca canlı görür, sabah da raporunu alır. Gardiyan kilitlediği kapıyı kaç kişinin zorladığını öğrenir. Ölen kişi Avcıysa son atışını yapar.</li>
+        <li><strong>Gece: seçim.</strong> Herkes evine çekilir, köylüler konuşamaz. Sayaç işlerken gece görevi olanlar birini seçer ve onaylar; <b>onaylanan seçim kesindir</b>. İstemeyen "Bu gece bekle" der. Bu sırada köyde kimse kıpırdamaz. Vampirlerin tek ortak hedefi vardır: ilk onaylayan vampir belirler.</li>
+        <li><strong>Gece: yaşanış.</strong> Seçimler bitince gece oynanır: herkes kendi yolunu yürür, kapıya varır, döner. Sıra şöyledir: önce Gardiyanın kilidi (kilitli eve kimse giremez, sahibi de çıkamaz), sonra vampirlerin saldırısı, sonra Hırsız, sonra Cadının zehri. Bu gece ölen kişi evinden hiç çıkmamış sayılır: onun bakışı, koruması ya da iftirası olmaz. Kahin, Gözcü ve diğerlerinin özel sonuçları bu sırada sadece kendilerine gelir.</li>
+        <li><strong>Sabah.</strong> Gece kimin öldüğü herkese duyurulur. Ölen kişi Avcıysa son atışını yapar.</li>
         <li><strong>Gündüz.</strong> Herkes tartışır ve şüphelendiği kişiye oy verir: karaktere ya da alttaki oyuncu şeridine dokun. Oylar herkese açıktır. Süre bitince en çok oy alan kişi asılır; eşitlikte kimse asılmaz. Herkes oy verdiyse süre 10 saniyeye iner.</li>
         <li><strong>Hızlı Uyu.</strong> Kimseyi asmak istemiyorsanız <em>Hızlı Uyu</em>'ya basın. Yaşayan herkes basarsa hemen geceye geçilir. Hızlı Uyu "kimseyi asmayalım" oyu da sayılır.</li>
         <li>Gece ve gündüz, bir taraf kazanana kadar sırayla devam eder.</li>

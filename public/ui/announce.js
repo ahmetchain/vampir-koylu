@@ -5,14 +5,14 @@ import { $, esc, sleep, sfx, vibrate, reducedMotion } from './util.js';
 import { icon, emblem } from './icons.js';
 import { W } from './world-host.js';
 import { appendSystem } from './chat.js';
-import { EVENTS } from './data.js';
+import { EVENTS, ROLES } from './data.js';
 
 const queue = [];
 let playing = false;
 let skipFn = null;
 let gen = 0;
 
-const PRIVATE = { seer: true, watch: true, promote: true, locked: true, bounced: true, lockreport: true, steal: true, stealfail: true };
+const PRIVATE = { seer: true, watch: true, promote: true, locked: true, bounced: true, lockreport: true, steal: true, stealfail: true, saved: true, attacked: true, killed: true, rattled: true };
 const KIND = {
   start: ['sparkle', '#f4e4c1', 'start'],
   night: ['moon', '#8fb4ff', 'night'],
@@ -36,6 +36,10 @@ const KIND = {
   trial: ['gavel', '#ffb347', 'bell'],
   steal: ['role:hirsiz', null, 'whoosh'],
   stealfail: ['role:hirsiz', null, 'door'],
+  saved: ['role:doktor', null, 'safe'],
+  attacked: ['hand', '#ffb347', 'door'],
+  killed: ['tomb', '#d7263d', 'death'],
+  rattled: ['lock', '#7f9cc4', 'door'],
 };
 
 export function initAnnounce() {
@@ -46,13 +50,35 @@ export function initAnnounce() {
   });
 }
 
+// Gece duyurusu: karar süresini yemesin diye küçük, sessiz bir şerit (sıraya girmez, hiçbir şeyi örtmez).
+let nbTimer = 0;
+function nightBanner(a) {
+  let el = $('#night-banner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'night-banner';
+    el.className = 'night-banner';
+    el.addEventListener('click', () => el.classList.remove('on'));
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<span class="nb-ic">${icon('moon')}</span><div class="nb-body"><b>${esc(a.title || '')}</b><span>${esc(a.story || a.text || '')}</span></div>`;
+  el.classList.add('on');
+  clearTimeout(nbTimer);
+  nbTimer = setTimeout(() => el.classList.remove('on'), 3000);
+  sfx('night');
+  W.announce(a, 12000).catch(() => {});
+}
+
 export function pushAnnounce(a) {
   if (!a || !a.kind) return;
-  queue.push(a);
+  // Bu gece öldürüldün: sabaha kadar gece etiketinde gösterilir.
+  if (a.kind === 'killed' && ctx.state) ctx.killedRound = ctx.state.room.round;
+  if (a.kind !== 'night') queue.push(a);
   // Sohbet geçmişine de kısa bir satır.
   // Özel duyurular (kahin, gözcü, dönüşüm) sadece bu oyuncuya gelir; akışta da öyle olduğu açıkça yazsın.
   appendSystem(`${PRIVATE[a.kind] ? 'Sadece sen görüyorsun · ' : ''}${a.title}: ${a.text}`, a.kind === 'night' ? 'moon' : a.kind === 'death' || a.kind === 'hanged' || a.kind === 'shot' ? 'tomb' : PRIVATE[a.kind] ? 'eye' : 'scroll');
-  if (!playing) next(gen);
+  if (a.kind === 'night') nightBanner(a);
+  else if (!playing) next(gen);
 }
 
 export function isAnnouncing() { return playing; }
@@ -65,6 +91,8 @@ export function clearAnnounces() {
   const el = $('#announce');
   el.classList.remove('on');
   el.hidden = true;
+  const nb = $('#night-banner');
+  if (nb) nb.classList.remove('on');
 }
 
 async function next(g) {
@@ -89,6 +117,11 @@ async function next(g) {
   $('#lt-title').textContent = a.title || '';
   const text = a.text || '';
   $('#lt-text').textContent = text;
+  // Kahin (§15.2): "X şu ikisinden biri" — iki rol amblemi yan yana.
+  const two = a.kind === 'seer' && Array.isArray(a.roles) ? a.roles.filter((r) => ROLES[r]) : [];
+  const rolesEl = $('#lt-roles');
+  rolesEl.hidden = two.length < 2;
+  rolesEl.innerHTML = two.length < 2 ? '' : two.map((r) => `<span class="lt-role">${emblem(r, 'l')}<b>${ROLES[r].name}</b></span>`).join('<span class="lt-or">ya da</span>');
   const story = $('#lt-story');
   story.hidden = !a.story;
   const scen = a.kind === 'start' && a.scenario && a.scenario.name ? `<b class="lt-scen">${esc(a.scenario.name)}</b>` : '';

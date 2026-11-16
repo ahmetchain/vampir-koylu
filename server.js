@@ -392,6 +392,8 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
     act('night:select', ({ room, player }, data) => (
       room.selectNight(player.id, String(data.targetId || ''), data.action === 'poison' ? 'poison' : 'heal')
     ));
+    // "Bu gece bekle": seçim yapabilecek biri bu gece bir şey yapmaz (kesin); herkes seçince gece erken ilerler.
+    act('night:pass', ({ room, player }) => room.passNight(player.id));
     act('hunter:shoot', ({ room, player }, data) => room.shoot(player.id, String(data.targetId || '')));
     // Gardiyan gündüz gelecek gecenin kilidini seçer (targetId: null = vazgeç).
     act('day:lock', ({ room, player }, data) => (

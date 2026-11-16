@@ -28,6 +28,10 @@ export function initChat() {
   el.close.innerHTML = icon('close');
 
   el.list.addEventListener('click', () => { if (!isOpen && !docked.matches) openChat(); });
+  // Telefonda yazmak açık sayfada olur: son mesajlar klavyenin üstünde görünür kalır.
+  el.input.addEventListener('focus', () => { if (!isOpen && !docked.matches && coarse.matches) openChat(); });
+  // Gönder'e dokunmak girişten odağı almasın (klavye kapanmasın).
+  el.send.addEventListener('pointerdown', (e) => { if (document.activeElement === el.input) e.preventDefault(); });
   el.toggle.addEventListener('click', () => { sfx('click'); if (isOpen) closeChat(); else openChat(); });
   el.close.addEventListener('click', () => closeChat());
   el.backdrop.addEventListener('click', () => closeChat());
@@ -49,6 +53,7 @@ export function initChat() {
     const res = await send('chat:send', { text });
     el.send.disabled = false;
     if (res.ok) el.input.value = '';
+    if (isOpen || docked.matches) el.list.scrollTop = el.list.scrollHeight;
   });
 
   // Klavye açıkken (giriş odakta ve görünür alan belirgin biçimde küçüldüyse): oyuncu şeridi ve
@@ -61,6 +66,8 @@ export function initChat() {
     maxH = Math.max(maxH, h);
     const open = document.activeElement === el.input && coarse.matches && h < maxH * 0.8;
     el.app.classList.toggle('kbd', open);
+    // Klavye açılıp kapanınca en yeni mesajlar görünür kalsın.
+    if (isOpen) requestAnimationFrame(() => { el.list.scrollTop = el.list.scrollHeight; });
   };
   el.input.addEventListener('focus', () => setTimeout(kbd, 50));
   el.input.addEventListener('blur', kbd);
@@ -104,6 +111,7 @@ export function closeChat() {
   isOpen = false;
   el.chat.dataset.open = 'false';
   el.room.classList.remove('chat-open');
+  if (document.activeElement === el.input && coarse.matches) el.input.blur();
   el.list.scrollTop = el.list.scrollHeight;
 }
 export function chatIsOpen() { return isOpen; }
@@ -137,7 +145,8 @@ export function appendChat(m) {
   node.vkTrack = !mine;
   node.vkSeen = 0;
   push(node);
-  W.bubble(m.fromId, m.text, m.channel);
+  const t = String(m.text || '');
+  W.bubble(m.fromId, t.length > 64 ? `${t.slice(0, 62).trimEnd()}…` : t, m.channel);
   if (!mine) sfx('message', { volume: 0.5 });
 }
 

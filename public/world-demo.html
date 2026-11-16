@@ -60,6 +60,8 @@
     <div class="row">Seçimim: <select id="mysel"></select>
       <button id="witch">Cadı: iksir</button></div>
     <div class="row"><button id="teamPick">Takım seçimi (rastgele)</button><button id="teamClear">Takımı temizle</button><button id="framer">İftiracı rastgele</button></div>
+    <h3>Gece gösterisi (§15.1)</h3>
+    <div class="row" id="shows"></div>
     <h3>Gündüz</h3>
     <div class="row"><button id="votes">Rastgele oylar</button><button id="allvoted">Herkes oyladı (kısalt)</button><button id="clearVotes">Oyları sil</button></div>
     <div class="row"><button id="chat">Rastgele sohbet</button><button id="move">Herkes dolaşsın</button><button id="disc">Bağlantı kopar</button></div>
@@ -83,7 +85,7 @@
   'use strict';
   const NAMES = ['Ayşe', 'Mehmet', 'Zeynep', 'Ali', 'Elif', 'Mustafa', 'İrem', 'Can', 'Şule Nur', 'Emre', 'Defne', 'Burak', 'Selin', 'Oğuz', 'Gül', 'Hakan', 'Ece', 'Kerem', 'Nil', 'Tolga'];
   const JOBS = ['Terzi', 'Nalbant', 'Fırıncı', 'Değirmenci', 'Çoban', 'Hancı', 'Balıkçı', 'Oduncu', 'Arıcı', 'Berber', 'Çömlekçi', 'Demirci'];
-  const ROLES = ['koylu', 'vampir', 'iftiraci', 'doktor', 'kahin', 'gozcu', 'cadi', 'avci', 'muhtar', 'soytari'];
+  const ROLES = ['koylu', 'vampir', 'iftiraci', 'doktor', 'kahin', 'gozcu', 'cadi', 'avci', 'muhtar', 'soytari', 'hirsiz'];
   const EVIL = { vampir: 1, iftiraci: 1 };
   const $ = (s) => document.querySelector(s);
   const qs = new URLSearchParams(location.search);
@@ -93,6 +95,7 @@
     revealRoles: true, round: 0, deadline: null, paused: false, pausedLeft: 0,
     players: [], night: { picks: {}, frame: null, protect: null, inspect: null, watch: null, heal: null, poison: null, healUsed: false, poisonUsed: false },
     votes: {}, shortened: false, winner: null, hunterId: null, witchMode: 'heal',
+    stage: null, showUntil: null, show: null, dawn: null,
   };
   function rnd(a) { return a[Math.floor(Math.random() * a.length)]; }
   function mkPlayer(i) {
@@ -154,6 +157,8 @@
         default: night = null;
       }
     }
+    // §15.1: gösteri aşamasında izleyiciye özel oynatma verisi
+    if (phase === 'night' && m.alive && S.stage === 'show' && S.show) night = { ...(night || { mySelection: null, team: [], framer: null }), canAct: false, show: S.show };
     let day = null;
     if (phase === 'day') {
       const votes = {};
@@ -169,7 +174,7 @@
     }
     return {
       serverNow: Date.now(),
-      room: { id: 'DEMO1', name: 'Demo', phase, round: S.round, deadline: S.paused ? Date.now() + S.pausedLeft : S.deadline, hostId: 'p0',
+      room: { id: 'DEMO1', name: 'Demo', phase, round: S.round, night: phase === 'night' && S.stage ? { stage: S.stage, pickUntil: S.pickUntil, showUntil: S.showUntil } : null, deadline: S.paused ? Date.now() + S.pausedLeft : S.deadline, hostId: 'p0',
         settings: { nightSec: +$('#nightSec').value, daySec: +$('#daySec').value, revealRoles: S.revealRoles, roles: {} },
         hasPassword: false, winner: S.winner, winners: S.winner === 'soytari' ? [S.players[2].id] : S.winner ? S.players.filter((p) => !p.left && (S.winner === 'vampir' ? EVIL[p.role] : !EVIL[p.role] && p.role !== 'soytari')).map((p) => p.id) : [],
         minPlayers: 5, maxPlayers: 20, vampireCount: 1, distribution: [], hunterId: S.hunterId,
@@ -230,6 +235,10 @@
     S.shortened = false;
     if (ph === 'lobby') { S.round = 0; S.winner = null; S.players.forEach((p) => { p.alive = true; p.left = false; }); S.alive = true; $('#alive').checked = true; S.votes = {}; deal(); }
     if (ph === 'reveal') { S.deadline = Date.now() + 8000; }
+    if (ph === 'night') {
+      S.stage = 'walk'; S.show = null; S.showUntil = null; S.pickUntil = Date.now() + 4000 + (+$('#nightSec').value) * 1000;
+      clearTimeout(S.stageT); S.stageT = setTimeout(() => { if (S.phase === 'night' && S.stage === 'walk') { S.stage = 'pick'; push(); } }, 4000);
+    } else { S.stage = null; clearTimeout(S.stageT); }
     if (ph === 'night') { S.round++; S.deadline = Date.now() + (+$('#nightSec').value) * 1000; S.night = { picks: {}, frame: null, protect: null, inspect: null, watch: null, heal: null, poison: null, healUsed: S.night.healUsed, poisonUsed: S.night.poisonUsed }; }
     if (ph === 'day') { S.deadline = Date.now() + (+$('#daySec').value) * 1000; S.votes = {}; }
     if (ph === 'hunter') { S.deadline = Date.now() + 20000; const h = S.players.find((p) => p.role === 'avci') || S.players[1]; S.hunterId = h.id; h.alive = false; } else S.hunterId = null;
@@ -248,7 +257,7 @@
     let msg = { kind, title: kind, text: '' };
     switch (kind) {
       case 'death': {
-        const ts = [o.me ? m : t];
+        const ts = [o.me ? m : (o.target && S.players.find((x) => x.id === o.target)) || t];
         if (o.two) { const t2 = rnd(others.filter((x) => x !== t)); if (t2) ts.push(t2); }
         msg = { kind, title: 'Sabah oldu', text: ts.map((x) => x.name).join(', ') + ' öldü!', targets: ts.map((x, i) => {
           const sc = i === 0 ? (o.scene || 'bite') : rnd(['bite', 'bats', 'vanish']);
@@ -288,6 +297,63 @@
     }, 150);
     pr.then(() => log('announce ' + kind + ' bitti (' + Math.round(performance.now() - t0) + ' ms)'));
   }
+
+  // ---------- gece gösterisi (§15.1) ----------
+  // Her çeşit: rolümü ayarla, geceyi başlat, 'pick' aşamasını atla, gösteriyi 14 sn oynat, sonra şafak duyurusu.
+  function showVariant(v) {
+    const roleOf = { 'kill-done': 'vampir', 'kill-saved': 'vampir', 'kill-bounced': 'vampir', steal: 'hirsiz', poison: 'cadi', 'protect-saved': 'doktor', protect: 'doktor',
+      inspect: 'kahin', frame: 'iftiraci', gozcu: 'gozcu', 'gozcu-died': 'gozcu', 'victim-dies': 'koylu', 'victim-saved': 'koylu', 'victim-poison': 'koylu', nothing: 'koylu', 'witch-two': 'cadi' };
+    S.myRole = roleOf[v] || 'koylu'; $('#role').value = S.myRole; deal();
+    S.players.forEach((p) => { p.alive = true; p.left = false; }); S.alive = true; $('#alive').checked = true;
+    setPhase('night');
+    const m = me(), al = alivePs();
+    const far = (from) => { const i = S.players.indexOf(from); return S.players[(i + Math.floor(S.players.length / 2)) % S.players.length]; };
+    const good = al.filter((p) => p.id !== m.id && !EVIL[p.role]);
+    const f0 = far(m);
+    const T = qs.get('near') ? good[0] : (f0 && f0 !== m && !EVIL[f0.role] ? f0 : good[0]);
+    const mates = al.filter((p) => p.role === 'vampir' && p.id !== m.id);
+    let show = {}, dawn = ['safe'];
+    switch (v) {
+      case 'kill-done': show = { trip: { to: T.id, kind: 'kill', outcome: 'done', interior: true }, team: mates.map((x) => ({ id: x.id, to: T.id, kind: 'kill', outcome: 'done' })) }; dawn = ['death', { target: T.id }]; break;
+      case 'kill-saved': show = { trip: { to: T.id, kind: 'kill', outcome: 'saved', interior: true }, team: mates.map((x) => ({ id: x.id, to: T.id, kind: 'kill', outcome: 'saved' })) }; break;
+      case 'kill-bounced': show = { trip: { to: T.id, kind: 'kill', outcome: 'bounced', interior: true }, team: mates.map((x) => ({ id: x.id, to: T.id, kind: 'kill', outcome: 'bounced' })) }; break;
+      case 'steal': show = { trip: { to: T.id, kind: 'steal', outcome: 'done', interior: true } }; dawn = ['death', { target: T.id, scene: 'vanish' }]; break;
+      case 'poison': show = { trip: { to: T.id, kind: 'poison', outcome: 'done', interior: true } }; dawn = ['death', { target: T.id, scene: 'poison' }]; break;
+      case 'protect-saved': show = { trip: { to: T.id, kind: 'protect', outcome: 'done', interior: false }, saved: true }; break;
+      case 'protect': show = { trip: { to: T.id, kind: 'protect', outcome: 'done', interior: false } }; break;
+      case 'inspect': show = { trip: { to: T.id, kind: 'inspect', outcome: 'done', interior: false } }; break;
+      case 'frame': show = { trip: { to: T.id, kind: 'frame', outcome: 'done', interior: false } }; break;
+      case 'gozcu': {
+        const others = al.filter((p) => p.id !== m.id && p.id !== T.id);
+        const went = others[others.length - 1];
+        show = { trip: { to: T.id, kind: 'watch', outcome: 'done', interior: false }, watch: { houseId: T.id, arrivals: [{ id: others[0].id, blocked: false }, { id: others[1].id, blocked: true }, { id: null, blocked: false }], ownerWent: went.id, died: false, saved: true } };
+        break;
+      }
+      case 'gozcu-died': {
+        const vamps = al.filter((p) => p.role === 'vampir');
+        show = { trip: { to: T.id, kind: 'watch', outcome: 'done', interior: false }, watch: { houseId: T.id, arrivals: vamps.map((x) => ({ id: x.id, blocked: false })).concat([{ id: null, blocked: true }]), ownerWent: null, died: true } };
+        dawn = ['death', { target: T.id }];
+        break;
+      }
+      case 'victim-dies': show = { home: [{ kind: 'attack', result: 'died' }], dead: true }; dawn = ['death', { scene: 'bite', me: true }]; break;
+      case 'victim-poison': show = { home: [{ kind: 'poison', result: 'died' }], dead: true }; dawn = ['death', { scene: 'poison', me: true }]; break;
+      case 'victim-saved': show = { home: [{ kind: 'attack', result: 'saved' }, { kind: 'protect', result: 'saved' }] }; break;
+      case 'witch-two': {
+        const B = good.find((p) => p !== T) || T;
+        const t1 = { to: B.id, kind: 'heal', outcome: 'done', interior: false }, t2 = { to: T.id, kind: 'poison', outcome: 'done', interior: true };
+        show = { trip: t1, trips: [t1, t2] }; dawn = ['death', { target: T.id, scene: 'poison' }];
+        break;
+      }
+      default: show = {};
+    }
+    window.__lastShow = { v, show, T: T && T.id };
+    // gece girişi (yürüyüş) bitsin, sonra gösteri
+    setTimeout(() => {
+      S.stage = 'show'; S.show = show; S.showUntil = Date.now() + 14000; S.deadline = S.showUntil; S.dawn = dawn;
+      log('gösteri: ' + v); push();
+    }, +(qs.get('walk') || 4500));
+  }
+  window.demo.showVariant = showVariant;
 
   // ---------- panel ----------
   ROLES.forEach((r) => { const o = document.createElement('option'); o.value = r; o.textContent = r; $('#role').appendChild(o); });
@@ -358,6 +424,9 @@
   $('#cam').onchange = (e) => world.setCameraMode(e.target.value);
   $('#style').onchange = (e) => world.setStyle && world.setStyle(e.target.value);
   if (/[?&]style=toon/.test(location.search)) $('#style').value = 'toon';
+  ['kill-done', 'kill-saved', 'kill-bounced', 'steal', 'poison', 'protect-saved', 'protect', 'inspect', 'frame', 'gozcu', 'gozcu-died', 'victim-dies', 'victim-poison', 'victim-saved', 'witch-two', 'nothing'].forEach((v) => {
+    const b = document.createElement('button'); b.textContent = v; b.onclick = () => showVariant(v); $('#shows').appendChild(b);
+  });
   setInterval(() => { if (world && world.getCameraMode && $('#cam').value !== world.getCameraMode()) $('#cam').value = world.getCameraMode(); }, 700);
   document.querySelectorAll('[data-view]').forEach((b) => b.onclick = () => { currentView = b.dataset.view; document.querySelectorAll('[data-view]').forEach((x) => x.classList.toggle('on', x === b)); world.setView(currentView); push(); });
   $('#insets').onchange = () => { document.body.classList.toggle('insets', $('#insets').checked); applyInsets(); };
@@ -451,7 +520,7 @@
     $('#timer').textContent = S.phase + ' ' + Math.ceil(left / 1000) + 's';
     if (left <= 0) {
       if (S.phase === 'reveal') announce('night');
-      else if (S.phase === 'night') announce('safe');
+      else if (S.phase === 'night') { const d = S.dawn; S.dawn = null; if (d) announce(d[0], d[1]); else announce('safe'); }
       else if (S.phase === 'day') announce('nohang');
       else if (S.phase === 'hunter') announce('nohunt');
       if (S.phase === 'day' || S.phase === 'hunter') setTimeout(() => setPhase('night'), 1600);

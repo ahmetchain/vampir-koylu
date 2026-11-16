@@ -290,7 +290,7 @@ test('hata fırlatan bot hamlesi yakalanır ve evreyi durdurmaz', (t) => {
   room.selectNight = () => { throw new Error('gece kırık'); };
   try {
     room.start('h0');
-    for (let i = 0; i < 43; i++) t.mock.timers.tick(1000);   // 8 sn kart + 4 sn eve yürüme + 30 sn gece
+    for (let i = 0; i < 47; i++) t.mock.timers.tick(1000);   // 8 sn kart + 4 sn eve yürüme + 20 sn seçim + 14 sn gösterim
     assert.equal(room.phase, 'day', 'gece süresi dolunca gün geldi');
     for (let i = 0; i < 121; i++) t.mock.timers.tick(1000);
     assert.equal(room.phase, 'night', 'gün süresi dolunca gece geldi');

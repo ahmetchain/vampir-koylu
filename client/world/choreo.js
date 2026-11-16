@@ -5,6 +5,8 @@ import { plazaToWorld } from './layout.js';
 import { visits } from './rules.js';
 import { TAU } from './constants.js';
 
+const NO_VIS = new Map();
+
 export function createChoreo(world) {
   const goals = new Map(); // id -> key
   let lastPhase = null;
@@ -189,6 +191,82 @@ export function createChoreo(world) {
     return l;
   }
 
+  // Süreye sığan yürüyüş: yetişiyorsa yürü/koş, yetmiyorsa yolun başını koş, sisin içinde kaybolup varış
+  // noktasında (end) belir. Uzak evler 14 sn'lik gece gösterisine böyle sığar.
+  function budgetWalk(steps, start, pts, avail, end, face) {
+    if (!pts.length) return;
+    avail = Math.max(0.5, avail);
+    const len = pathLen(start, pts);
+    const need = len / avail;
+    if (need <= 5.0) { steps.push({ walk: pts, mode: need < 2.4 ? 'walk' : need < 3.4 ? 'brisk' : 'sprint' }); return; }
+    const runFor = Math.max(0.4, avail - 0.45) * 5.0;
+    let acc = 0, p0 = start;
+    const head = [];
+    for (const q of pts) { const l = Math.hypot(q.x - p0.x, q.z - p0.z); if (acc + l > runFor) break; acc += l; head.push(q); p0 = q; }
+    if (head.length) steps.push({ walk: head, mode: 'sprint' });
+    steps.push({ call: (c) => { world.fx.emit('mist', c.pos.x, 0.6, c.pos.z, '#c9c2d3', 12); }, hide: true }, { wait: 0.2 },
+      { at: end, face, snapFace: true, show: true, call: () => world.fx.emit('mist', end.x, 0.6, end.z, '#c9c2d3', 12) });
+  }
+
+  // Gece gösterisi yolculuğu (§15.1): evden çık, hedef eve yürü; içeri gir, bekle, çık (ya da kilitli kapıdan dön,
+  // ya da gözcü gibi arka pencerede dur) ve evine dön. Zamanlar gösteri saatine göre (o.clock(), sn).
+  // o: { home, to, peek, bounced, clock, tArrive, tLeave, tHome, mode, onInside(c), onOut(c), knock }
+  function tripSteps(o) {
+    const V = world.village;
+    const L = V.layout;
+    const aH = world.houseAnchors(o.home), hH = V.house(o.home);
+    const aT = world.houseAnchors(o.to), hT = V.house(o.to);
+    const steps = [];
+    if (!L || !aH || !hH || !aT || !hT) return steps;
+    const now = o.clock();
+    // 1) evden çık
+    if (o.delay) steps.push({ wait: o.delay });
+    steps.push({ at: aH.inside, face: aH.rotY, snapFace: true }, { call: () => door(o.home) }, { wait: 0.12 },
+      { show: true, call: (c) => { c.inside = null; } }, { walk: [aH.approach], mode: 'brisk' });
+    // 2) hedefe
+    const tgt = { house: aT, angle: hT.angle, peek: !!o.peek, halfWidth: hT.info.hx };
+    const pts = detourObstacles(planPath(L, aH.approach, tgt, hH.angle), world.obstacles);
+    pts.shift();
+    const outAvail = o.tArrive - now - (o.delay || 0) - 0.7;
+    let back = aT.approach;
+    if (o.peek) {
+      const tail = pts.splice(Math.max(0, pts.length - 2));
+      const end = pts.length ? pts[pts.length - 1] : aH.approach;
+      budgetWalk(steps, aH.approach, pts, outAvail - 0.9, end, Math.atan2((tail[0] || end).x - end.x, (tail[0] || end).z - end.z));
+      steps.push({ walk: tail, mode: 'sneak' }, { faceTo: aT.backWin }, { pose: 'peek', call: (c) => { c.peeking = o.to; } },
+        { until: () => o.clock() >= o.tLeave }, { pose: 'idle', fade: 0.2, call: (c) => { c.peeking = null; } }, { walk: tail.slice(0, -1).reverse().concat([end]), mode: 'sneak' });
+      back = end;
+    } else {
+      budgetWalk(steps, aH.approach, pts, outAvail, aT.approach, Math.atan2(aT.door.x - aT.approach.x, aT.door.z - aT.approach.z));
+      steps.push({ faceTo: aT.door }, { wait: 0.05 });
+      if (o.bounced) {
+        // kapı kilitli: açılmaz; tıklatır, bekler, geri döner
+        steps.push({ until: () => o.clock() >= o.tArrive - 0.3 }, { once: 'interact-right', opts: { timeScale: 1.2 } }, { wait: 0.35 },
+          { call: (c) => { world.fx.emit('poof', aT.door.x, 1.2, aT.door.z, '#9fb3d1', 5); if (o.onBounce) o.onBounce(c); } }, { once: 'emote-no', opts: { timeScale: 1.3 }, part: 0.7 });
+      } else {
+        steps.push({ call: () => door(o.to) }, { wait: 0.15 }, { walk: [aT.inside], mode: 'brisk' },
+          { hide: true, call: (c) => { c.inside = o.to; litUntil.set(o.to, world.time + 5); if (o.onInside) o.onInside(c); } },
+          { until: () => o.clock() >= o.tLeave },
+          { at: aT.inside, face: aT.rotY, snapFace: true }, { call: () => door(o.to) }, { wait: 0.12 },
+          { show: true, call: (c) => { c.inside = null; if (o.onOut) o.onOut(c); } }, { walk: [aT.approach], mode: 'brisk' });
+      }
+    }
+    // 3) eve dönüş (süre gösteri saatine göre yürüme anında hesaplanır: önceki adımlar gecikse de yetişir)
+    const pts2 = detourObstacles(planPath(L, back, { house: aH, angle: hH.angle, halfWidth: hH.info.hx }, o.peek ? null : hT.angle), world.obstacles);
+    pts2.shift();
+    steps.push({
+      call: (c) => {
+        const rest = [];
+        budgetWalk(rest, back, pts2, o.tHome - o.clock() - 0.7, aH.approach, Math.atan2(aH.door.x - aH.approach.x, aH.door.z - aH.approach.z));
+        rest.push({ faceTo: aH.door }, { call: () => door(o.home) }, { wait: 0.12 }, { walk: [aH.inside], mode: 'brisk' },
+          { hide: true, call: (cc) => { cc.inside = o.home; if (o.onHome) o.onHome(cc); } });
+        // kalan adımların başına ekle (bu adım bitince sıradakiler bunlar olur)
+        c.steps.splice(1, 0, ...rest);
+      },
+    });
+    return steps;
+  }
+
   // state'ten hedefleri hesapla
   function apply(state, snapAll) {
     const V = world.village;
@@ -200,7 +278,8 @@ export function createChoreo(world) {
     const viewerDead = !me.alive;
     const phaseChanged = phase !== lastPhase;
     lastPhase = phase;
-    const vis = visits(state);
+    // gösteri aşamasında seçilen evin ışığı ipucu olmasın (ziyaretler artık nightshow'da)
+    const vis = state.room.night && state.room.night.stage === 'show' ? NO_VIS : visits(state);
     const winners = new Set(room.winners || []);
     // toplanma halkası (reveal)
     const gatherIds = players.filter((p) => p.alive && !p.left).sort((a, b) => a.seat - b.seat).map((p) => p.id);
@@ -252,9 +331,9 @@ export function createChoreo(world) {
         const r = 4.3 + (n > 12 ? (i % 2) * 1.3 : 0);
         goal = { kind: 'gather', x: Math.sin(a) * r, z: Math.cos(a) * r, face: a + Math.PI, pose: 'warm' };
       } else if (phase === 'night') {
-        const t = vis.get(p.id);
-        if (t && t !== p.id && V.house(t)) goal = { kind: 'house', house: t, peek: ch.isMe && me.role === 'gozcu' };
-        else goal = { kind: 'house', house: p.id };
+        // §15.1: gece herkes evindedir; seçim aşamasında köyde hiçbir şey kıpırdamaz. Gece yürüyüşleri yalnızca
+        // gösteri aşamasında, sunucunun state.night.show verisiyle oynatılır (nightshow.js, karakterleri devralır).
+        goal = { kind: 'house', house: p.id };
       } else if (phase === 'day' || phase === 'hunter') {
         const r = ringSpot(p);
         goal = { kind: 'plaza', x: +r.x.toFixed(2), z: +r.z.toFixed(2), face: r.face, pose: !p.connected ? 'sit' : null, ring: true };
@@ -292,12 +371,16 @@ export function createChoreo(world) {
       }
 
       // hayalet (yalnızca ölü izleyiciler ve oyun sonunda herkes görür)
-      const showGhost = p.left ? false : (!p.alive && ((inGame && viewerDead) || phase === 'ended'));
+      // gece gösterisinde kendi ölümünü gören izleyici: hayaleti hemen belirir (ölüm şafakta herkese açıklanır)
+      const showDied = world.showDead && world.showDead.has(p.id) && p.id === me.id;
+      const showGhost = p.left ? false : ((!p.alive || showDied) && ((inGame && (viewerDead || showDied)) || phase === 'ended'));
       if (showGhost) {
         const g = world.ensureGhost(p);
         if (g) {
           const lpg = p.id === me.id && world.localMove && performance.now() < world.localMove.until ? world.localMove : null;
-          const w = lpg ? { x: lpg.x, z: lpg.z } : plazaToWorld(L, p.pos ? p.pos.x : 0.5, p.pos ? p.pos.y : 0.8);
+          // ölü izleyiciye hayaletlerin canlı konumu ghostPos ile gelir (pos ölüm anındaki yerdir)
+          const gp = p.ghostPos || p.pos;
+          const w = lpg ? { x: lpg.x, z: lpg.z } : plazaToWorld(L, gp ? gp.x : 0.5, gp ? gp.y : 0.8);
           const gk = 'g:' + w.x.toFixed(2) + ',' + w.z.toFixed(2);
           if (p.id === me.id && world.driving && !g.fresh) goals.set('g' + p.id, 'drive');
           else if (goals.get('g' + p.id) !== gk || g.fresh) {
@@ -333,7 +416,7 @@ export function createChoreo(world) {
   function tick(state) {
     if (!state || state.room.phase !== 'night') return;
     const V = world.village;
-    const vis = visits(state);
+    const vis = state.room.night && state.room.night.stage === 'show' ? NO_VIS : visits(state);
     for (const p of state.players) {
       if (!V.house(p.id)) continue;
       let lit = (litUntil.get(p.id) || 0) > world.time ? 1 : 0;
@@ -343,7 +426,8 @@ export function createChoreo(world) {
   }
 
   return {
-    apply, tick,
+    apply, tick, tripSteps,
+    lit(id, s) { litUntil.set(id, world.time + s); },
     reset() { goals.clear(); lastPhase = null; litUntil = new Map(); },
     forget(id) { goals.delete(id); goals.delete('g' + id); },
   };

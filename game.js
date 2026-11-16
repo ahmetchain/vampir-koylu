@@ -67,10 +67,16 @@ const REVEAL_MS = 8000;          // rol kartlarına bakma süresi
 const ALL_VOTED_MS = 10000;      // herkes oy verince kalan süre buna iner
 const HUNTER_MS = 20000;         // avcının son atışı süresi
 const NIGHT_WALK_MS = 4000;      // gece başında herkesin evine yürüme süresi; gece sayacı bundan sonra başlar
+const NIGHT_SHOW_MS = 14000;     // gecenin gösterim aşaması: çözülen gece herkese kendi gözünden oynatılır
+const NIGHT_RESULT_MS = 9000;    // gösterim başladıktan bu kadar sonra özel sonuç duyuruları gider
+const PICK_GRACE_MS = 1500;      // herkes seçtiyse/beklediyse seçim aşaması bu kadar sonra biter
+const RANDOM_VILLAGER_SHARE = 0.2; // rastgele dağıtımda sade köylü payı
+const RANDOM_FRAMER_CHANCE = 60;   // rastgele dağıtımda iftiracının çıkma olasılığı (%)
 const TRIAL_TURN_MS = 15000;     // mahkemede her sanığın savunma süresi
 const TRIAL_VOTE_MS = 20000;     // mahkemede iki sanık arasındaki yeniden oylama süresi
 const TRIAL_ALL_VOTED_MS = 3000; // herkes oy verince mahkeme oylaması bu kadar sonra sonuçlanır
-const LOBBY_GRACE_MS = 30000;    // lobide bağlantısı kopan oyuncu bu süre sonunda çıkarılır
+const LOBBY_GRACE_MS = 120000;   // lobide/oyun sonunda bağlantısı kopan oyuncu bu süre sonunda çıkarılır
+const HOST_GRACE_MS = 60000;     // oda sahibi bu kadar süre kesintisiz bağlı değilse yetki başkasına geçer
 const EMPTY_ROOM_MS = 10 * 60 * 1000;
 const SLEEP = 'sleep';           // gündüz "Hızlı Uyu" oyu
 const LOG_MAX = 250;             // oda günlüğünde tutulan son kayıt sayısı (anlatı satırları dahil)
@@ -118,11 +124,15 @@ const DEFAULT_ROLES = {
   [ROLE.FRAMER]: false,
 };
 const EVENT_MODES = ['off', 'some', 'often'];
-const DEFAULT_SETTINGS = { nightSec: 30, daySec: 120, revealRoles: true, events: 'off', roles: DEFAULT_ROLES };
+const ROLE_MODES = ['random', 'all'];
+const DEFAULT_SETTINGS = { nightSec: 20, daySec: 120, revealRoles: true, events: 'off', roleMode: 'random', roles: DEFAULT_ROLES };
 
 // Gece seçimi olan roller ve tipide evden çıkamayan köy rolleri.
 const NIGHT_ACTION_ROLES = new Set([ROLE.VAMPIRE, ROLE.FRAMER, ROLE.DOCTOR, ROLE.SEER, ROLE.WATCHER, ROLE.WITCH, ROLE.THIEF]);
 const FINAL_ERROR = 'Seçimini yaptın; gece seçimleri kesindir.';
+const SHOW_ERROR = 'Seçim süresi doldu; gece oynanıyor.';
+const PASSED_ERROR = 'Bu gece beklemeye karar verdin; seçim kesindir.';
+const NO_PASS_ERROR = 'Bu gece yapacak bir seçimin kalmadı.';
 
 // Köy olayları: tellal, etkilediği evrenin başında duyurur.
 const EVENTS = {
@@ -165,10 +175,11 @@ function normalizeSettings(raw = {}) {
     roles[r] = rawRoles[r] === undefined ? DEFAULT_ROLES[r] : Boolean(rawRoles[r]);
   }
   return {
-    nightSec: clampInt(raw.nightSec, 15, 120, DEFAULT_SETTINGS.nightSec),
+    nightSec: clampInt(raw.nightSec, 10, 60, DEFAULT_SETTINGS.nightSec),
     daySec: clampInt(raw.daySec, 30, 300, DEFAULT_SETTINGS.daySec),
     revealRoles: raw.revealRoles === undefined ? DEFAULT_SETTINGS.revealRoles : Boolean(raw.revealRoles),
     events: EVENT_MODES.includes(raw.events) ? raw.events : DEFAULT_SETTINGS.events,
+    roleMode: ROLE_MODES.includes(raw.roleMode) ? raw.roleMode : DEFAULT_SETTINGS.roleMode,
     roles,
   };
 }
@@ -212,37 +223,96 @@ function rolePlan(count, specials = [ROLE.DOCTOR]) {
   return { base, fixed: [], pool: slots > 0 ? { pick: slots, from: village } : null, slots };
 }
 
-// Oyuncu sayısına göre dağıtılacak roller. İftiracı açıksa ve en az 7 kişi varsa vampirlere ek olarak
-// bir iftiracı verilir. 8'den az kişide bir sade köylü ayrılır. Özel roller sığmazsa rng ile rastgele
-// seçilir; kahin/gözcüden en az biri (açıksa) her zaman çıkar.
-function rolesFor(count, specials = [ROLE.DOCTOR], rng = crypto.randomInt) {
-  const plan = rolePlan(count, specials);
-  let chosen = plan.fixed;
-  if (plan.pool) {
-    const { pick, from } = plan.pool;
-    const must = from.filter((r) => r === ROLE.SEER || r === ROLE.WATCHER);
-    const picked = [];
-    if (must.length) picked.push(must[rng(must.length)]);
-    const rest = from.filter((r) => !picked.includes(r));
-    for (let i = rest.length - 1; i > 0; i--) {
-      const j = rng(i + 1);
-      [rest[i], rest[j]] = [rest[j], rest[i]];
-    }
-    picked.push(...rest.slice(0, pick - picked.length));
-    chosen = SPECIAL_ROLES.filter((r) => picked.includes(r));
+// Açık köy özel rollerinden `slots` tanesini rastgele seçer (hepsi sığıyorsa hepsi);
+// kahin/gözcüden en az biri (açıksa) her zaman çıkar. Dağıtım sırasıyla döner.
+function drawSpecials(village, slots, rng) {
+  if (village.length <= slots) return village;
+  if (slots <= 0) return [];
+  const must = village.filter((r) => r === ROLE.SEER || r === ROLE.WATCHER);
+  const picked = [];
+  if (must.length) picked.push(must[rng(must.length)]);
+  const rest = village.filter((r) => !picked.includes(r));
+  for (let i = rest.length - 1; i > 0; i--) {
+    const j = rng(i + 1);
+    [rest[i], rest[j]] = [rest[j], rest[i]];
   }
+  picked.push(...rest.slice(0, slots - picked.length));
+  return SPECIAL_ROLES.filter((r) => picked.includes(r));
+}
+
+// Rastgele dağıtım ('random') planı: vampirler oyuncu sayısına göre, iftiracı (açık ve 7+) %60,
+// sade köylü = max(1, round(oyuncu × 0.2)), kalan yerler açık köy özel rollerinden rastgele.
+function randomPlan(count, specials) {
+  const vampires = vampireCount(count);
+  const framerPossible = specials.includes(ROLE.FRAMER) && count >= FRAMER_MIN_PLAYERS;
+  const villagers = Math.max(1, Math.round(count * RANDOM_VILLAGER_SHARE));
+  const village = SPECIAL_ROLES.filter((r) => specials.includes(r)
+    && !(r === ROLE.THIEF && count < THIEF_MIN_PLAYERS));
+  const slotsNoF = Math.max(0, count - vampires - villagers);
+  return { vampires, framerPossible, villagers, village, slotsNoF, slotsWithF: Math.max(0, slotsNoF - 1) };
+}
+
+// Oyuncu sayısına göre dağıtılacak roller.
+// 'all': iftiracı açıksa ve en az 7 kişi varsa vampirlere ek olarak bir iftiracı verilir; 8'den az
+// kişide bir sade köylü ayrılır; özel roller sığmazsa rastgele seçilir (kahin/gözcüden biri kesin).
+// 'random': bkz. randomPlan.
+function rolesFor(count, specials = [ROLE.DOCTOR], rng = crypto.randomInt, mode = 'all') {
+  if (mode === 'random') {
+    const plan = randomPlan(count, specials);
+    const framer = plan.framerPossible && rng(100) < RANDOM_FRAMER_CHANCE;
+    const list = Array(plan.vampires).fill(ROLE.VAMPIRE);
+    if (framer) list.push(ROLE.FRAMER);
+    list.push(...drawSpecials(plan.village, framer ? plan.slotsWithF : plan.slotsNoF, rng));
+    while (list.length < count) list.push(ROLE.VILLAGER);
+    return list.slice(0, count);
+  }
+  const plan = rolePlan(count, specials);
+  const chosen = plan.pool ? drawSpecials(plan.pool.from, plan.pool.pick, rng) : plan.fixed;
   const list = [...plan.base, ...chosen];
   while (list.length < count) list.push(ROLE.VILLAGER);
   return list;
 }
 
-// Lobi önizlemesi: deterministik. distribution = kesin roller (+ köylüler), rolePool = rastgele kısım.
-function distributionFor(count, specials = [ROLE.DOCTOR]) {
+// Lobi önizlemesi: deterministik, oyunun gerçek çekilişini asla göstermez.
+// distribution = her çekilişte kesin dağıtılan roller; rolePool = geri kalan `pick` yer için adaylar
+// (`from`: çıkabilecek özel roller, `maybe`: belki çıkacak iftiracı; dolmayan yer köylü olur).
+function distributionFor(count, specials = [ROLE.DOCTOR], mode = 'all') {
+  if (mode === 'random') {
+    const { vampires, framerPossible, villagers, village, slotsNoF, slotsWithF } = randomPlan(count, specials);
+    const minSlots = framerPossible ? slotsWithF : slotsNoF;
+    let sure;
+    if (village.length <= minSlots) sure = village;
+    else {
+      const must = village.filter((r) => r === ROLE.SEER || r === ROLE.WATCHER);
+      sure = must.length === 1 && minSlots >= 1 ? must : [];
+    }
+    const koylu = villagers + (village.length <= minSlots ? minSlots - village.length : 0);
+    const list = [...Array(vampires).fill(ROLE.VAMPIRE), ...sure, ...Array(koylu).fill(ROLE.VILLAGER)].slice(0, count);
+    const open = count - list.length;
+    return {
+      distribution: list,
+      rolePool: open > 0
+        ? { pick: open, from: village.filter((r) => !sure.includes(r)), maybe: framerPossible ? [ROLE.FRAMER] : [] }
+        : null,
+    };
+  }
   const { base, fixed, pool } = rolePlan(count, specials);
   const list = [...base, ...fixed];
   const target = count - (pool ? pool.pick : 0);
   while (list.length < target) list.push(ROLE.VILLAGER);
-  return { distribution: list, rolePool: pool };
+  return { distribution: list, rolePool: pool ? { ...pool, maybe: [] } : null };
+}
+
+// Kahinin şaşırtmaca rolü için: bu oyunda bulunabilecek roller (köylü ve vampir dahil, deli hariç –
+// deli kahine kendini sandığı rol olarak görünür).
+function possibleRoles(count, settings) {
+  const out = [ROLE.VAMPIRE, ROLE.VILLAGER];
+  for (const r of OPTIONAL_ROLES) {
+    if (!settings.roles[r] || r === ROLE.MAD) continue;
+    if ((r === ROLE.FRAMER && count < FRAMER_MIN_PLAYERS) || (r === ROLE.THIEF && count < THIEF_MIN_PLAYERS)) continue;
+    out.push(r);
+  }
+  return out;
 }
 
 function shuffle(arr) {
@@ -253,9 +323,9 @@ function shuffle(arr) {
   return arr;
 }
 
-function assignRoles(ids, specials = [ROLE.DOCTOR], rng) {
+function assignRoles(ids, specials = [ROLE.DOCTOR], rng = crypto.randomInt, mode = 'all') {
   const shuffled = shuffle([...ids]);
-  const list = rolesFor(ids.length, specials, rng);
+  const list = rolesFor(ids.length, specials, rng, mode);
   const roles = new Map();
   shuffled.forEach((id, i) => roles.set(id, list[i]));
   return roles;
@@ -325,7 +395,14 @@ class Room {
   // storySeed: testler için sabit hikâye tohumu (metin ya da tohum döndüren fonksiyon).
   // botRng: testlerde botların tohumlu rastgele sayı üreteci.
   // eventRng: testlerde köy olaylarının tohumlu rastgele sayı üreteci.
-  constructor({ id, name, password, settings, hooks, storySeed = null, botRng = Math.random, eventRng = Math.random }) {
+  // dealRng: testlerde rol dağıtımının tohumlu üreteci (crypto.randomInt gibi: n -> 0..n-1).
+  // seerRng: testlerde kahinin şaşırtmaca rolünün tohumlu üreteci (Math.random gibi).
+  constructor({
+    id, name, password, settings, hooks, storySeed = null, botRng = Math.random, eventRng = Math.random,
+    dealRng = crypto.randomInt, seerRng = null,
+  }) {
+    this.dealRng = dealRng;
+    this.seerRng = seerRng || (() => this.rand());
     this.id = id;
     this.closed = false;
     this.storySeedSource = storySeed;
@@ -373,6 +450,8 @@ class Room {
     this.epilogue = null;       // { title, text, story } – oyun bitince
     this.lastHangScene = null;
     this.hadBots = false;      // oyun başında odada bot var mıydı (varsa istatistik yazılmaz)
+    this.seerPairs = new Map(); // `${kahinId}:${hedefId}` -> şaşırtmaca rol (sahte kahinde iki rol); oyun boyunca sabit
+    this.gameSize = 0;
     for (const p of this.players.values()) {
       p.role = null;
       p.alive = true;
@@ -382,6 +461,8 @@ class Room {
       p.fakeRole = null;
       p.stolen = null;
       p.roleHidden = false;
+      if (p.ghostPos) p.pos = p.ghostPos;
+      p.ghostPos = null;
     }
   }
 
@@ -575,6 +656,8 @@ class Room {
     p.graceTimer = null;
     p.socketId = socketId;
     p.connected = true;
+    // Oda sahibi süre dolmadan döndü: yetki onda kalır.
+    if (id === this.hostId) this.clearHostTimer();
     this.clearEmptyTimer();
     this.ensureHost();
     this.changed();
@@ -585,6 +668,16 @@ class Room {
     if (!p) return;
     p.connected = false;
     p.socketId = null;
+    if (id === this.hostId && !p.bot) {
+      this.clearHostTimer();
+      this.hostTimer = setTimeout(() => {
+        this.hostTimer = null;
+        if (this.closed) return;
+        this.hostAwayExpired = true;
+        this.ensureHost();
+        this.changed();
+      }, HOST_GRACE_MS);
+    }
     if (this.phase === 'lobby' || this.phase === 'ended') {
       clearTimeout(p.graceTimer);
       p.graceTimer = setTimeout(() => this.removePlayer(id), LOBBY_GRACE_MS);
@@ -617,30 +710,43 @@ class Room {
     return null;
   }
 
-  // Sadece lobide ve oyun sonunda karakterler meydanda dolaşabilir (ölüler de); gündüz herkes yerinde durur.
+  // Yaşayanlar sadece lobide ve oyun sonunda dolaşır; gündüz herkes yerinde durur. Ölüler (hayaletler)
+  // oyun boyunca her evrede dolaşabilir: konumları (ghostPos) yalnızca ölülere gider, yaşayanlar ölünün
+  // öldüğü andaki konumunu görür; oyun bitince herkes görür.
   move(byId, x, y) {
     const p = this.players.get(byId);
     if (!p) return 'Odada değilsin.';
-    if (!MOVE_PHASES.includes(this.phase)) return 'Şu an meydanda dolaşamazsın.';
+    const ghost = this.inGame && !p.alive && !p.left;
+    if (!MOVE_PHASES.includes(this.phase) && !ghost) return 'Şu an meydanda dolaşamazsın.';
     const fx = Number(x);
     const fy = Number(y);
     if (!Number.isFinite(fx) || !Number.isFinite(fy)) return 'Geçersiz konum.';
-    p.pos = clampToPlaza(fx, fy);
+    if (ghost) p.ghostPos = clampToPlaza(fx, fy);
+    else p.pos = clampToPlaza(fx, fy);
     this.changed('move');
     return null;
   }
 
-  // Oda sahibi ayrılır ya da bağlantısı koparsa yetki bağlı ilk oyuncuya geçer.
+  // Oda sahibi ayrılır, çıkarılır ya da HOST_GRACE_MS boyunca kesintisiz bağlı değilse yetki bağlı ilk
+  // insana geçer. Kısa kopmalarda (telefon ekranı kapandı) yetki sahibinde kalır.
   ensureHost() {
     const host = this.players.get(this.hostId);
-    if (host && host.connected && !host.left) return;
+    if (host && !host.left && (host.connected || !this.hostAwayExpired)) return;
     const next = [...this.players.values()].find((p) => p.connected && !p.left && !p.bot);
     if (next && next.id !== this.hostId) {
       this.hostId = next.id;
+      this.clearHostTimer();
       this.addLog(`${next.name} artık oda sahibi.`, 'info');
     } else if (!host) {
       this.hostId = next ? next.id : null;
+      this.clearHostTimer();
     }
+  }
+
+  clearHostTimer() {
+    clearTimeout(this.hostTimer);
+    this.hostTimer = null;
+    this.hostAwayExpired = false;
   }
 
   // Odada (ayrılmamış) insan kalmadıysa oda hemen kapanır – botlar odayı açık tutmaz.
@@ -670,6 +776,8 @@ class Room {
   destroy() {
     this.bots.close();
     clearTimeout(this.timer);
+    this.clearNightTimers();
+    clearTimeout(this.hostTimer);
     this.clearEmptyTimer();
     for (const p of this.players.values()) clearTimeout(p.graceTimer);
   }
@@ -701,8 +809,9 @@ class Room {
     this.resetGame();
     this.hadBots = [...this.players.values()].some((p) => p.bot);
     const specials = enabledSpecials(this.settings);
-    const roles = assignRoles([...this.players.keys()], specials);
+    const roles = assignRoles([...this.players.keys()], specials, this.dealRng, this.settings.roleMode);
     for (const [id, role] of roles) this.players.get(id).role = role;
+    this.gameSize = this.players.size;
     // Deli kendini odada açık olan gece rollerinden biri sanır (hiçbiri açık değilse kahin).
     const fakes = MAD_FAKE_ROLES.filter((r) => this.settings.roles[r]);
     for (const p of this.players.values()) {
@@ -717,8 +826,13 @@ class Room {
       ? { id: sc.id, name: typeof sc.name === 'string' ? sc.name : '', intro: cleanStory(sc.intro) }
       : null;
 
-    const summary = describeRoles([...this.players.values()].map((p) => p.role));
-    this.addLog(`Oyun başladı: ${this.players.size} oyuncu (${summary}).`, 'info');
+    // Rastgele dağıtımda çekiliş gizli kalır: günlükte sadece oyuncu sayısı yazar.
+    if (this.settings.roleMode === 'random') {
+      this.addLog(`Oyun başladı: ${this.players.size} oyuncu. Roller rastgele dağıtıldı.`, 'info');
+    } else {
+      const summary = describeRoles([...this.players.values()].map((p) => p.role));
+      this.addLog(`Oyun başladı: ${this.players.size} oyuncu (${summary}).`, 'info');
+    }
     this.storyLine(n.story);
     this.setPhase('reveal', REVEAL_MS, () => this.startNight());
     this.announce('start', n.title, n.text, { story: n.story, scenario: this.scenario });
@@ -748,13 +862,21 @@ class Room {
     this.nightWitch = { heal: null, poison: null };
     this.nightLock = null;       // bu gece kilitli kapı { targetId, by }
     this.nightSteal = null;      // hırsızın bu geceki hedefi { by, targetId }
-    this.trips = [];             // gece yolculukları { actorId, to, kind, blocked, at }
+    this.trips = [];             // seçilen gece yolculukları { actorId, to, kind, blocked, at }
+    this.nightPassed = new Set(); // bu gece "bekle" diyenler (night:pass)
+    this.nightRes = null;        // gösterim aşamasının başında çözülen gece (bkz. resolveNight)
     // Deli: sahte rolünün seçimleri ayrı tutulur, gerçek etkisi yoktur.
     this.madPicks = new Map();   // deliId -> hedef (sahte doktor/kahin/gözcü)
     this.madNightLock = new Map(); // deliId -> sahte kilit hedefi (sahte gardiyan)
-    this.madWatch = new Map();   // deliId -> uydurma gözcü planı
-    for (const t of this.madTimers || []) clearTimeout(t);
-    this.madTimers = [];
+    this.clearNightTimers();
+    this.night = null;           // { stage, walkUntil, pickUntil, pickUntilFull, showUntil, early }
+  }
+
+  clearNightTimers() {
+    clearTimeout(this.walkTimer);
+    clearTimeout(this.resultTimer);
+    this.walkTimer = null;
+    this.resultTimer = null;
   }
 
   // Oyuncunun kendini sandığı (ve her şeyini ona göre aldığı) rol: deli için sahte rol.
@@ -776,7 +898,6 @@ class Room {
   setPick(p, role, targetId) {
     if (p.role === ROLE.MAD) {
       this.madPicks.set(p.id, targetId);
-      if (role === ROLE.WATCHER) this.planMadWatch(p, targetId);
       return;
     }
     if (role === ROLE.DOCTOR) this.nightDoctor = targetId;
@@ -786,47 +907,34 @@ class Room {
 
   rand() { return crypto.randomInt(1 << 30) / (1 << 30); }
 
-  // Sahte gözcü için inandırıcı bir gece uydurur: 0–2 rastgele yaşayan ziyaretçi, ev sahibi bazen
-  // dışarı çıkar. Ziyaretler gece boyunca rastgele anlarda "gelir"; canlı panel ve sabah raporu tutarlı.
-  planMadWatch(mad, targetId) {
-    const now = Date.now();
-    const end = Math.max(now + 1000, (this.deadline || now) - 1500);
-    const at = () => Math.round(now + this.rand() * (end - now));
+  // Sahte gözcü için inandırıcı bir gece uydurur (gösterim başında): 0–2 rastgele yaşayan ziyaretçi,
+  // ev sahibi bazen dışarı çıkar. Gerçek gözcünün bilgisiyle aynı biçimde (watchInfo).
+  madWatchInfo(mad, targetId, dark) {
     const candidates = [...this.players.values()].filter((x) => x.alive && x.id !== targetId && x.id !== mad.id);
     const r = this.rand();
     const n = Math.min(candidates.length, r < 0.4 ? 0 : (r < 0.8 ? 1 : 2));
-    const visitors = [];
-    for (let i = 0; i < n; i++) {
-      const v = candidates.splice(crypto.randomInt(candidates.length), 1)[0];
-      visitors.push({ id: v.id, at: at() });
-    }
+    const blocked = this.isLockedIn(targetId);
+    const list = [];
+    for (let i = 0; i < n; i++) list.push({ id: candidates.splice(crypto.randomInt(candidates.length), 1)[0].id, blocked });
     let ownerWent = null;
-    let ownerAt = null;
     if (targetId !== mad.id && !this.isLockedIn(targetId) && this.rand() < 0.35) {
       const dest = [...this.players.values()].filter((x) => x.alive && x.id !== targetId);
-      if (dest.length) { ownerWent = dest[crypto.randomInt(dest.length)].id; ownerAt = at(); }
+      if (dest.length) ownerWent = dest[crypto.randomInt(dest.length)].id;
     }
-    const plan = { targetId, visitors, ownerWent, ownerAt };
-    this.madWatch.set(mad.id, plan);
-    // Uydurma gelişler geldikçe panel güncellensin.
-    for (const time of [...visitors.map((v) => v.at), ownerAt].filter(Boolean)) {
-      this.madTimers.push(setTimeout(() => { if (this.phase === 'night') this.changed(); }, Math.max(0, time - now)));
-    }
+    return this.watchShape(targetId, list, ownerWent, Boolean(ownerWent), dark, this.rand() < 0.12);
   }
 
-  // Uydurma planı gerçek gözcü bilgisiyle aynı biçime çevirir (until: o ana kadar gelenler).
-  madWatchInfo(plan, until, dark) {
-    const blocked = this.isLockedIn(plan.targetId);
-    const list = plan.visitors.filter((v) => v.at <= until).map((v) => ({ id: v.id, blocked }));
-    const out = plan.ownerWent && plan.ownerAt <= until;
+  watchShape(targetId, list, ownerWent, ownerOut, dark, saved = false) {
+    const sorted = [...list].sort((a, b) => this.players.get(a.id).name.localeCompare(this.players.get(b.id).name, 'tr'));
     return {
-      targetId: plan.targetId,
+      targetId,
       dark,
-      visitors: dark ? list.map((v) => ({ id: null, blocked: v.blocked })) : list,
-      count: list.length,
-      blockedCount: list.filter((v) => v.blocked).length,
-      ownerOut: Boolean(out),
-      ownerWent: out && !dark ? plan.ownerWent : null,
+      visitors: dark ? sorted.map((v) => ({ id: null, blocked: v.blocked })) : sorted,
+      count: sorted.length,
+      blockedCount: sorted.filter((v) => v.blocked).length,
+      ownerOut,
+      ownerWent: ownerOut && !dark ? ownerWent : null,
+      saved: Boolean(saved),
     };
   }
 
@@ -914,9 +1022,22 @@ class Room {
     else if (planned) this.pendingDayEvent = planned;
 
     const nightMs = this.eventIs('kisa-gece') ? Math.round(this.settings.nightSec * 500) : this.settings.nightSec * 1000;
-    // Gece süresi eve yürüme payıyla başlar: seçimler hemen açık, görünen sayaç (timerFrom) yürüyüş bitince başlar.
-    this.setPhase('night', NIGHT_WALK_MS + nightMs, () => this.endNight());
-    this.timerFrom = Date.now() + NIGHT_WALK_MS;
+    // Gece üç aşamalıdır: yürüyüş (eve dönüş, seçimler açık) → seçim (nightSec) → gösterim (NIGHT_SHOW_MS).
+    // Görünen sayaç (timerFrom) yürüyüş bitince başlar; deadline seçimin sonu, gösterimde gösterimin sonu.
+    this.setPhase('night', NIGHT_WALK_MS + nightMs, () => this.endPick());
+    const now = Date.now();
+    this.timerFrom = now + NIGHT_WALK_MS;
+    this.night = {
+      stage: 'walk', walkUntil: now + NIGHT_WALK_MS, pickUntil: this.deadline, pickUntilFull: this.deadline,
+      showUntil: this.deadline + NIGHT_SHOW_MS, early: false,
+    };
+    // Yürüyüş bitince aşama 'pick' olur (durum yeniden gönderilir).
+    this.walkTimer = setTimeout(() => {
+      if (this.phase === 'night' && this.night && this.night.stage === 'walk') {
+        this.night.stage = 'pick';
+        this.changed();
+      }
+    }, NIGHT_WALK_MS);
     const n = this.narrate('night', { round: this.round },
       { title: `${this.round}. Gece`, text: 'Köy uyuyor... Gece rolleri seçimini yapsın.' });
     this.addLog(`${this.round}. gece başladı.`, 'night');
@@ -951,6 +1072,7 @@ class Room {
     const p = this.players.get(id);
     const role = this.actingRole(p);
     if (this.phase !== 'night' || !p || !p.alive || !NIGHT_ACTION_ROLES.has(role)) return false;
+    if (this.nightStage === 'show' || this.nightPassed.has(id)) return false;
     if (this.isLockedIn(id)) return false;
     if (this.eventIs('tipi') && !isEvil(role)) return false;
     switch (role) {
@@ -977,8 +1099,10 @@ class Room {
     if (role === ROLE.VILLAGER) return 'Köylüler gece seçim yapamaz.';
     if (role === ROLE.JAILER) return 'Gardiyan kilidini gündüz seçer; gece yapacağın bir şey yok.';
     if (!NIGHT_ACTION_ROLES.has(role)) return 'Bu rolün gece görevi yok, sabahı bekle.';
+    if (this.nightStage === 'show') return SHOW_ERROR;
     if (this.isLockedIn(byId)) return 'Kapın dışarıdan kilitlendi, bu gece evinden çıkamazsın.';
     if (this.eventIs('tipi') && !isEvil(role)) return 'Tipi var: bu gece köylüler evlerinden çıkamaz.';
+    if (this.nightPassed.has(byId)) return PASSED_ERROR;
     if (!target || !target.alive) return 'Bu oyuncu seçilemez.';
 
     switch (role) {
@@ -1044,16 +1168,90 @@ class Room {
     return null;
   }
 
-  // Bir eve gidiş. Kapı kilitliyse gelen hemen haber alır ve eve döner; eylemi etkisiz kalır.
+  // Seçilen bir eve gidiş. Kapı kilitliyse gösterimde kapıdan döner (eylemi etkisiz kalır); bunu
+  // oyuncu gösterimde (show.trip.outcome 'bounced') ve 9 sn sonra 'bounced' duyurusuyla öğrenir.
   addTrip(actorId, to, kind) {
     const blocked = kind !== 'watch' && this.isLockedIn(to);
     this.trips.push({ actorId, to, kind, blocked, at: Date.now() });
-    if (!blocked) return;
-    const actor = this.players.get(actorId);
-    const owner = this.players.get(to);
-    const text = `${genitive(owner.name)} kapısı dışarıdan kilitliydi; eve döndün.`;
-    actor.notes.push({ text: `🔒 ${this.round}. gece: ${text}`, ts: Date.now() });
-    this.announce('bounced', 'Kapı kilitliydi', text, { targets: [{ id: to }] }, [actorId]);
+  }
+
+  get nightStage() {
+    return this.phase === 'night' && this.night ? this.night.stage : null;
+  }
+
+  // "Bu gece bekle": seçim yapabilecek biri bu gece bir şey yapmamaya karar verir (kesin).
+  passNight(byId) {
+    if (this.phase !== 'night') return 'Şu an gece değil.';
+    const p = this.players.get(byId);
+    if (!p || !p.alive) return 'Ölüler seçim yapamaz.';
+    const role = this.actingRole(p);
+    if (role === ROLE.VILLAGER) return 'Köylüler gece seçim yapamaz.';
+    if (role === ROLE.JAILER) return 'Gardiyan kilidini gündüz seçer; gece yapacağın bir şey yok.';
+    if (!NIGHT_ACTION_ROLES.has(role)) return 'Bu rolün gece görevi yok, sabahı bekle.';
+    if (this.nightStage === 'show') return SHOW_ERROR;
+    if (this.isLockedIn(byId)) return 'Kapın dışarıdan kilitlendi, bu gece evinden çıkamazsın.';
+    if (this.eventIs('tipi') && !isEvil(role)) return 'Tipi var: bu gece köylüler evlerinden çıkamaz.';
+    if (this.nightPassed.has(byId)) return PASSED_ERROR;
+    if (!this.canActAtNight(byId)) return NO_PASS_ERROR;
+    this.nightPassed.add(byId);
+    this.changed();
+    return null;
+  }
+
+  // Seçim aşamasında hâlâ karar vermesi beklenenler: yaşayan, kilitli olmayan, seçim yapabilecek ve
+  // henüz seçmemiş/beklememiş oyuncular. Bağlantısı kopmuş insanlar beklenmez (gündüz oylamasındaki gibi).
+  pendingActors() {
+    return [...this.players.values()].filter((p) => p.alive && (p.bot || p.connected) && this.canActAtNight(p.id));
+  }
+
+  // Herkes seçtiyse/beklediyse seçim aşaması kısa bir payla (PICK_GRACE_MS) erken biter; biri yeniden
+  // beklenir hâle gelirse (ör. iftiracı vampire dönüştü, oyuncu geri bağlandı) asıl süreye dönülür.
+  checkPickDone() {
+    const n = this.night;
+    if (this.phase !== 'night' || !n || n.stage === 'show') return;
+    const done = this.pendingActors().length === 0;
+    const now = Date.now();
+    let until = null;
+    if (done && !n.early) {
+      const at = Math.max(n.walkUntil, now + PICK_GRACE_MS);
+      if (at >= n.pickUntilFull) return;
+      n.early = true;
+      until = at;
+    } else if (!done && n.early) {
+      n.early = false;
+      until = n.pickUntilFull;
+    } else return;
+    n.pickUntil = until;
+    n.showUntil = until + NIGHT_SHOW_MS;
+    this.deadline = until;
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.endPick(), Math.max(0, until - now));
+  }
+
+  // Seçim aşaması biter: gece çözülür, gösterim aşaması başlar. Ölümler sabah herkese açıklanır;
+  // etkilenen oyuncular kendi gösterimlerini (state.night.show) hemen alır.
+  endPick() {
+    if (this.phase !== 'night' || !this.night || this.night.stage === 'show') return;
+    clearTimeout(this.timer);
+    this.clearNightTimers();
+    const now = Date.now();
+    this.night.stage = 'show';
+    this.night.pickUntil = Math.min(this.night.pickUntil, now);
+    this.night.showUntil = now + NIGHT_SHOW_MS;
+    this.deadline = this.night.showUntil;
+    this.resolveNight();
+    this.timer = setTimeout(() => this.dawn(), NIGHT_SHOW_MS);
+    this.resultTimer = setTimeout(() => this.sendNightResults(), NIGHT_RESULT_MS);
+    this.changed();
+  }
+
+  // Geceyi hemen bitirir (testler ve yedek yol): gerekirse çözer, özel sonuçları gönderir, sabah olur.
+  endNight() {
+    if (this.phase !== 'night') return;
+    if (this.nightStage !== 'show') this.endPick();
+    if (this.phase !== 'night') return;
+    this.sendNightResults();
+    this.dawn();
   }
 
   tripOk(actorId, kind) {
@@ -1067,85 +1265,309 @@ class Room {
     return t && t.alive ? [t.id] : [];
   }
 
-  // Gözcünün izlediği evle ilgili bildikleri: gelenler (kapıdan dönenler dahil) ve ev sahibinin
-  // gidip gitmediği. Rüzgârda isimler yerine sadece gölgeler (sayı) görülür.
-  watchInfo(houseId, watcherId, dark) {
+  // Gözcünün izlediği evle ilgili bildikleri (gerçekten olan yolculuklardan): gelenler (kapıdan
+  // dönenler dahil, isme göre sıralı) ve ev sahibinin gidip gitmediği. Rüzgârda isimler yerine gölgeler.
+  watchInfo(houseId, watcherId, dark, trips, saved = false) {
     const seen = new Map();
-    for (const t of this.trips) {
+    for (const t of trips) {
       if (t.to !== houseId || t.kind === 'watch' || t.actorId === houseId || t.actorId === watcherId) continue;
-      if (!seen.has(t.actorId)) seen.set(t.actorId, { id: t.actorId, blocked: t.blocked });
-      else if (!t.blocked) seen.get(t.actorId).blocked = false;
+      const blocked = t.outcome === 'bounced';
+      if (!seen.has(t.actorId)) seen.set(t.actorId, { id: t.actorId, blocked });
+      else if (!blocked) seen.get(t.actorId).blocked = false;
     }
-    const list = [...seen.values()];
-    const ownerTrip = houseId === watcherId ? null : this.trips.find((t) => t.actorId === houseId && t.kind !== 'watch');
-    return {
-      targetId: houseId,
-      dark,
-      visitors: dark ? list.map((v) => ({ id: null, blocked: v.blocked })) : list,
-      count: list.length,
-      blockedCount: list.filter((v) => v.blocked).length,
-      ownerOut: Boolean(ownerTrip),
-      ownerWent: ownerTrip && !dark ? ownerTrip.to : null,
+    const ownerTrip = houseId === watcherId ? null : trips.find((t) => t.actorId === houseId && t.kind !== 'watch');
+    return this.watchShape(houseId, [...seen.values()], ownerTrip ? ownerTrip.to : null, Boolean(ownerTrip), dark, saved);
+  }
+
+  // Gözcünün gördüğü evlerden (izlenen ev, ev sahibinin gittiği ev) bu gece ölüm çıkanlar.
+  watchDeathAt(watch, deadIds) {
+    return [watch.targetId, watch.ownerWent].filter((id, i, a) => id && a.indexOf(id) === i && deadIds.has(id));
+  }
+
+  // Geceyi çözer (gösterim aşamasının başında). Sıra:
+  // 1. gardiyanın kilidi bütün gece geçerli (kilitli evin sahibi bir şey yapamaz, gelenler kapıdan döner);
+  // 2. öldürmeler sırayla: vampirlerin ortak hedefi, sonra hırsız (vampirler onu öldürmediyse), sonra cadının
+  //    zehri (cadı 2. adımda daha önce ölmediyse);
+  // 3. doktorun koruması / cadının hayat iksiri, sahibi vampir saldırısında ölmediyse geçerlidir; koruma
+  //    her öldürmeyi, iksir yalnızca vampir saldırısını durdurur;
+  // 4. bu gece ölen hiç evden çıkmamıştır: öldürme dışındaki eylemi (bakma, izleme, iftira, kilit raporu,
+  //    delinin sahte eylemleri; koruma/iksir için 3. kural) iptal olur – yolculuk yok, sonuç yok;
+  // 5. yalnızca gerçekten olan eylemler yolculuk yaratır (gözcünün görebildiği).
+  // Ölümler burada sadece belirlenir; herkese sabah (dawn) açıklanır.
+  resolveNight() {
+    const dark = this.eventIs('ruzgar');
+    const P = (id) => this.players.get(id);
+    const alive = (p) => Boolean(p && p.alive);
+    const dies = new Map();        // id -> sebep, çözülme sırasıyla
+    const home = new Map();        // ev sahibi -> [{ kind, result }] (o evde olanlar, sırayla; gelenler isimsiz)
+    const homeAdd = (id, e) => { if (!home.has(id)) home.set(id, []); home.get(id).push(e); };
+    const saved = new Map();       // koruyucu (doktor/cadı) -> kurtardığı kişi
+
+    const doctor = this.aliveWith(ROLE.DOCTOR);
+    const protectId = doctor && this.nightDoctor
+      && (this.nightDoctor === doctor.id || this.tripOk(doctor.id, 'protect')) ? this.nightDoctor : null;
+    const witch = this.aliveWith(ROLE.WITCH);
+    const healId = witch && this.nightWitch.heal
+      && (this.nightWitch.heal === witch.id || this.tripOk(witch.id, 'heal')) ? this.nightWitch.heal : null;
+    const killedByVamp = (p) => Boolean(p && dies.get(p.id) === 'vampir');
+    // Doktor vampir saldırısında öldüyse koruması (sonraki öldürmeler için) geçersiz.
+    const protects = (id) => Boolean(protectId && protectId === id && !killedByVamp(doctor));
+    // Koruyan kendi evindeyse (kendini korudu) gösterimde ayrı bir siluet yoktur.
+    const shield = (houseId, kind, byDoc, byHeal) => {
+      homeAdd(houseId, { kind, result: 'saved' });
+      if ((byDoc && doctor.id !== houseId) || (byHeal && witch.id !== houseId)) homeAdd(houseId, { kind: 'protect', result: 'saved' });
+      if (byDoc) saved.set(doctor.id, houseId);
+      if (byHeal) saved.set(witch.id, houseId);
+    };
+
+    // 2a. Vampirlerin ortak hedefi: hedefe ulaşan (kapıdan dönmeyen) yaşayan bir vampir varsa saldırı olur.
+    const killTrips = this.trips.filter((t) => t.kind === 'kill' && alive(P(t.actorId)) && P(t.actorId).role === ROLE.VAMPIRE);
+    const victimId = this.teamTarget && killTrips.some((t) => !t.blocked) && alive(P(this.teamTarget.targetId))
+      ? this.teamTarget.targetId : null;
+    let attack = null;
+    if (victimId) {
+      const byDoc = protects(victimId);
+      const byHeal = healId === victimId;
+      if (byDoc || byHeal) {
+        attack = 'saved';
+        shield(victimId, 'attack', byDoc, byHeal);
+      } else {
+        attack = 'died';
+        dies.set(victimId, 'vampir');
+        homeAdd(victimId, { kind: 'attack', result: 'died' });
+      }
+    }
+    // İksir kullanıldı (kapıdan dönmediyse ve cadı vampir saldırısında ölmediyse).
+    if (healId && !killedByVamp(witch)) this.witchUsed.heal = true;
+
+    // 2b. Hırsız (vampirler onu öldürmediyse). Hedef zaten öldüyse yine de rolünü alır.
+    const thief = this.nightSteal ? P(this.nightSteal.by) : null;
+    let steal = null;
+    if (thief && alive(thief) && thief.role === ROLE.THIEF && !killedByVamp(thief)) {
+      const targetId = this.nightSteal.targetId;
+      if (!this.tripOk(thief.id, 'steal')) steal = { thiefId: thief.id, targetId, outcome: 'bounced' };
+      else if (!alive(P(targetId)) || dies.has(targetId)) steal = { thiefId: thief.id, targetId, outcome: 'done' };
+      else if (protects(targetId)) {
+        steal = { thiefId: thief.id, targetId, outcome: 'foiled' };
+        shield(targetId, 'steal', true, false);
+      } else {
+        steal = { thiefId: thief.id, targetId, outcome: 'done' };
+        dies.set(targetId, 'hirsiz');
+        homeAdd(targetId, { kind: 'steal', result: 'died' });
+      }
+    }
+
+    // 2c. Cadının zehri (cadı bu gece daha önce öldürülmediyse).
+    let poison = null;
+    const poisonId = this.nightWitch.poison;
+    if (witch && poisonId && !dies.has(witch.id) && this.trips.some((t) => t.actorId === witch.id && t.kind === 'poison')) {
+      if (!this.tripOk(witch.id, 'poison')) poison = { targetId: poisonId, outcome: 'bounced' };
+      else {
+        this.witchUsed.poison = true;
+        if (!alive(P(poisonId)) || dies.has(poisonId)) poison = { targetId: poisonId, outcome: 'done' };
+        else if (protects(poisonId)) {
+          poison = { targetId: poisonId, outcome: 'saved' };
+          shield(poisonId, 'poison', true, false);
+        } else {
+          poison = { targetId: poisonId, outcome: 'done' };
+          dies.set(poisonId, 'zehir');
+          homeAdd(poisonId, { kind: 'poison', result: 'died' });
+        }
+      }
+    }
+
+    // 4–5. Gerçekten olan yolculuklar (seçim sırasıyla).
+    const dying = (id) => dies.has(id);
+    const trips = [];
+    for (const t of this.trips) {
+      const a = P(t.actorId);
+      if (!alive(a)) continue;
+      let outcome = t.blocked ? 'bounced' : 'done';
+      switch (t.kind) {
+        case 'kill':
+          if (a.role !== ROLE.VAMPIRE) continue;
+          if (!t.blocked) {
+            if (!victimId) continue;
+            outcome = attack === 'saved' ? 'saved' : 'done';
+          }
+          break;
+        case 'steal':
+          if (!steal || steal.thiefId !== a.id) continue;
+          outcome = steal.outcome;
+          break;
+        case 'poison':
+          if (!poison || a.role !== ROLE.WITCH) continue;
+          outcome = poison.outcome;
+          break;
+        case 'heal':
+          if (a.role !== ROLE.WITCH || killedByVamp(a)) continue;
+          if (!t.blocked && saved.has(a.id)) outcome = 'saved';
+          break;
+        case 'protect':
+          if (a.role === ROLE.MAD) { if (dying(a.id)) continue; break; }
+          if (a.role !== ROLE.DOCTOR || killedByVamp(a)) continue;
+          if (!t.blocked && saved.has(a.id)) outcome = 'saved';
+          break;
+        case 'frame':
+          if (a.role !== ROLE.FRAMER || this.nightFrame !== t.to || dying(a.id)) continue;
+          break;
+        default:   // inspect, watch (gerçek ya da deli)
+          if (dying(a.id)) continue;
+      }
+      trips.push({ actorId: a.id, to: t.to, kind: t.kind, outcome });
+    }
+
+    // Kahin (dedektif): iki rol, biri gerçek. İftiracının (yaşayan, iftirası gerçekleşen) iftirası "vampir"i katar.
+    const seer = this.aliveWith(ROLE.SEER);
+    const inspect = seer && trips.find((t) => t.actorId === seer.id && t.kind === 'inspect' && t.outcome === 'done');
+    const frame = trips.find((t) => t.kind === 'frame' && t.outcome === 'done');
+    const seerRes = inspect
+      ? { seerId: seer.id, targetId: inspect.to, roles: this.seerPair(seer, P(inspect.to), Boolean(frame && frame.to === inspect.to)) }
+      : null;
+
+    const watcher = this.aliveWith(ROLE.WATCHER);
+    const watchRes = watcher && this.nightWatch && !dying(watcher.id)
+      ? { watcherId: watcher.id, info: this.watchInfo(this.nightWatch, watcher.id, dark, trips, (home.get(this.nightWatch) || []).some((e) => e.kind !== 'protect' && e.result === 'saved')) } : null;
+
+    const jailer = this.aliveWith(ROLE.JAILER);
+    const lock = this.nightLock;
+    const lockRes = lock && jailer && jailer.id === lock.by && !dying(jailer.id) ? {
+      jailerId: jailer.id,
+      targetId: lock.targetId,
+      count: new Set(trips.filter((t) => t.to === lock.targetId && t.outcome === 'bounced').map((t) => t.actorId)).size,
+    } : null;
+
+    // Kilitli ev sahibi kapının zorlandığını duyar (kaç kişi; kim olduğu değil).
+    const rattleCount = lock
+      ? new Set(trips.filter((t) => t.to === lock.targetId && t.outcome === 'bounced').map((t) => t.actorId)).size : 0;
+    const rattled = lock && rattleCount ? { ownerId: lock.targetId, count: rattleCount } : null;
+
+    // Deliler: sahte rolüne göre uydurma sonuçlar (bu gece ölmüyorsa ve kapıdan dönmediyse).
+    const mad = [];
+    for (const p of this.players.values()) {
+      if (p.role !== ROLE.MAD || !alive(p) || dying(p.id)) continue;
+      const pick = this.madPicks.get(p.id);
+      const r = { id: p.id };
+      if (p.fakeRole === ROLE.SEER && pick && trips.some((t) => t.actorId === p.id && t.kind === 'inspect' && t.outcome === 'done')) {
+        r.seer = { targetId: pick, roles: this.madSeerPair(p, pick) };
+      }
+      if (p.fakeRole === ROLE.WATCHER && pick) r.watch = this.madWatchInfo(p, pick, dark);
+      if (p.fakeRole === ROLE.JAILER && this.madNightLock.get(p.id)) {
+        const x = this.rand();
+        r.lock = { targetId: this.madNightLock.get(p.id), count: x < 0.5 ? 0 : (x < 0.85 ? 1 : 2) };
+      }
+      mad.push(r);
+    }
+
+    this.nightRes = {
+      dark, dies, home, saved, trips, steal, seer: seerRes, watch: watchRes, lock: lockRes, rattled, mad, sent: false,
     };
   }
 
-  endNight() {
-    const dark = this.eventIs('ruzgar');
-    for (const t of this.madTimers) clearTimeout(t);
-    this.madTimers = [];
+  // Gösterimin 9. saniyesinde: özel sonuç duyuruları (ve notlar). Bu gece ölenler yalnızca 'killed' alır.
+  sendNightResults() {
+    const res = this.nightRes;
+    if (!res || res.sent || this.phase !== 'night') return;
+    res.sent = true;
+    clearTimeout(this.resultTimer);
+    this.resultTimer = null;
+    const P = (id) => this.players.get(id);
+    const ok = (id) => { const p = P(id); return Boolean(p && p.alive && !res.dies.has(id)); };
+    const note = (p, text) => p.notes.push({ text, ts: Date.now() });
+    const deadIds = new Set(res.dies.keys());
 
-    // Seçimler sabah aynı anda çözülür: gece sonunda hayatta olan herkesin (kapıdan dönmemiş)
-    // seçimi geçerlidir, o gece ölecek olsa bile. Delinin seçimleri burada hiç sayılmaz.
-    const victimTarget = this.teamTargetActive() ? this.players.get(this.teamTarget.targetId) : null;
-    const killers = this.trips.filter((t) => t.kind === 'kill' && !t.blocked
-      && this.players.get(t.actorId).alive && this.players.get(t.actorId).role === ROLE.VAMPIRE);
-    const victimId = victimTarget && victimTarget.alive && killers.length ? victimTarget.id : null;
-
-    const doctor = this.aliveWith(ROLE.DOCTOR);
-    const protectedId = doctor && this.nightDoctor
-      && (this.nightDoctor === doctor.id || this.tripOk(doctor.id, 'protect')) ? this.nightDoctor : null;
-    const witch = this.aliveWith(ROLE.WITCH);
-    const heal = witch && this.nightWitch.heal
-      && (this.nightWitch.heal === witch.id || this.tripOk(witch.id, 'heal')) ? this.nightWitch.heal : null;
-    const poison = witch && this.nightWitch.poison && this.tripOk(witch.id, 'poison') ? this.nightWitch.poison : null;
-    if (heal) this.witchUsed.heal = true;
-    if (poison) this.witchUsed.poison = true;
-
-    // Hırsız: eve ulaştıysa (kilitli kapı geri çevirir) hedefi öldürür; doktorun koruduğunu öldüremez.
-    const thief = this.nightSteal ? this.players.get(this.nightSteal.by) : null;
-    const stealOk = Boolean(thief && thief.alive && thief.role === ROLE.THIEF && this.tripOk(thief.id, 'steal'));
-    const stealTarget = stealOk ? this.players.get(this.nightSteal.targetId) : null;
-
-    const seer = this.aliveWith(ROLE.SEER);
-    const seen = seer && this.nightSeer && this.tripOk(seer.id, 'inspect') ? this.players.get(this.nightSeer) : null;
-    const framer = this.aliveWith(ROLE.FRAMER);
-    const framedId = framer && this.nightFrame && this.tripOk(framer.id, 'frame') ? this.nightFrame : null;
-    // Kahin sonucu gece içindeki rollere göre (hırsızın rolü sabah değişse de o gece tarafsızdı).
-    const seerVerdict = seen ? (isEvil(seen.role) || seen.id === framedId) : false;
-    const watcher = this.aliveWith(ROLE.WATCHER);
-    const watchedId = watcher ? this.nightWatch : null;
-    const watch = watchedId ? this.watchInfo(watchedId, watcher.id, dark) : null;
-    const jailer = this.aliveWith(ROLE.JAILER);
-    const lock = this.nightLock;
-    const lockTries = lock
-      ? new Set(this.trips.filter((t) => t.to === lock.targetId && t.blocked).map((t) => t.actorId)).size : 0;
-    // Deliler: sahte rolüne göre uydurma sonuçlar (gece sonunda hayattaysa ve kapıdan dönmediyse).
-    const madReports = [...this.players.values()].filter((p) => p.role === ROLE.MAD && p.alive).map((p) => ({
-      p,
-      seen: p.fakeRole === ROLE.SEER && this.madPicks.get(p.id) && this.tripOk(p.id, 'inspect')
-        ? this.players.get(this.madPicks.get(p.id)) : null,
-      watch: p.fakeRole === ROLE.WATCHER && this.madWatch.get(p.id)
-        ? this.madWatchInfo(this.madWatch.get(p.id), Infinity, dark) : null,
-      lock: p.fakeRole === ROLE.JAILER ? this.madNightLock.get(p.id) || null : null,
-    }));
-
-    // Doktorun koruduğu kişi o gece hiçbir şekilde ölmez; hayat iksiri sadece vampir saldırısını engeller.
-    const deaths = [];
-    if (victimId && victimId !== protectedId && victimId !== heal) deaths.push({ id: victimId, cause: 'vampir' });
-    if (poison && poison !== protectedId && !deaths.some((d) => d.id === poison)) deaths.push({ id: poison, cause: 'zehir' });
-    if (stealTarget && stealTarget.alive && stealTarget.id !== protectedId && !deaths.some((d) => d.id === stealTarget.id)) {
-      deaths.push({ id: stealTarget.id, cause: 'hirsiz' });
+    // Kapıdan dönenler.
+    const bounced = new Set();
+    for (const t of res.trips) {
+      const key = `${t.actorId}>${t.to}`;
+      if (t.outcome !== 'bounced' || !ok(t.actorId) || bounced.has(key)) continue;
+      bounced.add(key);
+      const text = `${genitive(P(t.to).name)} kapısı dışarıdan kilitliydi; eve döndün.`;
+      note(P(t.actorId), `🔒 ${this.round}. gece: ${text}`);
+      this.announce('bounced', 'Kapı kilitliydi', text, { targets: [{ id: t.to }] }, [t.actorId]);
     }
+    // Kahin, gözcü, gardiyan; deliler aynı biçimde.
+    if (res.seer && ok(res.seer.seerId)) this.sendSeer(P(res.seer.seerId), P(res.seer.targetId), res.seer.roles);
+    if (res.watch && ok(res.watch.watcherId)) this.sendWatch(P(res.watch.watcherId), res.watch.info, deadIds);
+    if (res.lock && ok(res.lock.jailerId)) this.sendLockReport(P(res.lock.jailerId), res.lock.targetId, res.lock.count);
+    if (res.rattled && ok(res.rattled.ownerId)) {
+      const text = `Bu gece kilitli kapını ${res.rattled.count} kişi zorladı.`;
+      note(P(res.rattled.ownerId), `🔒 ${this.round}. gece: ${text}`);
+      this.announce('rattled', 'Kapın zorlandı', text, { targets: [{ id: res.rattled.ownerId }], count: res.rattled.count }, [res.rattled.ownerId]);
+    }
+    for (const r of res.mad) {
+      const p = P(r.id);
+      if (!ok(r.id) || p.role !== ROLE.MAD) continue;
+      if (r.seer) this.sendSeer(p, P(r.seer.targetId), r.seer.roles);
+      if (r.watch) this.sendWatch(p, r.watch, deadIds);
+      if (r.lock) this.sendLockReport(p, r.lock.targetId, r.lock.count);
+    }
+    // Hırsız: hedef bu gece öldüyse (sebep ne olursa olsun) ve hırsız sağ kalıyorsa rolü alır;
+    // doktor koruduysa hakkı yanmaz. (Kilitli kapı 'bounced' verir.)
+    const st = res.steal;
+    if (st && ok(st.thiefId) && P(st.thiefId).role === ROLE.THIEF) {
+      const thief = P(st.thiefId);
+      const victim = P(st.targetId);
+      if (st.outcome === 'done' && res.dies.has(victim.id)) this.takeOver(thief, victim);
+      else if (st.outcome === 'foiled') {
+        const text = `${genitive(victim.name)} evi bu gece korunuyordu; çalamadın ama hakkın yanmadı.`;
+        note(thief, `🗝️ ${this.round}. gece: ${text}`);
+        this.announce('stealfail', 'Soygun başarısız', text, { targets: [{ id: victim.id }] }, [thief.id]);
+      }
+    }
+    // Koruması bir saldırıyı gerçekten durduran doktor/cadı.
+    for (const [protectorId, savedId] of res.saved) {
+      if (!ok(protectorId)) continue;
+      const p = P(protectorId);
+      const other = P(savedId);
+      const self = protectorId === savedId;
+      let title;
+      let text;
+      if (p.role === ROLE.WITCH) {
+        title = 'Hayat iksiri işe yaradı';
+        text = self ? 'Vampirler bu gece evine geldi; hayat iksirin seni kurtardı.'
+          : `${other.name} bu gece vampirlerin saldırısına uğradı; hayat iksirin onu kurtardı.`;
+      } else {
+        title = 'Koruman işe yaradı';
+        text = self ? 'Bu gece evine saldırı oldu; kendini korudun ve kurtuldun.'
+          : `${other.name} bu gece saldırıya uğradı; senin koruman sayesinde kurtuldu.`;
+      }
+      note(p, `🛡️ ${this.round}. gece: ${text}`);
+      this.announce('saved', title, text, { targets: [{ id: savedId }] }, [protectorId]);
+    }
+    // Saldırıdan kurtulan ev sahibi (kim olduğu, ne olduğu söylenmez).
+    for (const [houseId, events] of res.home) {
+      if (!ok(houseId) || !events.some((e) => e.kind !== 'protect' && e.result === 'saved')) continue;
+      const text = 'Bu gece evinde saldırıya uğradın ama sağ kurtuldun.';
+      note(P(houseId), `🛡️ ${this.round}. gece: ${text}`);
+      this.announce('attacked', 'Saldırıdan kurtuldun', text, { targets: [{ id: houseId }] }, [houseId]);
+    }
+    // Bu gece ölenler (herkes sabah öğrenir).
+    const DEATH_TEXT = {
+      vampir: 'Vampirler bu gece evine girdi. Sabahı göremeyeceksin.',
+      zehir: 'Bu gece zehirlendin. Sabahı göremeyeceksin.',
+      hirsiz: 'Bu gece evine biri girdi, seni soydu ve canını aldı. Sabahı göremeyeceksin.',
+    };
+    for (const [id, cause] of res.dies) {
+      const p = P(id);
+      if (!p || !p.alive) continue;
+      note(p, `💀 ${this.round}. gece: ${DEATH_TEXT[cause]}`);
+      this.announce('killed', 'Bu gece öldün', DEATH_TEXT[cause], { targets: [{ id }], cause }, [id]);
+    }
+    this.changed();
+  }
+
+  // Sabah: gecenin ölümleri herkese açıklanır, sonra avcı / kazanan / gündüz.
+  dawn() {
+    if (this.phase !== 'night') return;
+    clearTimeout(this.timer);
+    if (!this.nightRes) this.resolveNight();
+    this.sendNightResults();
+    if (this.phase !== 'night') return;
+    this.clearNightTimers();
+    const res = this.nightRes;
+    const deaths = [...res.dies].map(([id, cause]) => ({ id, cause }))
+      .filter((d) => { const p = this.players.get(d.id); return p && p.alive; });
     this.event = this.event && this.event.phase === 'night' ? null : this.event;
 
     const HOW = { vampir: 'vampir tarafından öldürüldü', zehir: 'zehirlenerek öldü', hirsiz: 'soyulup öldürüldü' };
@@ -1189,40 +1611,46 @@ class Room {
     }
     // Gece olayının kapanış satırı, sabah anlatısından sonra ayrı satır olarak.
     this.storyLine(cleanStory(dawn.eventEnd));
-    const deadIds = new Set(deaths.map((d) => d.id));
-
-    // Kahin iftiracıyı da vampir görür; iftira atılan kişiye bakarsa sonuç "VAMPİR" çıkar.
-    if (seen && seer.alive) this.sendSeer(seer, seen, seerVerdict);
-    // Gözcü sabaha sağ çıkarsa gördüklerini sözle de öğrenir.
-    if (watch && watcher.alive) this.sendWatch(watcher, watch, deadIds);
-    // Gardiyan sabaha sağ çıkarsa kilitlediği kapıyı kaç kişinin zorladığını öğrenir (kim olduğunu değil).
-    if (lock && jailer && jailer.alive && jailer.id === lock.by) this.sendLockReport(jailer, lock.targetId, lockTries);
-    // Deli: gerçek rolün alacağı mesajın aynısı, uydurma içerikle.
-    for (const r of madReports) {
-      if (!r.p.alive) continue;
-      if (r.seen) {
-        const alive = [...this.players.values()].filter((x) => x.alive);
-        const evil = alive.filter((x) => isEvil(x.role)).length;
-        const odds = Math.min(0.5, Math.max(0.15, evil / Math.max(1, alive.length - 1)));
-        this.sendSeer(r.p, r.seen, this.rand() < odds);
-      }
-      if (r.watch) this.sendWatch(r.p, r.watch, deadIds);
-      if (r.lock) {
-        const x = this.rand();
-        this.sendLockReport(r.p, r.lock, x < 0.5 ? 0 : (x < 0.85 ? 1 : 2));
-      }
-    }
-
-    // Hırsız: hedefe ulaştı ve hedef bu gece öldüyse (sebep ne olursa olsun) rolünü alır.
-    if (stealTarget && deadIds.has(stealTarget.id) && thief.alive) this.takeOver(thief, stealTarget);
-    // Doktor korumasına takılan soygun: hırsız özel olarak öğrenir, hakkı yanmaz.
-    else if (stealTarget && stealTarget.id === protectedId && thief.alive && !deadIds.has(stealTarget.id)) {
-      const text = `${genitive(stealTarget.name)} evi bu gece korunuyordu; çalamadın ama hakkın yanmadı.`;
-      thief.notes.push({ text: `🗝️ ${this.round}. gece: ${text}`, ts: Date.now() });
-      this.announce('stealfail', 'Soygun başarısız', text, { targets: [{ id: stealTarget.id }] }, [thief.id]);
-    }
-
+    this.night = null;
     this.afterDeaths(deaths.map((d) => d.id), () => this.startDay());
+  }
+
+  // Gösterim aşamasında izleyicinin kendi gözünden gece (state.night.show). Sadece bilmesi gerekenler.
+  showFor(me) {
+    const res = this.nightRes;
+    if (!res || this.nightStage !== 'show') return null;
+    const out = {};
+    const fmt = (t) => ({
+      to: t.to, kind: t.kind, outcome: t.outcome,
+      interior: ['kill', 'steal', 'poison'].includes(t.kind) && t.outcome !== 'bounced',
+    });
+    const mine = res.trips.filter((t) => t.actorId === me.id);
+    if (mine.length) {
+      out.trip = fmt(mine[0]);
+      if (mine.length > 1) out.trips = mine.map(fmt);
+    }
+    if (isEvil(me.role)) {
+      const team = res.trips.filter((t) => t.actorId !== me.id && (t.kind === 'kill' || t.kind === 'frame')
+        && isEvil(this.players.get(t.actorId).role)).map((t) => ({ id: t.actorId, to: t.to, kind: t.kind, outcome: t.outcome }));
+      if (team.length) out.team = team;
+    }
+    const home = res.home.get(me.id);
+    if (home && home.length) out.home = home.map((e) => ({ kind: e.kind, result: e.result }));
+    if (res.dies.has(me.id)) out.dead = true;
+    let watch = null;
+    if (res.watch && res.watch.watcherId === me.id) watch = res.watch.info;
+    else if (me.role === ROLE.MAD) watch = (res.mad.find((m) => m.id === me.id && m.watch) || {}).watch || null;
+    if (watch) {
+      out.watch = {
+        houseId: watch.targetId,
+        arrivals: watch.visitors.map((v) => ({ id: v.id, blocked: v.blocked })),
+        ownerWent: watch.ownerWent,
+        died: this.watchDeathAt(watch, new Set(res.dies.keys())).length > 0,
+        saved: Boolean(watch.saved),
+      };
+    }
+    if (res.saved.has(me.id)) out.saved = true;
+    return out;
   }
 
   // Hırsız ölenin rolünü olduğu gibi alır (kullanılmış iksirler dahil; çalınan deli yine deli kalır
@@ -1238,16 +1666,64 @@ class Room {
       { targets: [{ id: victim.id }], role: this.actingRole(thief) }, [thief.id]);
   }
 
-  sendSeer(seer, seen, isVampire) {
-    const text = `${seen.name} ${isVampire ? 'bir VAMPİR!' : 'vampir değil.'}`;
+  // Kahinin şaşırtmaca rolü: (kahin, hedef) için oyun boyunca sabit, gerçek rol asla değil; bu oyunda
+  // bulunabilecek rollerden (kahinin kendi rolü hariç). Hedefin rolü değişip şaşırtmacaya eşit olursa yenilenir.
+  seerDecoy(seer, targetId, real) {
+    const key = `${seer.id}:${targetId}`;
+    let decoy = this.seerPairs.get(key);
+    if (!decoy || decoy === real) {
+      decoy = this.drawDecoy(real);
+      this.seerPairs.set(key, decoy);
+    }
+    return decoy;
+  }
+
+  // Şaşırtmaca rol: 2/3 olasılıkla karşı taraftan (masum hedefe vampir/iftiracı, kötü hedefe bu oyunda
+  // olabilecek masum bir rol), yoksa aynı taraftan; asla gerçek rol, asla "kahin". Seçilen tarafta aday
+  // yoksa diğer taraftan çekilir. (seerRng: testlerde tohumlu.)
+  drawDecoy(real) {
+    const pool = possibleRoles(this.gameSize || this.players.size, this.settings).filter((r) => r !== real && r !== ROLE.SEER);
+    const opposite = pool.filter((r) => isEvil(r) !== isEvil(real));
+    const same = pool.filter((r) => isEvil(r) === isEvil(real));
+    const rng = this.seerRng;
+    let from = rng() < 2 / 3 ? opposite : same;
+    if (!from.length) from = from === opposite ? same : opposite;
+    if (!from.length) return real === ROLE.VILLAGER ? ROLE.VAMPIRE : ROLE.VILLAGER;
+    return from[Math.min(from.length - 1, Math.floor(rng() * from.length))];
+  }
+
+  // Kahinin sonucu: biri gerçek iki rol (sırası karışık). Deli kendini sandığı rol olarak görünür;
+  // iftira atılan kişide ikinci rol "vampir"dir.
+  seerPair(seer, target, framed) {
+    const real = this.actingRole(target);
+    const other = framed && real !== ROLE.VAMPIRE ? ROLE.VAMPIRE : this.seerDecoy(seer, target.id, real);
+    return this.seerRng() < 0.5 ? [real, other] : [other, real];
+  }
+
+  // Kendini kahin sanan deli: iki rastgele rol, gerçek kahin gibi (deli, hedef) için sabit.
+  madSeerPair(mad, targetId) {
+    const key = `${mad.id}:${targetId}`;
+    let pair = this.seerPairs.get(key);
+    if (!Array.isArray(pair)) {
+      // Gerçek kahinin sonuçlarıyla aynı karışımda: rastgele bir "gerçek" rol ve onun şaşırtmacası.
+      const pool = possibleRoles(this.gameSize || this.players.size, this.settings).filter((r) => r !== ROLE.SEER);
+      const a = pool[Math.min(pool.length - 1, Math.floor(this.seerRng() * pool.length))];
+      pair = [a, this.drawDecoy(a)];
+      this.seerPairs.set(key, pair);
+    }
+    return this.seerRng() < 0.5 ? [pair[0], pair[1]] : [pair[1], pair[0]];
+  }
+
+  sendSeer(seer, seen, roles) {
+    const [a, b] = roles.map((r) => ROLE_LABEL[r]);
+    const text = `${seen.name} şu ikisinden biri: ${a} ya da ${b}.`;
     seer.notes.push({ text: `🔮 ${this.round}. gece: ${text}`, ts: Date.now() });
-    this.announce('seer', 'Kristal küre konuştu', text,
-      { targets: [{ id: seen.id, cause: isVampire ? 'vampir' : 'temiz' }] }, [seer.id]);
+    this.announce('seer', 'Kristal küre konuştu', text, { targets: [{ id: seen.id }], roles: [...roles] }, [seer.id]);
   }
 
   sendWatch(watcher, watch, deadIds) {
     const dark = watch.dark;
-    const deathAt = [watch.targetId, watch.ownerWent].filter((id, i, a) => id && a.indexOf(id) === i && deadIds.has(id));
+    const deathAt = this.watchDeathAt(watch, deadIds);
     const text = this.watchText(watch, deathAt);
     const byName = (ids) => ids.map((id) => this.players.get(id)).sort((a, b) => a.name.localeCompare(b.name, 'tr')).map((p) => p.id);
     const visitors = dark ? [] : byName(watch.visitors.map((v) => v.id));
@@ -1255,7 +1731,7 @@ class Room {
     watcher.notes.push({ text: `👁️ ${this.round}. gece: ${text}`, ts: Date.now() });
     this.announce('watch', 'Gözcünün raporu', text, {
       targets: [{ id: watch.targetId }], visitors, blocked, count: watch.count, blockedCount: watch.blockedCount,
-      ownerOut: watch.ownerOut, ownerWent: watch.ownerWent, dark, deathAt,
+      ownerOut: watch.ownerOut, ownerWent: watch.ownerWent, dark, deathAt, saved: Boolean(watch.saved),
     }, [watcher.id]);
   }
 
@@ -1288,6 +1764,7 @@ class Room {
       }
       if (watch.ownerWent) text += ` ${owner.name} gece evinden çıkıp ${genitive(this.players.get(watch.ownerWent).name)} evine gitti.`;
     }
+    if (watch.saved) text += ' Evden yeşil ışıklar yükseldi: içeride biri saldırıya uğradı ama kurtarıldı.';
     if (deathAt.length) {
       text += ` Sabah ${deathAt.map((id) => `${genitive(this.players.get(id).name)} evinden`).join(' ve ')} ölüm haberi geldi.`;
     }
@@ -1677,6 +2154,13 @@ class Room {
 
   finish(winner) {
     clearTimeout(this.timer);
+    this.clearNightTimers();
+    this.night = null;
+    // Oyun bitti: hayaletlerin konumu artık herkese açık (meydandaki yerleri olur).
+    for (const p of this.players.values()) {
+      if (p.ghostPos) p.pos = p.ghostPos;
+      p.ghostPos = null;
+    }
     this.phase = 'ended';
     this.deadline = null;
     this.timerFrom = null;
@@ -1822,6 +2306,8 @@ class Room {
 
   // kind === 'move' ise sunucu yayını seyreltebilir (sık gelen konum güncellemeleri).
   changed(kind) {
+    // Seçim aşamasının erken bitişi her değişiklikte yeniden değerlendirilir (seçim, bekleme, ayrılma, bağlantı).
+    if (kind !== 'move' && !this.closed) this.checkPickDone();
     this.hooks.update(this, kind);
     if (kind === 'move' || this.closed) return;
     try {
@@ -1850,6 +2336,7 @@ class Room {
     const me = this.players.get(viewerId);
     const ended = this.phase === 'ended';
     const iAmEvil = Boolean(me && isEvil(me.role));
+    const viewerDead = Boolean(me && !me.alive);
 
     const players = [...this.players.values()].map((p) => {
       let role = null;
@@ -1862,7 +2349,8 @@ class Room {
         left: p.left, isHost: p.id === this.hostId, bot: Boolean(p.bot), role,
         // Delinin kendini sandığı rol: sadece gerçek rolü (deli) bu izleyiciye açıkken gönderilir.
         fakeRole: role === ROLE.MAD ? p.fakeRole : null,
-        look: p.look, pos: p.pos,
+        // Hayaletin konumu sadece ölülere (oyun sonunda zaten pos'a yazılır).
+        look: p.look, pos: p.ghostPos && viewerDead ? p.ghostPos : p.pos,
       };
     });
 
@@ -1875,7 +2363,9 @@ class Room {
         hasPassword: Boolean(this.password), winner: this.winner, winners: this.winners,
         minPlayers: MIN_PLAYERS, maxPlayers: MAX_PLAYERS,
         vampireCount: vampireCount(activeCount),
-        ...distributionFor(activeCount, enabledSpecials(this.settings)),
+        ...distributionFor(activeCount, enabledSpecials(this.settings), this.settings.roleMode),
+        night: this.phase === 'night' && this.night
+          ? { stage: this.night.stage, pickUntil: this.night.pickUntil, showUntil: this.night.showUntil } : null,
         hunterId: this.hunterId,
         scenario: this.scenario,
         epilogue: this.phase === 'ended' ? this.epilogue : null,
@@ -1939,11 +2429,14 @@ class Room {
   // Gece görünümü: sadece izleyicinin rolünün bildikleri. Seçimler kesin olduğu için
   // gözcünün canlı bilgisi (gelenler, ev sahibinin gidişi) güvenle gönderilebilir.
   nightViewFor(me) {
+    const show = this.showFor(me);
     const base = {
       mySelection: null, team: [], framer: null, teamTarget: null,
       locked: this.isLockedIn(me.id),
       canAct: this.canActAtNight(me.id),
-      bounced: this.trips.some((t) => t.actorId === me.id && t.blocked),
+      passed: this.nightPassed.has(me.id),
+      bounced: Boolean(show && this.nightRes.trips.some((t) => t.actorId === me.id && t.outcome === 'bounced')),
+      show,
     };
     const role = this.actingRole(me);
     const mad = me.role === ROLE.MAD;
@@ -1967,14 +2460,8 @@ class Room {
       case ROLE.DOCTOR:
       case ROLE.SEER: return { ...base, mySelection: this.pickOf(me, role) };
       case ROLE.THIEF: return { ...base, mySelection: this.nightSteal ? this.nightSteal.targetId : null };
-      case ROLE.WATCHER: {
-        const pick = this.pickOf(me, role);
-        const dark = this.eventIs('ruzgar');
-        let watch = null;
-        if (pick && mad) watch = this.madWatchInfo(this.madWatch.get(me.id), Date.now(), dark);
-        else if (pick) watch = this.watchInfo(pick, me.id, dark);
-        return { ...base, mySelection: pick, watch };
-      }
+      // Gözcünün canlı paneli yok: gelenler gösterimde (show.watch) ve sabah raporunda.
+      case ROLE.WATCHER: return { ...base, mySelection: this.pickOf(me, role) };
       case ROLE.WITCH:
         return {
           ...base,
@@ -1990,7 +2477,8 @@ class Room {
         if (mad) return { ...base, mySelection: this.madNightLock.get(me.id) || null };
         return { ...base, mySelection: this.nightLock && this.nightLock.by === me.id ? this.nightLock.targetId : null };
       default:
-        return null;
+        // Gece görevi olmayanlar da gösterimde kendi evlerinde olanı görür.
+        return show ? base : null;
     }
   }
 }
@@ -1998,9 +2486,9 @@ class Room {
 module.exports = {
   Room, ROLE, SLEEP, MIN_PLAYERS, MAX_PLAYERS, FRAMER_MIN_PLAYERS, SPECIAL_ROLES, OPTIONAL_ROLES,
   DEFAULT_ROLES, ROLE_LABEL, COLOR_COUNT, HAT_COUNT, SKIN_COUNT, PLAZA, MOVE_PHASES,
-  REVEAL_MS, ALL_VOTED_MS, HUNTER_MS, NIGHT_WALK_MS, TRIAL_TURN_MS, TRIAL_VOTE_MS, TRIAL_ALL_VOTED_MS,
+  HOST_GRACE_MS, REVEAL_MS, ALL_VOTED_MS, HUNTER_MS, NIGHT_WALK_MS, NIGHT_SHOW_MS, NIGHT_RESULT_MS, PICK_GRACE_MS, ROLE_MODES, TRIAL_TURN_MS, TRIAL_VOTE_MS, TRIAL_ALL_VOTED_MS,
   EVENTS, EVENT_MODES, EVENT_GAP, EVENT_CHANCE, chooseEvent, LOBBY_GRACE_MS, EMPTY_ROOM_MS,
   LOG_MAX, SCENES,
   THIEF_MIN_PLAYERS, MAD_FAKE_ROLES,
-  vampireCount, assignRoles, rolesFor, rolePlan, distributionFor, winnerOf, tally, normalizeSettings, teamOf, isEvil, clampToPlaza,
+  vampireCount, assignRoles, rolesFor, rolePlan, distributionFor, possibleRoles, winnerOf, tally, normalizeSettings, teamOf, isEvil, clampToPlaza,
 };

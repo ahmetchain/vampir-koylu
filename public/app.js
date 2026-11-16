@@ -58,11 +58,29 @@ function show(view) {
   scheduleInsets();
 }
 
-function setConn(text) {
+// Kısa kopmalar sessiz geçer: bağlantı ~4 sn içinde dönmezse küçük bir şerit görünür (oyun ekranı kalır).
+let connTimer = 0;
+let connText = '';
+function setConn(text, { now = false } = {}) {
   const el = $('#conn');
-  el.hidden = !text;
-  if (text) el.innerHTML = `<span class="spin"></span><span>${text}</span>`;
+  if (!text) { clearTimeout(connTimer); connTimer = 0; el.hidden = true; return; }
+  connText = text;
+  const apply = () => { connTimer = 0; el.hidden = false; el.innerHTML = `<span class="spin"></span><span>${connText}</span>`; };
+  if (now || !el.hidden) { clearTimeout(connTimer); apply(); }
+  else if (!connTimer) connTimer = setTimeout(apply, 4000);
 }
+
+// Ekran yeniden açılınca ya da ağ dönünce beklemeden yeniden bağlan (socket.io'nun bekleme süresini atla).
+function wakeSocket() {
+  const s = ctx.socket;
+  if (!s || !auth.token || s.connected) return;
+  if (document.visibilityState === 'hidden') return;
+  s.connect();
+}
+document.addEventListener('visibilitychange', wakeSocket);
+window.addEventListener('online', wakeSocket);
+window.addEventListener('pageshow', wakeSocket);
+window.addEventListener('focus', wakeSocket);
 
 // ---------- soket ----------
 function connectSocket() {
@@ -79,6 +97,8 @@ function connectSocket() {
     if (roomId) {
       const res = await send('session:resume', { roomId }, { quiet: true });
       if (res.ok) { ctx.roomId = res.roomId; return; }
+      // Bağlantı yine koptuysa ya da cevap gelmediyse odadan çıkarma: bir sonraki bağlantıda yeniden denenir.
+      if (!socket.connected || res.error === 'offline' || res.error === 'Sunucu cevap vermedi.') return;
       store.set(ROOM_KEY, null);
       if (ctx.view === 'room') { exitRoom(); toast('Oda artık yok ya da oyundaki yerin kalmadı.', 'error'); }
     }
@@ -106,7 +126,7 @@ function connectSocket() {
       logoutLocal('Oturumun sona erdi, tekrar giriş yap.');
       return;
     }
-    if (msg === 'unavailable') setConn('Sunucu hesaplara şu an ulaşamıyor, tekrar deneniyor…');
+    if (msg === 'unavailable') setConn('Sunucu hesaplara şu an ulaşamıyor, tekrar deneniyor…', { now: !everConnected });
     else setConn(everConnected ? 'Bağlantı koptu, yeniden bağlanılıyor…' : 'Sunucuya bağlanılıyor…');
     // Ara katman hatalarında socket.io kendisi tekrar denemez.
     if (msg === 'unavailable') setTimeout(() => { if (auth.token && !socket.connected) socket.connect(); }, 3000);
@@ -221,7 +241,13 @@ async function boot() {
   const worldP = initWorld($('#world'), {
     onPick: (id) => pick(id),
     // Serbest yürüme sadece lobide ve oyun bitince (sunucu başka aşamada reddeder; hata gösterilmez).
-    onMove: (x, y) => { const ph = ctx.state && ctx.state.room.phase; if (ph === 'lobby' || ph === 'ended') send('player:move', { x, y }, { quiet: true }); },
+    // Canlılar lobide ve oyun sonunda yürür; ölüler (hayaletler) oyunun her aşamasında (§12.1).
+    onMove: (x, y) => {
+      const s = ctx.state;
+      const ph = s && s.room.phase;
+      const ghost = s && s.me && !s.me.alive && ['night', 'day', 'trial', 'hunter'].includes(ph);
+      if (ph === 'lobby' || ph === 'ended' || ghost) send('player:move', { x, y }, { quiet: true });
+    },
     onSelf: () => openLookEditor(),
     onProgress: (d, t) => { if (t) bar.style.width = `${Math.max(6, Math.round((d / t) * 100))}%`; },
     onReady: () => { bar.style.width = '100%'; },

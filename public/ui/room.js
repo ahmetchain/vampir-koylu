@@ -2,7 +2,7 @@
 // lobi kartı, rol kartı (reveal), oyun sonu ekranı.
 import { ctx, send, playerById, iAmHost, emitLocal, on, serverNow } from './ctx.js';
 import { Api } from './api.js';
-import { $, esc, sfx, fmtClock, vibrate, audioScene, store } from './util.js';
+import { $, esc, sfx, fmtClock, vibrate, audioScene } from './util.js';
 import { icon, emblem, logoMark } from './icons.js';
 import { ROLES, COLORS, inkOn, isEvil, WIN_TITLE, levelOf, countRoles, MIN_PLAYERS, EVENTS } from './data.js';
 import { W } from './world-host.js';
@@ -20,7 +20,6 @@ let phaseKey = '';
 let lastTick = -1;
 let flipped = false;
 let endHidden = false;
-let lobbyMin = store.get('vk.lobbyMin', false);
 let inviteOrigin = location.origin + location.pathname.replace(/index\.html$/, '');
 let roleSheet = null;
 let lastPlayerCount = 0;
@@ -34,6 +33,7 @@ export function initRoom() {
   $('#btn-leave').innerHTML = icon('door');
   $('#btn-leave').addEventListener('click', leaveRoom);
   $('#role-chip').addEventListener('click', () => { sfx('click'); openRoleSheet(); });
+  $('#room-code').addEventListener('click', () => { sfx('click'); shareInvite(); });
   $('#event-badge').addEventListener('click', () => { sfx('click'); openEventSheet(); });
   $('#rail').addEventListener('click', (e) => {
     const c = e.target.closest('[data-pid]');
@@ -219,6 +219,12 @@ function onPromptClick(e) {
   if (a === 'unvote') { sfx('click'); send('day:vote', { targetId: null }); return; }
   if (a === 'role') openRoleSheet();
   if (a === 'lock') { sfx('click'); openLockSheet(); return; }
+  if (a === 'pass') {
+    sfx('click');
+    const key = phaseKey;
+    send('night:pass', {}).then((res) => { if (res.ok && key === phaseKey) { ctx.passedKey = key; renderAll(ctx.state); } });
+    return;
+  }
   if (a === 'tvote') { sfx('vote'); send('day:vote', { targetId: b.dataset.id }); return; }
   if (a === 'expand') { promptOpenKey = phaseKey; sfx('click'); renderPrompt(s); }
   if (a === 'collapse') { promptOpenKey = ''; sfx('click'); renderPrompt(s); }
@@ -230,24 +236,25 @@ async function onLobbyClick(e) {
   if (b.dataset.l === 'bot' && e.detail !== 0) return; // pointerup işledi
   sfx('click');
   const s = ctx.state;
-  const link = inviteLink(s.room.id);
   switch (b.dataset.l) {
-    case 'share':
-      if (navigator.share) {
-        try { await navigator.share({ title: 'Vampir Köylü', text: `${s.room.name} odasına gel, vampirleri birlikte bulalım!`, url: link }); return; } catch (err) { if (err && err.name === 'AbortError') return; }
-      }
-      copy(link);
-      break;
-    case 'copy': copy(link); break;
-    case 'code': copy(s.room.id, 'Oda kodu kopyalandı!'); break;
+    case 'share': shareInvite(); break;
     case 'look': openLookEditor(); break;
-    case 'settings': openRoomSettings(); break;
+    case 'roles': openLobbySheet(); break;
     case 'start': send('game:start'); break;
     // Fare/dokunma pointerup ile işlenir (kart arada yenilense de dokunuş kaybolmaz); burada sadece klavye.
     case 'bot': if (e.detail === 0) send('room:addBot', {}); break;
-    case 'min': lobbyMin = !lobbyMin; store.set('vk.lobbyMin', lobbyMin); renderLobby(s); scheduleInsets(); break;
     default: break;
   }
+}
+
+async function shareInvite() {
+  const s = ctx.state;
+  if (!s) return;
+  const link = inviteLink(s.room.id);
+  if (navigator.share) {
+    try { await navigator.share({ title: 'Vampir Köylü', text: `${s.room.name} odasına gel (kod ${s.room.id}), vampirleri birlikte bulalım!`, url: link }); return; } catch (err) { if (err && err.name === 'AbortError') return; }
+  }
+  copy(link, `Davet linki kopyalandı · kod ${s.room.id}`);
 }
 
 async function copy(text, msg = 'Davet linki kopyalandı!') {
@@ -306,7 +313,7 @@ export function renderAll(s) {
     if (!window.VKRules.witchBlocked(s, other)) ctx.witchMode = other;
   }
   renderTop(s);
-  renderWatch(s);
+  renderNightLabel(s);
   renderPrompt(s);
   renderLobby(s);
   renderRail(s);
@@ -383,6 +390,13 @@ function renderTop(s) {
   let label = phaseLabel(s);
   if (ph === 'lobby') label = `${s.room.name}`;
   $('#phase-label').textContent = label;
+  const code = $('#room-code');
+  code.hidden = ph !== 'lobby';
+  if (!code.hidden && code.dataset.id !== s.room.id) {
+    code.dataset.id = s.room.id;
+    code.innerHTML = `${icon('share')}<code>${esc(s.room.id)}</code>`;
+    code.setAttribute('aria-label', `Oda kodu ${s.room.id}: davet et`);
+  }
   const chip = $('#role-chip');
   chip.hidden = !s.me.role;
   if (s.me.role) {
@@ -398,6 +412,13 @@ function renderTop(s) {
 
 function tick() {
   const s = ctx.state;
+  const clock = document.querySelector('#prompt [data-clock]');
+  if (clock && s && s.room.night) {
+    const until = Number(s.room.night.pickUntil) || s.room.deadline;
+    const left = Math.max(0, Math.ceil((until - serverNow()) / 1000));
+    const txt = left ? `· ${left} sn` : '';
+    if (clock.textContent !== txt) clock.textContent = txt;
+  }
   const el = $('#timer');
   if (!s || !s.room.deadline) { el.hidden = true; return; }
   // Gece: herkes evine dönene kadar (room.timerFrom) sayaç tam gece süresinde donuk durur.
@@ -453,6 +474,11 @@ function promptFor(s) {
       out.html = '<b>Tipi var.</b> Bu gece köylüler evlerinden çıkamaz; sabahı bekle.';
       return out;
     }
+    if (passedTonight(s)) {
+      out.tone = 'ghost'; out.lead = icon('zz');
+      out.html = '<b>Bu gece bekliyorsun.</b> Seçim yapmadın; gece birazdan yaşanacak.';
+      return out;
+    }
     const st = tripStatus(s, sel);
     const teamLine = () => {
       if (!n.team || !n.team.length || n.teamTarget) return '';
@@ -488,11 +514,11 @@ function promptFor(s) {
         if (sel) out.short = `Koruman: ${name(sel)} ${st}`;
         break;
       case 'kahin':
-        out.html = sel ? `Kristal küren ${name(sel)} için hazır ${st}. Sonucu sabah öğreneceksin.` : '<b>Kimin geleceğine bakmak istersin?</b> Birini seç; seçim kesindir.';
+        out.html = sel ? `Kristal küren ${name(sel)} için hazır ${st}. Gece yaşanırken iki rol göreceksin; biri onun gerçek rolü.` : '<b>Kime bakacaksın?</b> İki rol göreceksin; biri onun gerçek rolü. Seçim kesindir.';
         if (sel) out.short = `Bakılacak: ${name(sel)} ${st}`;
         break;
       case 'gozcu':
-        out.html = sel ? `Gözetlediğin ev: ${name(sel)} ${st}. Gelenler ayrı panelde, canlı.` : '<b>Bu gece kimin evini gözetleyeceksin?</b> Kendi evin de olur. Seçim kesindir.';
+        out.html = sel ? `Gözetlediğin ev: ${name(sel)} ${st}. Gece yaşanırken o eve gelenleri göreceksin.` : '<b>Bu gece kimin evini gözetleyeceksin?</b> Kendi evin de olur. Seçim kesindir.';
         if (sel) out.short = `Gözetlenen: ${name(sel)}`;
         break;
       case 'cadi': {
@@ -528,6 +554,11 @@ function promptFor(s) {
         const extra = { avci: ' Ölürsen son atışını yapabilirsin.', muhtar: ' Gündüz oyun iki sayılacak.', soytari: ' Gündüz asılmak için köyü kışkırt!' }[me.role] || '';
         out.html = `Köy uyuyor… Bu gece görevin yok, sabahı bekle.${extra}`;
       }
+    }
+    const stage = nightStage(s);
+    if (stage && n.canAct) {
+      out.html += ' <span class="prompt-clock" data-clock></span>';
+      out.actions += `<button type="button" class="btn btn-ghost btn-s" data-a="pass">${icon('zz')}Bu gece bekle</button>`;
     }
     return out;
   }
@@ -610,41 +641,35 @@ function trialPrompt(s, name) {
   return out;
 }
 
-// Gözcü canlı paneli (sadece gözcü görür): eve gelenler, kapıdan dönenler, ev sahibinin gittiği ev.
-function renderWatch(s) {
-  const el = $('#watch-panel');
-  const wv = s.room.phase === 'night' && s.me.alive && s.me.role === 'gozcu' && s.night && s.night.watch;
-  el.hidden = !wv;
-  if (!wv) { el.dataset.html = ''; return; }
-  const owner = playerById(wv.targetId);
-  const ownName = owner ? (owner.id === s.me.id ? 'kendi evin' : `<b>${esc(owner.name)}</b>`) : '?';
-  const vis = wv.visitors || [];
-  let list;
-  if (wv.dark) {
-    list = vis.length
-      ? `<div class="watch-list">${vis.map((v) => `<span class="chip${v.blocked ? ' locked' : ''}"><span class="sil"></span>Bir gölge${v.blocked ? ' · kapıdan döndü' : ''}</span>`).join('')}</div>
-         <div class="watch-empty">Rüzgâr: karanlıkta ${wv.count ?? vis.length} gölge gördün${wv.blockedCount ? `, ${wv.blockedCount} tanesi kapıdan döndü` : ''}; kim olduklarını seçemiyorsun.</div>`
-      : '<div class="watch-empty">Karanlıkta henüz kimse görünmedi.</div>';
-  } else {
-    list = vis.length
-      ? `<div class="watch-list">${vis.map((v) => { const p = playerById(v.id); const c = p ? COLORS[p.look.color] : '#888'; return `<span class="chip${v.blocked ? ' locked' : ''}"><span class="swatch-dot" style="background:${c}"></span>${esc(p ? p.name : '?')}${v.blocked ? ` · ${icon('lock')}kapıdan döndü` : ''}</span>`; }).join('')}</div>`
-      : '<div class="watch-empty">Henüz kimse gelmedi.</div>';
-  }
-  let own = '';
-  if (wv.ownerOut) {
-    const to = wv.ownerWent ? playerById(wv.ownerWent) : null;
-    let where = '';
-    if (to) where = to.id === s.me.id ? ' → <b>senin</b> evine geldi' : ` → gittiği ev: <b>${esc(to.name)}</b>`;
-    else if (wv.dark) where = '; karanlıkta nereye gittiği görünmedi';
-    own = `<div class="watch-owner">${icon('door')} Ev sahibi çıktı${where}.</div>`;
-  }
-  const html = `<header>${emblem('gozcu', 's')}<span>Gözetlediğin ev: ${ownName}</span><span class="lt-private">${icon('eye')}Sadece sen görüyorsun</span></header>${list}${own}`;
+// Gece iki aşamalı (§15.1): seçim (walk/pick) ve yaşanış (show). Yaşanışta arayüz geri çekilir.
+function nightStage(s) {
+  return s && s.room.phase === 'night' && s.room.night && s.room.night.stage ? s.room.night.stage : '';
+}
+function killedTonight(s) {
+  const n = s.night || {};
+  return s.room.phase === 'night' && ((n.show && n.show.dead) || ctx.killedRound === s.room.round);
+}
+function passedTonight(s) {
+  return s.room.phase === 'night' && !!((s.night && s.night.passed) || ctx.passedKey === phaseKey);
+}
+function renderNightLabel(s) {
+  const el = $('#night-label');
+  const stage = nightStage(s);
+  $('#room').dataset.stage = stage;
+  const killed = killedTonight(s);
+  const show = stage === 'show' || (killed && s.room.phase === 'night');
+  el.hidden = !show;
+  if (!show) { el.dataset.html = ''; return; }
+  const html = killed
+    ? `${icon('tomb')}<span><b>Bu gece öldürüldün.</b> Sabah köy öğrenecek.</span>`
+    : `${icon('moon')}<span>Gece yaşanıyor…</span>`;
+  el.classList.toggle('dead', !!killed);
   if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; scheduleInsets(); }
 }
 
 function renderPrompt(s) {
   const el = $('#prompt');
-  const p = promptFor(s);
+  const p = nightStage(s) === 'show' || killedTonight(s) ? null : promptFor(s);
   el.hidden = !p;
   if (!p) return;
   // Seçim/oy yapıldıktan sonra istem tek satıra iner (dünya daha çok görünsün); dokununca açılır.
@@ -660,54 +685,72 @@ function renderPrompt(s) {
 }
 let promptOpenKey = '';
 
-function renderLobby(s) {
-  const el = $('#lobby-card');
+function lobbyInfo(s) {
   const { room, me } = s;
-  el.hidden = room.phase !== 'lobby';
-  if (el.hidden) return;
   const host = room.hostId === me.id;
   const connected = s.players.filter((p) => p.connected && !p.left).length;
   const total = s.players.filter((p) => !p.left).length;
   const need = Math.max(0, room.minPlayers - connected);
+  return { room, host, connected, total, need, full: total >= room.maxPlayers, bots: s.players.filter((p) => p.bot && !p.left).length };
+}
+
+function renderLobby(s) {
+  const el = $('#lobby-card');
+  el.hidden = s.room.phase !== 'lobby';
+  if (el.hidden) return;
+  const { room, host, connected, total, need, full } = lobbyInfo(s);
+  const ib = (l, ic, label, extra = '') => `<button type="button" class="lobby-ib" data-l="${l}" ${extra}>${icon(ic)}<span>${label}</span></button>`;
+  const main = host
+    ? `<button type="button" class="btn btn-primary lobby-start" data-l="start" ${need > 0 ? 'disabled' : ''}>${icon('play')}${need > 0 ? `${connected}/${room.minPlayers} oyuncu` : '<span class="ls-long">Oyunu </span>Başlat'}</button>`
+    : `<div class="lobby-wait" role="status">${icon('users')}<span>${need > 0 ? `${connected}/${room.minPlayers} oyuncu bekleniyor` : 'Oda sahibi başlatacak'}</span></div>`;
+  setHTML(el, `<div class="lobby-bar">
+    ${ib('share', 'share', 'Davet')}
+    ${ib('look', 'palette', 'Görünüm')}
+    ${ib('roles', host ? 'gear' : 'scroll', host ? 'Ayarlar' : 'Roller', `aria-label="${host ? 'Roller ve oda ayarları' : 'Roller ve kurallar'} (${total}/${room.maxPlayers} oyuncu)"`)}
+    ${host ? ib('bot', 'bot', 'Bot', `${full ? 'disabled' : ''} aria-label="Bot ekle${full ? ' (oda dolu)' : ''}"`) : ''}
+    ${main}
+  </div>`);
+}
+
+// Lobi sayfası: oyuncu sayısı, rol dağılımı (kesin + aday havuzu), uyarılar, bot notu, ayarlar.
+let lobbySheet = null;
+function lobbySheetHTML(s) {
+  const { room, host, connected, total, need, bots } = lobbyInfo(s);
   const hostP = playerById(room.hostId);
-  let why = '';
-  if (need > 0) why = `Başlamak için en az ${room.minPlayers} bağlı oyuncu gerekli (şu an ${connected}). ${need} kişi daha davet et!`;
-  else if (connected < total) why = 'Bağlantısı kopan oyuncular başlarken odadan çıkarılır.';
-  const iftiraOff = room.settings.roles.iftiraci && total < 7 ? ' İftiracı 7 oyuncudan az olduğu için dağıtılmayacak.' : '';
-  const bots = s.players.filter((p) => p.bot && !p.left).length;
-  const full = total >= room.maxPlayers;
-  const botBtn = (cls = '') => `<button type="button" class="btn btn-secondary ${cls}" data-l="bot" ${full ? 'disabled' : ''} aria-label="Bot ekle${full ? ' (oda dolu)' : ''}">${icon('bot')}Bot ekle</button>`;
-  const startBtn = host
-    ? `<div class="lobby-start-row">${botBtn('btn-lg')}<button type="button" class="btn btn-primary btn-lg lobby-start" data-l="start" ${need > 0 ? 'disabled' : ''}>${icon('play')}Oyunu Başlat</button></div>`
-    : '';
-  const botNote = bots ? `<p class="lobby-bots">${icon('bot')}<span>Odada ${bots} bot var. Botlu oyunlar istatistiğe sayılmaz.</span></p>`
-    : host ? `<p class="lobby-bots">${icon('bot')}<span>Tek başına denemek için bot ekle. Botlu oyunlar istatistiğe sayılmaz.</span></p>` : '';
-  el.classList.toggle('min', !!lobbyMin);
-  setHTML(el, `
-    <div class="lobby-row">
-      <button type="button" class="lobby-code btn btn-ghost btn-s" data-l="code" aria-label="Oda kodunu kopyala">Kod <code>${esc(room.id)}</code></button>
-      ${room.hasPassword ? `<span class="chip" title="Şifreli oda" aria-label="Şifreli oda">${icon('lock')}</span>` : ''}
-      <span class="lobby-count">${icon('users', '', '').replace('class="ic ', 'style="width:16px;height:16px;display:inline;vertical-align:-3px" class="ic ')} ${total}/${room.maxPlayers}</span>
-      <button type="button" class="iconbtn" data-l="min" aria-label="${lobbyMin ? 'Lobi kartını aç' : 'Lobi kartını küçült'}" style="width:36px;height:36px">${icon(lobbyMin ? 'plus' : 'minus')}</button>
-    </div>
-    <div class="lobby-full" style="display:grid;gap:10px">
-      ${total >= MIN_PLAYERS ? `<div class="dist" aria-label="Rol dağılımı">${distChips(room.distribution)}</div>${poolNote(room.rolePool)}` : ''}
-      ${host ? (why || iftiraOff ? `<p class="lobby-why">${esc(why + iftiraOff)}</p>` : '') : `<p class="lobby-why">${esc(hostP ? hostP.name : 'Oda sahibi')} oyunu başlatınca roller dağıtılacak.${need > 0 ? ` En az ${room.minPlayers} oyuncu gerekli (şu an ${connected}).` : ''}</p>`}
-      ${botNote}
-      <div class="lobby-btns">
-        <button type="button" class="btn btn-secondary" data-l="share">${icon('share')}Davet Et</button>
-        <button type="button" class="btn btn-secondary" data-l="look">${icon('palette')}Görünüm</button>
-        <button type="button" class="btn btn-secondary" data-l="settings">${icon('gear')}${host ? 'Ayarlar' : 'Kurallar'}</button>
-        ${startBtn}
-      </div>
-    </div>
-    <div class="lobby-mini" style="gap:8px">
-      <button type="button" class="btn btn-secondary btn-s" data-l="share" style="flex:1">${icon('share')}Davet</button>
-      <button type="button" class="btn btn-secondary btn-s" data-l="look" style="flex:1">${icon('palette')}Görünüm</button>
-      <button type="button" class="btn btn-secondary btn-s" data-l="settings" aria-label="${host ? 'Oda ayarları' : 'Oda kuralları'}">${icon('gear')}</button>
-      ${host ? `<button type="button" class="btn btn-secondary btn-s" data-l="bot" ${full ? 'disabled' : ''} aria-label="Bot ekle">${icon('bot')}</button>` : ''}
-      ${host ? `<button type="button" class="btn btn-primary btn-s" data-l="start" style="flex:1.4" ${need > 0 ? 'disabled' : ''}>${icon('play')}Başlat</button>` : ''}
-    </div>`);
+  const notes = [];
+  if (need > 0) notes.push(`Başlamak için en az ${room.minPlayers} bağlı oyuncu gerekli (şu an ${connected}). ${host ? `${need} kişi daha davet et ya da bot ekle.` : ''}`);
+  else if (connected < total) notes.push('Bağlantısı kopan oyuncular başlarken odadan çıkarılır.');
+  if (!host) notes.push(`${esc(hostP ? hostP.name : 'Oda sahibi')} oyunu başlatınca roller dağıtılacak.`);
+  if (room.settings.roles.iftiraci && total < 7) notes.push('İftiracı 7 oyuncudan az olduğu için dağıtılmayacak.');
+  if (room.settings.roles.hirsiz && total < 7) notes.push('Hırsız 7 oyuncudan az olduğu için dağıtılmayacak.');
+  notes.push(bots ? `Odada ${bots} bot var. Botlu oyunlar istatistiğe sayılmaz.` : host ? 'Tek başına denemek için bot ekleyebilirsin. Botlu oyunlar istatistiğe sayılmaz.' : '');
+  return `<div class="lobby-sheet">
+    <div class="row-between"><b>${icon('users')} ${total}/${room.maxPlayers} oyuncu</b>${room.hasPassword ? `<span class="chip">${icon('lock')}Şifreli</span>` : ''}<span class="chip">Kod <code>${esc(room.id)}</code></span></div>
+    ${total >= MIN_PLAYERS ? `<div><div class="section-title">Bu oyunda</div>${rolesPreview(room)}</div>` : `<p class="muted">Roller ${MIN_PLAYERS} oyuncu olunca gösterilir.</p>`}
+    ${notes.filter(Boolean).map((n) => `<p class="lobby-why">${n}</p>`).join('')}
+  </div>`;
+}
+function openLobbySheet() {
+  const s = ctx.state;
+  if (!s || lobbySheet) return;
+  const host = iAmHost();
+  lobbySheet = openSheet({
+    title: host ? 'Oda ayarları' : 'Roller ve kurallar', cls: 'sheet-small',
+    body: lobbySheetHTML(s),
+    footer: `<button type="button" class="btn btn-ghost" data-close>Kapat</button><button type="button" class="btn btn-primary" data-set>${icon(host ? 'gear' : 'scroll')}${host ? 'Ayarları değiştir' : 'Tüm kurallar'}</button>`,
+    onClose: () => { unsub(); lobbySheet = null; },
+  });
+  lobbySheet.foot.querySelector('[data-set]').addEventListener('click', () => { lobbySheet.close(); openRoomSettings(); });
+  const unsub = on('state', (st) => {
+    if (!lobbySheet) return;
+    if (st.room.phase !== 'lobby') { lobbySheet.close(); return; }
+    setHTML(lobbySheet.body, lobbySheetHTML(st));
+  });
+}
+
+// Kesin roller ve (rastgele dağıtımda) aday havuzu. rolePool: { from, pick, maybe? }.
+function rolesPreview(room) {
+  return `<div class="dist" aria-label="Kesin roller">${distChips(room.distribution || [])}</div>${poolNote(room.rolePool)}`;
 }
 
 // Sadece içerik değiştiyse yeniden çizer (hareket yayınları her 100 ms'de gelir; dokunuşlar kaybolmasın).
@@ -817,7 +860,7 @@ function roleCardHTML(s) {
     ${mates.length ? `<div class="mates"><b>Takım arkadaşların</b>${mates.join(', ')}</div>` : isEvil(role) ? '<div class="mates"><b>Takım arkadaşların</b>Takımında senden başka kimse yok.</div>' : ''}
     ${job && job.label ? `<div class="job"><b>Köydeki işin</b>${esc(job.label)}<small>Sadece hikâye için; rolün hakkında hiçbir şey söylemez.</small></div>` : ''}
     ${s.room.scenario && s.room.scenario.name ? `<div class="scenario"><b>Bu oyunun hikâyesi · ${esc(s.room.scenario.name)}</b>${s.room.scenario.intro ? `<p>${esc(s.room.scenario.intro)}</p>` : ''}</div>` : ''}
-    ${notes.length ? `<div class="notes"><b class="eyebrow">Notların</b><ul>${notes.map((n) => `<li>${esc(String(n.text).replace(/^[\p{Extended_Pictographic}‍️\s]+/u, ''))}</li>`).join('')}</ul></div>` : ''}
+    ${notes.length ? `<div class="notes"><b class="eyebrow">Notların</b><ul>${notes.map((n) => `<li>${esc(String(n.text).replace(/^[\p{Extended_Pictographic}‍️\s]+/u, ''))}${Array.isArray(n.roles) ? `<span class="note-roles">${n.roles.filter((r) => ROLES[r]).map((r) => emblem(r, 's')).join('')}</span>` : ''}</li>`).join('')}</ul></div>` : ''}
   </div>`;
 }
 
@@ -826,10 +869,13 @@ function openRoleSheet() {
   if (!s || !s.me.role || roleSheet) return;
   roleSheet = openSheet({
     title: 'Rol kartın', cls: 'sheet-small',
-    body: `<div style="height:min(560px,calc(var(--app-h) - 200px));min-height:380px">${roleCardHTML(s)}</div>`,
+    body: `<div data-rolecard style="height:min(560px,calc(var(--app-h) - 200px));min-height:380px">${roleCardHTML(s)}</div>`,
     footer: '<button type="button" class="btn btn-primary" data-close>Kapat</button>',
-    onClose: () => { roleSheet = null; },
+    onClose: () => { unsub(); roleSheet = null; },
   });
+  // Rol oyun içinde değişebilir (Hırsız) ve notlar gelir: açık kart güncel kalsın.
+  const box = roleSheet.body.querySelector('[data-rolecard]');
+  const unsub = on('state', (st) => { if (st.me.role) setHTML(box, roleCardHTML(st)); });
 }
 
 // ---------- üst katman: reveal ve oyun sonu ----------
@@ -962,10 +1008,8 @@ export function scheduleInsets() {
     const app = $('#app').getBoundingClientRect();
     if ($('#room').hidden) { W.setInsets({ top: 0, bottom: 0, left: 0, right: 0 }); return; }
     let top = $('#hud-top').getBoundingClientRect().bottom - app.top;
-    const crier = $('#crier');
-    if (crier && !crier.hidden && crier.offsetHeight) top = Math.max(top, crier.getBoundingClientRect().bottom - app.top);
     let bottomEdge = app.bottom;
-    for (const id of ['watch-panel', 'prompt', 'lobby-card', 'rail']) {
+    for (const id of ['night-label', 'prompt', 'lobby-card', 'rail']) {
       const e = $(`#${id}`);
       if (!e.hidden && e.offsetHeight) bottomEdge = Math.min(bottomEdge, e.getBoundingClientRect().top);
     }
@@ -978,9 +1022,10 @@ export function scheduleInsets() {
     // Arayüz bu kareye hiçbir kontrol koymaz; dünya joystick'i burada çizer (container'a göre px).
     const touch = window.matchMedia('(pointer: coarse)').matches;
     const size = Math.round(Math.max(104, Math.min(140, app.width * 0.34, (bottomEdge - app.top - top) * 0.45)));
-    // Serbest yürüme sadece lobide ve oyun bitince; başka aşamada joystick yok (null).
+    // Serbest yürüme lobide ve oyun bitince; ölüler (hayaletler) oyun boyunca da yürür.
     const ph = ctx.state && ctx.state.room.phase;
-    const canWalk = ph === 'lobby' || ph === 'ended';
+    const ghost = !!(ctx.state && ctx.state.me && !ctx.state.me.alive && ['night', 'day', 'trial', 'hunter'].includes(ph));
+    const canWalk = ph === 'lobby' || ph === 'ended' || ghost;
     const joystick = touch && canWalk ? { left: 12, bottom: bottom + 10, size } : null;
     $('#app').style.setProperty('--joy-bottom', `${bottom + 10}px`);
     $('#app').style.setProperty('--joy-size', joystick ? `${size}px` : '0px');
