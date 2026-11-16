@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import * as A from './assets.js';
 import { easeInOut, easeOut } from './director.js';
 import { makeFlame } from './fx.js';
-import { COLOR_HEX, TAU, clamp } from './constants.js';
+import { COLOR_HEX, TAU, clamp, HAT_NODES } from './constants.js';
 import { toWorld } from './layout.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -234,69 +234,138 @@ export function registerCinematics(director, world) {
     ctx.tod(5.7);
     for (const t of ts) {
       const scene = t.cause === 'zehir' ? 'poison' : (['bite', 'bats', 'vanish'].includes(t.scene) ? t.scene : 'bite');
-      if (t.id === world.meId() && await victimScene(ctx, t, scene === 'poison')) continue;
+      if (t.id === world.meId()) {
+        // kendi ölümünü gece gösterisinde zaten gördüyse aynı sahne tekrar oynamaz: evinin önünde kısa bir an
+        if (world.sawOwnDeath && world.sawOwnDeath()) { await ownDeathShort(ctx, t.id, ts.length > 1 ? 0.7 : 1); continue; }
+        if (await victimScene(ctx, t, scene === 'poison')) continue;
+      }
       await deathScene(ctx, t.id, scene, ts.length > 1 ? 0.8 : 1);
     }
   });
+  // Şafak ölüm sahnesi (§15 sonrası, sahibin tarifi): kurbanın evinin kapısı açılır, kurban sendeleyerek çıkıp
+  // kapının önüne yığılır (die klibi); komşuların kapıları açılır, birkaç köylü çıkıp bakar; kısa bir an, sonra
+  // hayalet yükselir ve mezar taşı düşer. bite: kısa kırmızı parıltı · bats: çatıdan birkaç yarasa kaçar ·
+  // poison: yeşil kabarcıklar · vanish (Hırsız da): kimse çıkmaz, açık kapının önünde yalnız şapkası kalır.
+  function neighbours(id, n) {
+    const L0 = L();
+    if (!L0) return [];
+    const list = L0.houses;
+    const i = list.findIndex((h) => h.id === id);
+    if (i < 0) return [];
+    const out = [];
+    for (let k = 1; k < list.length && out.length < n; k++) {
+      for (const j of [i + k, i - k]) {
+        const h = list[((j % list.length) + list.length) % list.length];
+        if (!h || h.id === id || out.includes(h.id) || out.length >= n) continue;
+        if (world.isDeadShown(h.id) || h.id === world.meId() && !world.playerById(h.id)) continue;
+        if (world.playerById(h.id)) out.push(h.id);
+      }
+    }
+    return out;
+  }
   async function deathScene(ctx, id, scene, speed) {
-    const hv = houseView(id, { dist: 11, height: 7.4, side: 0.2, lookY: 2.2 });
+    const hv = houseView(id, { dist: 9.5, height: 4.6, side: 0.38, lookY: 1.0 });
     if (!hv) return;
     const a = hv.a;
     const p = world.playerById(id);
     const look = p ? p.look : null;
-    const near = V(hv.pos.x * 0.88 + a.door.x * 0.12, hv.pos.y - 1.2, hv.pos.z * 0.88 + a.door.z * 0.12);
-    ctx.cut(hv.pos, hv.look, { fov: fov() });
-    ctx.move(hv.pos, hv.look, near, hv.look, 3.4 * speed, { fov: fov() });
-    if (scene === 'bite') {
+    const near = V(hv.pos.x * 0.9 + a.approach.x * 0.1, hv.pos.y - 0.8, hv.pos.z * 0.9 + a.approach.z * 0.1);
+    const fall = { x: a.door.x + (a.approach.x - a.door.x) * 1.15, z: a.door.z + (a.approach.z - a.door.z) * 1.15 };
+    const lookFall = V(fall.x, 0.7, fall.z);
+    ctx.cut(hv.pos, lookFall, { fov: fov() });
+    ctx.move(hv.pos, lookFall, near, lookFall, 5.6 * speed, { fov: fov() });
+    await ctx.wait(0.35 * speed);
+    world.village.openDoor(id, 4.5);
+    ctx.sfx('door');
+    // komşular kapılarından çıkıp bakar
+    const nb = neighbours(id, 3);
+    const nbActors = [];
+    nearGuard(ctx, nbActors, 5.0);   // kameranın dibinden geçen komşu dev ön plan başı olmasın
+    nb.forEach((hid, k) => later(ctx, (0.9 + k * 0.35) * speed, () => {
+      const ha = world.houseAnchors(hid);
+      const q = world.playerById(hid);
+      if (!ha || !q) return;
+      world.village.openDoor(hid, 2.5);
+      const c = ctx.actor(q.look, '', ha.inside.x, ha.inside.z, ha.rotY);
+      nbActors.push(c);
+      const to = { x: ha.approach.x + (fall.x - ha.approach.x) * 0.6, z: ha.approach.z + (fall.z - ha.approach.z) * 0.6 };
+      c.run([{ walk: [ha.approach, to], mode: 'walk' }, { faceTo: fall }, { wait: 0.6 }, { once: Math.random() < 0.5 ? 'emote-no' : 'interact-right', opts: { timeScale: 0.8 } }]);
+    }));
+    if (scene === 'vanish') {
+      // kimse çıkmaz: açık kapı, sis ve kapı önünde bir şapka
       await ctx.wait(0.4 * speed);
-      world.village.openDoor(id, 1.2);
-      ctx.sfx('door');
-      const f = figure(ctx, a.inside.x, a.inside.z, Math.atan2(a.approach.x - a.inside.x, a.approach.z - a.inside.z));
-      if (f) {
-        f.play('sprint');
-        await ctx.tween(0.9 * speed, (k) => { f.root.position.x = a.inside.x + (a.approach.x - a.inside.x) * 1.6 * k; f.root.position.z = a.inside.z + (a.approach.z - a.inside.z) * 1.6 * k; }, (x) => x);
-        world.fx.emit('smoke', f.root.position.x, 0.8, f.root.position.z, '#2a2238', 16);
-        f.root.visible = false;
-        ctx.sfx('bite');
-        bats(ctx, f.root.position.x, 1.6, f.root.position.z, 8, 1.6, 1.2, { x: a.approach.x - a.door.x, z: a.approach.z - a.door.z });
-      }
-      await ctx.wait(0.6 * speed);
-    } else if (scene === 'bats') {
-      ctx.sfx('bite');
-      world.flash(0.35, '#d7263d');
-      await bats(ctx, (a.door.x + a.backWin.x) / 2, 3.2, (a.door.z + a.backWin.z) / 2, 14, 2.2 * speed, 3.6, { x: a.approach.x - a.door.x, z: a.approach.z - a.door.z });
-    } else if (scene === 'vanish') {
-      await ctx.wait(0.3);
-      world.village.openDoor(id, 1.6);
-      for (let i = 0; i < 4; i++) { world.fx.emit('mist', a.door.x, 0.4 + i * 0.3, a.door.z, '#9b7bff', 10); await ctx.wait(0.25 * speed); }
+      for (let i = 0; i < 3; i++) { world.fx.emit('mist', a.door.x, 0.4 + i * 0.3, a.door.z, '#9b7bff', 8); await ctx.wait(0.22 * speed); }
+      const hatNode = look ? HAT_NODES[look.hat | 0] : null;
+      const tpl = hatNode && A.has('hats/hats.glb') ? A.get('hats/hats.glb').scene.getObjectByName(hatNode) : null;
+      let hat = null;
+      if (tpl) { hat = tpl.clone(); hat.scale.multiplyScalar(4.5); }
+      else { const t2 = A.prop('furniture', 'pillow'); if (t2) { hat = t2.clone(); hat.scale.setScalar(0.6); } }
+      if (hat) { hat.position.set(fall.x, 0.02, fall.z); hat.rotation.set(0, Math.random() * TAU, 0.25); ctx.add(hat); world.fx.emit('poof', fall.x, 0.2, fall.z, '#b8a890', 6); }
       ctx.sfx('whoosh');
-      world.flash(0.3, '#7048e8');
-      await ctx.wait(0.4 * speed);
-    } else if (scene === 'poison') {
-      ctx.sfx('potion');
-      for (let i = 0; i < 6; i++) {
-        world.fx.emit('bubble', a.frontWin.x, 1.3, a.frontWin.z, '#94d82d', 6);
-        world.fx.emit('smoke', a.door.x * 0.6 + a.backWin.x * 0.4, 4.6, a.door.z * 0.6 + a.backWin.z * 0.4, '#6f8a3a', 3);
-        await ctx.wait(0.22 * speed);
-      }
-      world.flash(0.35, '#5fbf2a');
+      await ctx.wait(1.4 * speed);
+      world.flickerHouse(id, 1.2 * speed);
+      await ctx.wait(0.6 * speed);
+      const gr = ghostRise(ctx, look, a.door.x, a.door.z, 0.4, 2.0 * speed);
+      await ctx.wait(0.6 * speed);
+      tombDrop(ctx, id);
+      await gr;
+      return;
     }
-    // evin pencereleri titreyip söner (yalnız gerçek ölümde; bu sahne zaten yalnız ölüler için)
-    world.flickerHouse(id, 1.3 * speed);
-    await ctx.wait(0.9 * speed);
-    const gx = a.door.x * 0.4 + a.approach.x * 0.6, gz = a.door.z * 0.4 + a.approach.z * 0.6;
-    const gr = ghostRise(ctx, look, gx, gz, 0.2, 2.2 * speed);
+    // kurban sendeleyerek çıkar
+    const body = look ? ctx.actor(look, '', a.inside.x, a.inside.z, a.rotY) : null;
+    if (body) {
+      body.run([{ walk: [a.door, fall], mode: 'sneak' }]);
+      let sway = 0;
+      world.ticker.push((dt) => { if (!ctx.alive() || !body.root.visible || body.base === 'lie') return true; sway += dt * 7; body.root.rotation.z = Math.sin(sway) * 0.12; return false; });
+    }
+    if (scene === 'poison') {
+      ctx.sfx('potion');
+      for (let i = 0; i < 5; i++) { if (body) world.fx.emit('bubble', body.pos.x, 1.3, body.pos.z, '#94d82d', 5); await ctx.wait(0.24 * speed); }
+    } else if (scene === 'bats') {
+      ctx.sfx('bite', { volume: 0.6 });
+      bats(ctx, (a.door.x + a.backWin.x) / 2, (a.height || 4) + 0.6, (a.door.z + a.backWin.z) / 2, 6, 2.0 * speed, 1.6, { x: a.backWin.x - a.door.x, z: a.backWin.z - a.door.z }, 0.8);
+      await ctx.wait(1.2 * speed);
+    } else {
+      await ctx.wait(1.0 * speed);
+      ctx.sfx('bite', { volume: 0.5 });
+      world.flash(0.22, '#d7263d');
+      await ctx.wait(0.2 * speed);
+    }
+    // yığılır
+    if (body) {
+      body.run([]); body.path = null; body.root.rotation.z = 0;
+      body.faceYaw = Math.atan2(fall.x - a.door.x, fall.z - a.door.z);
+      body.setBase('lie', 0.15);
+      if (scene === 'poison') world.fx.emit('bubble', body.pos.x, 0.5, body.pos.z, '#94d82d', 10);
+      world.fx.emit('dust', body.pos.x, 0.1, body.pos.z, null, 6);
+    }
+    world.flickerHouse(id, 1.2 * speed);
+    await ctx.wait(1.3 * speed);
+    const gx = body ? body.pos.x : fall.x, gz = body ? body.pos.z : fall.z;
+    const gr = ghostRise(ctx, look, gx, gz, 0.3, 2.0 * speed);
     await ctx.wait(0.7 * speed);
+    if (body) { world.fx.emit('poof', gx, 0.3, gz, '#d8d0ff', 12); body.setVisible(false); }
     tombDrop(ctx, id);
     await gr;
     await ctx.wait(0.2);
+  }
+
+  // Gece gösterisinde ölümünü görmüş izleyici: şafakta evinin önünde mezar taşı düşer, o kadar
+  async function ownDeathShort(ctx, id, speed) {
+    const hv = houseView(id, { dist: 11, height: 7.4, side: 0.2, lookY: 2.2 });
+    if (!hv) { world.markDead(id, { quiet: true, drop: true }); return; }
+    ctx.cut(hv.pos, hv.look, { fov: fov() });
+    await ctx.wait(0.5 * speed);
+    // mezar taşı gece gösterisinde zaten düştüyse yalnız kesin işaretle
+    if (world.village.tombOf && world.village.tombOf(id)) world.markDead(id, { quiet: true }); else tombDrop(ctx, id);
+    await ctx.wait(1.3 * speed);
   }
 
   // Kurbanın kendi sahnesi (yalnız ölen izleyiciye): kendi evinde uyurken kapı açılır, kimliği belirsiz pelerinli
   // bir siluet yatağın üstüne eğilir (zehirde kapkara bir gölge), ışıklar titreyip söner, sonra hayalet yükselir.
   // Katilin gerçek görünümü asla gösterilmez: herkes için aynı pelerin.
   async function victimScene(ctx, t, poison) {
-    const room = world.openRoom(t.id);
+    const room = ctx.openRoom(t.id);
     if (!room) return false;
     const me = world.playerById(t.id);
     const S = room.shot('inside', world.rig.portrait);
@@ -794,6 +863,8 @@ export function registerCinematics(director, world) {
   director.register('watch', async (ctx, msg) => {
     const t = (msg.targets || [])[0];
     if (!t) return;
+    // gözcü bu evi bu gece gösteride zaten canlı izlediyse rapor yalnız alt bantta okunur (sahne tekrar oynamaz)
+    if (world.showWatched && world.showWatched(t.id)) { await ctx.wait(0.6); return; }
     const room = world.openRoom(t.id);
     if (!room) { await ctx.wait(1.5); return; }
     const S = room.shot('window', world.rig.portrait);
@@ -820,4 +891,7 @@ export function registerCinematics(director, world) {
     // izlenen ev sahibi bu gece gerçekten öldüyse ışıklar titreyip söner (kurtulduysa hiçbir şey olmaz)
     if (world.diedTonight(t.id)) { world.flickerRoom(1.4); await ctx.wait(1.8); } else await ctx.wait(1.2);
   });
+
+  // gece gösterisinin kullandığı sahne parçaları
+  return { figure, ghostRise, makeGlow, bats, houseView, fov };
 }

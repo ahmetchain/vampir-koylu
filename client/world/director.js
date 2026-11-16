@@ -14,7 +14,11 @@ if (typeof window !== 'undefined' && !window.__vkwCancelGuard) {
   window.addEventListener('unhandledrejection', (e) => { if (e && e.reason === CANCEL) e.preventDefault(); });
 }
 
-export function createDirector(world) {
+// opts.scoped: ikinci (gece gösterisi) yönetmeni. Ana yönetmenle yan yana çalışır: ana yönetmen bir sinematik
+// oynatırken kameraya dokunmaz, temizlikte yalnız kendi açtığını (gösteri odası, kamera) geri alır.
+export function createDirector(world, opts = {}) {
+  const scoped = !!opts.scoped;
+  const maxS = opts.timeout || 13;
   const registry = new Map(); // 'kind' veya 'kind:scene' -> fn
   let running = null;         // { msg, resolve, ctx }
   let disposed = false;
@@ -37,12 +41,12 @@ export function createDirector(world) {
       if (!fn) { resolve(); return; }
       const my = ++token;
       // ölüm getiren sahnelerde mezar taşını sahne düşürür
-      if (['death', 'hanged', 'shot', 'left'].includes(msg.kind)) world.holdDeaths((msg.targets || []).map((t) => t.id).filter(Boolean));
+      if (!scoped && ['death', 'hanged', 'shot', 'left'].includes(msg.kind)) world.holdDeaths((msg.targets || []).map((t) => t.id).filter(Boolean));
       const ctx = makeCtx(my, msg);
       const item = { msg, resolve, ctx };
       running = item;
       (async () => {
-        try { await Promise.race([fn(ctx, msg), ctx.timeout(13)]); } catch (e) {
+        try { await Promise.race([fn(ctx, msg), ctx.timeout(maxS)]); } catch (e) {
           if (e !== CANCEL) console.warn('[VKWorld] sinematik hatası', e);
         }
         finish(item);
@@ -76,7 +80,10 @@ export function createDirector(world) {
     let cancelled = false;
     let usedRoom = false;
     let todSet = false;
+    let usedCam = false;
     const alive = () => !disposed && !cancelled && my === token;
+    // gösteri yönetmeni: ana yönetmen sahnedeyken kamera onundur
+    const camFree = () => alive() && !(scoped && world.mainBusy && world.mainBusy());
     const ctx = {
       world, msg, alive,
       cancel() {
@@ -118,11 +125,13 @@ export function createDirector(world) {
       },
       // Kamera: anlık hedef (yumuşak geçiş) ya da hareketli yol
       shot(pos, look, opts = {}) {
-        if (!alive()) return;
+        if (!camFree()) return;
+        usedCam = true;
         world.rig.setOverride({ pos: pos.clone(), look: look.clone(), fov: opts.fov || 40, k: opts.k || 2.4 });
       },
       cut(pos, look, opts = {}) {
-        if (!alive()) return;
+        if (!camFree()) return;
+        usedCam = true;
         world.rig.setOverride({ pos: pos.clone(), look: look.clone(), fov: opts.fov || 40, k: 60 }, true);
       },
       // async sarmalayıcı yok: beklenmeden çağrıldığında kesilme "yakalanmamış söz" hatasına dönüşmesin
@@ -130,6 +139,7 @@ export function createDirector(world) {
         const p = new THREE.Vector3(), l = new THREE.Vector3();
         ctx.cut(p0, l0, opts);
         return ctx.tween(dur, (k) => {
+          if (!camFree()) return;
           p.lerpVectors(p0, p1, k); l.lerpVectors(l0, l1, k);
           world.rig.setOverride({ pos: p, look: l, fov: opts.fov || 40, k: 60 }, true);
         }, opts.ease || easeInOut);
@@ -166,6 +176,9 @@ export function createDirector(world) {
       // Günün saati (sinematik süresince)
       tod(hour, snap) { todSet = true; world.setTodOverride(hour, snap); },
       room() { usedRoom = true; return world.room; },
+      // sahnenin iç mekânı (gösteri yönetmeninde 'show' kipi; ana yönetmen sahnedeyse açılmaz)
+      openRoom(id) { usedRoom = true; return scoped ? world.openShowRoom(id) : world.openRoom(id); },
+      get scoped() { return scoped; },
       fx: world.fx,
       sfx: (n, o) => world.sfx(n, o),
       flash: (a, c) => world.flash(a, c),
@@ -189,11 +202,17 @@ export function createDirector(world) {
           ch.setBase(s.base === 'walk' || s.base === 'sprint' || s.base === 'sneak' ? 'idle' : (s.base || 'idle'), 0.2);
           ch.run([]);
         }
-        world.endCineRoom(); world.moonOverride(null); world.fogBoost(1); world.releaseDeaths();
-        if (todSet) world.setTodOverride(null);
-        world.rig.setOverride(null);
-        world.flash(0);
-        world.cineTint(null);
+        if (scoped) {
+          world.endShowRoom();
+          if (todSet) world.setTodOverride(null);
+          if (usedCam && !(world.mainBusy && world.mainBusy())) world.rig.setOverride(null);
+        } else {
+          world.endCineRoom(); world.moonOverride(null); world.fogBoost(1); world.releaseDeaths();
+          if (todSet) world.setTodOverride(null);
+          world.rig.setOverride(null);
+          world.flash(0);
+          world.cineTint(null);
+        }
         if (claims.size) { claims.clear(); world.reapply(true); }
       },
     };

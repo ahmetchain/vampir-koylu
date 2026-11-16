@@ -37,8 +37,8 @@ const CSS = `
 .vkw-plaque.picked::after{animation:none;opacity:1}
 .vkw-plaque.dead{filter:grayscale(.8);opacity:.6}
 @keyframes vkw-pulse{0%,100%{opacity:.9}50%{opacity:.15}}
-.vkw-bubble{max-width:180px;padding:5px 9px;border-radius:12px;background:#f4e4c1;color:#2a1c10;font-size:12.5px;font-weight:600;line-height:1.3;white-space:normal;box-shadow:0 3px 8px rgba(0,0,0,.35);opacity:0;transition:opacity .25s;word-break:break-word}
-.vkw-bubble::after{content:'';position:absolute;left:50%;bottom:-6px;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top-color:inherit;border-top-color:#f4e4c1}
+.vkw-bubble{max-width:180px;padding:5px 9px;border-radius:12px;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#f4e4c1;color:#2a1c10;font-size:12.5px;font-weight:600;line-height:1.3;box-shadow:0 3px 8px rgba(0,0,0,.35);opacity:0;transition:opacity .25s;word-break:break-word}
+.vkw-bubble::after{content:'';position:absolute;left:var(--tx,50%);bottom:-6px;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top-color:inherit;border-top-color:#f4e4c1}
 .vkw-bubble.show{opacity:1}
 .vkw-bubble[data-ch=vampir]{background:#5a1020;color:#ffe3e8}.vkw-bubble[data-ch=vampir]::after{border-top-color:#5a1020}
 .vkw-bubble[data-ch=olu]{background:#d8d0ff;color:#2a2050;font-style:italic}.vkw-bubble[data-ch=olu]::after{border-top-color:#d8d0ff}
@@ -54,7 +54,7 @@ const CSS = `
 .vkw-tag.far .vkw-job{display:none}
 .vkw-tag.gone{visibility:hidden}
 .vkw-recenter:not(.show){pointer-events:none}
-@media (max-width:540px){.vkw-job{font-size:9.5px}.vkw-tag.sel .vkw-name{padding:3px 8px 3px 5px;font-size:12.5px}.vkw-plaque.sel{font-size:11.5px;padding:3px 7px 3px 4px}.vkw-plaque span{max-width:64px}.vkw-plaque{font-size:10.5px}}
+@media (max-width:540px){.vkw-bubble{max-width:62vw;font-size:12px;padding:4px 8px}.vkw-job{font-size:9.5px}.vkw-tag.sel .vkw-name{padding:3px 8px 3px 5px;font-size:12.5px}.vkw-plaque.sel{font-size:11.5px;padding:3px 7px 3px 4px}.vkw-plaque span{max-width:64px}.vkw-plaque{font-size:10.5px}}
 @media (min-width:900px){.vkw-name{font-size:13px}.vkw-plaque{font-size:12px}}
 `;
 
@@ -126,7 +126,7 @@ export function createOverlay(root, handlers) {
     el.className = 'vkw-tag';
     el.innerHTML = '<span class="vkw-mark" hidden></span><span class="vkw-votes" hidden></span><span class="vkw-name"></span><span class="vkw-job" hidden></span>';
     ov.insertBefore(el, recenter);
-    t = { el, mark: el.children[0], votes: el.children[1], name: el.children[2], job: el.children[3], sig: '', markSig: '', voteSig: '', cls: '', w: 60, h: 20, measured: false, x: 0, y: 0, shown: false };
+    t = { id, el, mark: el.children[0], votes: el.children[1], name: el.children[2], job: el.children[3], sig: '', markSig: '', voteSig: '', cls: '', w: 60, h: 20, measured: false, x: 0, y: 0, shown: false };
     bindTap(el, () => handlers.onTagTap(id));
     tags.set(id, t);
     return t;
@@ -194,19 +194,31 @@ export function createOverlay(root, handlers) {
     for (const [id, x] of map) if (!keep.has(id)) { x.el.remove(); map.delete(id); }
   }
 
+  // Konuşma balonu: kısa (telefonda ~40 harf, kelime sınırında "…"), tek satır, birkaç saniyede solar.
+  // Tam metin sohbet akışındadır; balon yalnız "kim konuşuyor" ipucudur.
+  function clip(text, max) {
+    const t = String(text).replace(/\s+/g, ' ').trim();
+    if (t.length <= max) return t;
+    let cut = t.slice(0, max - 1);
+    const sp = cut.lastIndexOf(' ');
+    if (sp > max * 0.6) cut = cut.slice(0, sp);
+    return cut.replace(/[\s.,;:!?-]+$/, '') + '…';
+  }
   function bubble(id, text, channel) {
     let b = bubbles.get(id);
     if (!b) {
       const el = document.createElement('div');
       el.className = 'vkw-bubble';
       ov.insertBefore(el, recenter);
-      b = { el, until: 0, h: 30 };
+      b = { el, until: 0, h: 30, w: 100, wx: -1e4, wy: -1e4 };
       bubbles.set(id, b);
     }
-    b.el.textContent = text.length > 90 ? text.slice(0, 88) + '…' : text;
+    const phone = W < 540;
+    const shown = clip(text, phone ? 40 : 64);
+    b.el.textContent = shown;
     b.el.dataset.ch = channel || 'genel';
     b.el.classList.add('show');
-    b.until = performance.now() + 3200 + Math.min(3000, text.length * 45);
+    b.until = performance.now() + (phone ? 2600 : 3000) + Math.min(phone ? 1800 : 2600, shown.length * 45);
     b.h = 0;
     b.seq = ++bubbleSeq;
   }
@@ -216,6 +228,9 @@ export function createOverlay(root, handlers) {
   const byPrio = (a, b) => a.prio - b.prio;
   const listBuf = [];
   const plBuf = [];
+  const bubBuf = [];
+  const bPlacedBuf = [];
+  const bPool = [];
   function project(camera, anchorFn, plaqueAnchorFn, tagVisibleFn) {
     const list = listBuf;
     list.length = 0;
@@ -230,6 +245,9 @@ export function createOverlay(root, handlers) {
       t.vis = true;
       list.push(t);
     }
+    // konuşan karakterin etiketi kalabalıkta da gizlenmez (balonu ona bağlı)
+    const nowT = performance.now();
+    for (const t of list) { const b = bubbles.get(t.id); t.talk = !!(b && nowT < b.until); }
     // yakındakiler (ekranda aşağıdakiler) önce yerleşir, diğerleri yukarı kayar
     for (const t of list) t.prio = (t.data && (t.data.me || t.data.picked || t.data.mark || t.data.votes) ? 0 : 1) * 1000 + t.dist;
     list.sort(byPrio);
@@ -249,7 +267,7 @@ export function createOverlay(root, handlers) {
         shifts++;
       }
       // kalabalıkta: uzaktaki, önemsiz ve itilmek zorunda kalan etiket solar; çok itilen (sıkışan) gizlenir
-      const important = t.data && (t.data.me || t.data.sel || t.data.picked || t.data.mark || t.data.votes);
+      const important = t.talk || (t.data && (t.data.me || t.data.sel || t.data.picked || t.data.mark || t.data.votes));
       const far = crowd && !important && (t.dist > 15 || shifts > 0);
       // üst boşluğun (üst çubuk / tellal) üstüne taşan önemsiz etiket oraya yığılmaz, gizlenir
       const gone = (crowd && !important && shifts >= 3) || (!important && y < ins.top + 2);
@@ -268,34 +286,66 @@ export function createOverlay(root, handlers) {
       if (z !== t.wz) { t.el.style.zIndex = String(z); t.wz = z; }
       t.shown = true;
     }
-    // balonlar etiketin üstünde; yeniden eskiye yerleşir, çakışan yukarı kayar, eskiler solar
-    const now = performance.now();
-    const bl = [];
+    // balonlar etiketin üstünde. En yeniler (telefonda 2, genişte 3) gösterilir; konuşan ekranda değilse ya da
+    // etiketi gizliyse balon da yok. Çakışan yukarı kayar; üst boşluğa (HUD) taşacaksa ya da seçilebilir bir
+    // hedefi (oy adayı etiketi, ev tabelası) örtecekse o balon o an gösterilmez.
+    const now = nowT;
+    const bl = bubBuf;
+    bl.length = 0;
     for (const [id, b] of bubbles) {
       const t = tags.get(id);
-      if (now > b.until) { if (b.el.classList.contains('show')) b.el.classList.remove('show'); }
-      if (!t || !t.vis || now > b.until + 400) { b.el.style.transform = 'translate3d(-9999px,0,0)'; continue; }
-      if (!b.h) { b.h = b.el.offsetHeight || 30; b.w = b.el.offsetWidth || 100; }
-      bl.push({ b, t });
+      if (now > b.until && b.el.classList.contains('show')) b.el.classList.remove('show');
+      const ok = t && t.vis && t.shown && t.x > -1e3 && now <= b.until + 400 && t.sx > ins.left - 8 && t.sx < W - ins.right + 8 && t.sy > ins.top && t.sy < H - ins.bottom + 10;
+      if (!ok) { if (b.wx !== -1e4) { b.el.style.transform = 'translate3d(-9999px,0,0)'; b.wx = -1e4; } continue; }
+      if (!b.h) { b.h = b.el.offsetHeight || 26; b.w = b.el.offsetWidth || 100; }
+      b.t = t;
+      bl.push(b);
     }
-    bl.sort((p, q) => q.b.seq - p.b.seq);
-    const bplaced = [];
-    bl.forEach(({ b, t }, i) => {
+    bl.sort((p, q) => q.seq - p.seq);
+    const maxB = W < 540 ? 2 : 3;
+    const bplaced = bPlacedBuf;
+    bplaced.length = 0;
+    for (let i = 0; i < bl.length; i++) {
+      const b = bl[i], t = b.t;
+      let hide = i >= maxB;
       let x = Math.max(ins.left + 4, Math.min(W - ins.right - b.w - 4, t.sx - b.w / 2));
       let y = t.y - b.h - 8;
-      for (let iter = 0; iter < 6; iter++) {
-        let moved = false;
-        for (const p of bplaced) if (x < p.x + p.w && x + b.w > p.x && y < p.y + p.h + 4 && y + b.h + 4 > p.y) { y = p.y - b.h - 6; moved = true; }
-        // başka birinin etiketini örtme (kendi etiketi zaten altında)
-        for (const p of placed) if (p.t !== t && x < p.x + p.w && x + b.w > p.x && y < p.y + p.h + 2 && y + b.h + 2 > p.y) { y = p.y - b.h - 4; moved = true; }
-        if (!moved) break;
+      if (!hide) {
+        for (let iter = 0; iter < 6; iter++) {
+          let moved = false;
+          for (const p of bplaced) if (x < p.x + p.w && x + b.w > p.x && y < p.y + p.h + 4 && y + b.h + 4 > p.y) { y = p.y - b.h - 6; moved = true; }
+          // başka birinin etiketini örtme (kendi etiketi zaten altında)
+          for (const p of placed) {
+            if (p.t === t || !(x < p.x + p.w && x + b.w > p.x && y < p.y + p.h + 2 && y + b.h + 2 > p.y)) continue;
+            // önce yana kaydır (kuyruk konuşanın üstünde kalabiliyorsa), olmazsa yukarı
+            const dr = p.x + p.w + 2 - x, dl = x + b.w - p.x + 2;
+            const nx = dr < dl ? x + dr : x - dl;
+            if (Math.min(dr, dl) < 60 && t.sx > nx + 12 && t.sx < nx + b.w - 12 && nx >= ins.left + 4 && nx + b.w <= W - ins.right - 4) x = nx;
+            else y = p.y - b.h - 4;
+            moved = true;
+          }
+          if (!moved) break;
+        }
+        // konuşandan çok uzağa itilen eski balon kimin olduğunu belirsizleştirir: o an gösterilmez (en yenisi
+        // yukarıda kalır, kuyruğu konuşanı gösterir)
+        if (i > 0 && t.y - b.h - 8 - y > 36) hide = true;
+        if (y < ins.top + 4) hide = true;
+        // seçilebilir hedefleri örtme
+        if (!hide) for (const p of placed) if (p.t !== t && p.t.data && p.t.data.sel && x < p.x + p.w && x + b.w > p.x && y < p.y + p.h && y + b.h > p.y) { hide = true; break; }
+        if (!hide) for (const p of plBuf) if (p.data && p.data.sel && p.shown && x < p.wx + p.w && x + b.w > p.wx && y < p.wy + p.h && y + b.h > p.wy) { hide = true; break; }
       }
-      y = Math.max(ins.top + 4, y);
-      bplaced.push({ x, y, w: b.w, h: b.h });
-      b.el.classList.toggle('old', i >= 3);
-      b.el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`;
-      b.el.style.zIndex = String(2000 + (100 - i));
-    });
+      if (hide) { if (b.wx !== -1e4) { b.el.style.transform = 'translate3d(-9999px,0,0)'; b.wx = -1e4; } continue; }
+      let bp = bPool[bplaced.length];
+      if (!bp) { bp = { x: 0, y: 0, w: 0, h: 0 }; bPool.push(bp); }
+      bp.x = x; bp.y = y; bp.w = b.w; bp.h = b.h;
+      bplaced.push(bp);
+      // kuyruk konuşanın üstünü göstersin (balon kenara kırpıldıysa)
+      const tx = Math.max(10, Math.min(b.w - 10, t.sx - x));
+      if (Math.abs(tx - (b.tx || 0)) > 0.5) { b.el.style.setProperty('--tx', tx.toFixed(0) + 'px'); b.tx = tx; }
+      if (Math.abs(x - b.wx) > 0.4 || Math.abs(y - (b.wy ?? -1e4)) > 0.4) { b.el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`; b.wx = x; b.wy = y; }
+      const z = String(2000 + (100 - i));
+      if (z !== b.wz) { b.el.style.zIndex = z; b.wz = z; }
+    }
     // ev tabelaları: yansıt, sonra birbirinden it (en fazla ~28 px kayma)
     const pl = plBuf;
     pl.length = 0;

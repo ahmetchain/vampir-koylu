@@ -1,14 +1,15 @@
-// Köy Günlüğü: oda kaydı (story/rumor dahil) ve özel notlar; gün başında tellal şeridi (rumor).
+// Köy Günlüğü: oda kaydı (story/rumor dahil) ve özel notlar. Tellalın söylentisi (rumor) sohbet akışına
+// sessiz bir satır olarak düşer; geniş ekranda ayrıca kısa bir bildirim çıkar (telefonda afiş yok).
 import { ctx, on } from './ctx.js';
 import { isAnnouncing } from './announce.js';
 import { $, esc, sfx, stripEmoji } from './util.js';
 import { icon } from './icons.js';
-import { openSheet } from './kit.js';
+import { openSheet, toast } from './kit.js';
+import { appendSystem, isDocked } from './chat.js';
 
 const KIND_IC = { info: 'scroll', night: 'moon', day: 'sun', death: 'tomb', safe: 'sun', win: 'trophy', story: 'sparkle', rumor: 'bell', note: 'eye', epilogue: 'book', event: 'bell' };
 let lastSeenTs = 0;
 let lastRumorTs = 0;
-let crierTimer = null;
 let sheet = null;
 let tab = 'log';
 
@@ -23,7 +24,6 @@ export function resetChronicle(state) {
   lastSeenTs = log.length ? log[log.length - 1].ts : 0;
   const rumors = log.filter((l) => l.kind === 'rumor');
   lastRumorTs = rumors.length ? rumors[rumors.length - 1].ts : 0;
-  hideCrier();
 }
 
 export function chronicleOnState(state) {
@@ -40,25 +40,13 @@ export function chronicleOnState(state) {
 }
 
 function showCrier(text) {
-  // Sinematik sürerken bekle; bitince göster.
+  // Sinematik sürerken bekle; bitince yaz.
   if (isAnnouncing()) {
     const off = on('announce:idle', () => { off(); showCrier(text); });
     return;
   }
-  const el = $('#crier');
-  el.innerHTML = `<span class="bellwrap">${icon('bell')}</span><span><b>Tellal bağırıyor</b>${esc(text)}</span>
-    <button type="button" class="iconbtn crier-x" aria-label="Kapat">${icon('close')}</button>`;
-  el.hidden = false;
-  window.dispatchEvent(new Event('resize'));
-  sfx('bell', { volume: 0.7 });
-  el.querySelector('.crier-x').onclick = hideCrier;
-  clearTimeout(crierTimer);
-  crierTimer = setTimeout(hideCrier, 16000);
-}
-export function hideCrier() {
-  clearTimeout(crierTimer);
-  $('#crier').hidden = true;
-  window.dispatchEvent(new Event('resize'));
+  appendSystem(`Tellal: ${stripEmoji(text)}`, 'bell');
+  if (isDocked()) toast(`Tellal: ${stripEmoji(text)}`, 'info', 5000);
 }
 
 function items(state) {

@@ -12,10 +12,20 @@ export function distChips(list) {
 }
 
 // Rastgele kısım: "7 özel rolden 6'sı çıkacak" + aday roller.
+// Aday havuzu: { pick, from: [rol], maybe?: [rol | { role, chance }] }.
 export function poolNote(pool) {
   if (!pool) return '';
-  const names = pool.from.map((r) => `<span class="chip">${emblem(r, 's')}${ROLES[r].name}</span>`).join('');
-  return `<p class="muted" style="margin:6px 0 0">${pool.from.length} özel rolden ${pool.pick} tanesi çıkacak; hangisinin dışarıda kalacağı rastgele.</p><div class="dist">${names}</div>`;
+  const chip = (r) => (ROLES[r] ? `<span class="chip">${emblem(r, 's')}${ROLES[r].name}</span>` : '');
+  const from = (pool.from || []).filter((r) => ROLES[r]);
+  let out = '';
+  if (from.length && pool.pick) {
+    out += `<p class="muted" style="margin:6px 0 0">${pool.pick >= from.length ? 'Bu özel roller çıkacak:' : `Bu ${from.length} özel rolden ${pool.pick} tanesi rastgele çıkacak:`}</p><div class="dist">${from.map(chip).join('')}</div>`;
+  }
+  const maybe = [].concat(pool.maybe || []).map((m) => (typeof m === 'string' ? { role: m } : m)).filter((m) => m && ROLES[m.role]);
+  if (maybe.length) {
+    out += `<p class="muted" style="margin:6px 0 0">Belki: ${maybe.map((m) => `${ROLES[m.role].name}${m.chance ? ` (%${Math.round(m.chance * (m.chance <= 1 ? 100 : 1))})` : ''}`).join(', ')}. Her oyunda çıkmayabilir.</p>`;
+  }
+  return out;
 }
 
 function formHTML(s, editable, withRoomFields, sampleN) {
@@ -29,7 +39,7 @@ function formHTML(s, editable, withRoomFields, sampleN) {
       <input class="input" name="password" maxlength="20" placeholder="Boş bırakırsan herkes katılabilir" autocomplete="off"></label>` : ''}
     <div class="section-title">Süreler</div>
     <div class="set-row"><label>Gece süresi</label>
-      <div class="stepper" data-step="nightSec" data-min="15" data-max="120" data-inc="5">
+      <div class="stepper" data-step="nightSec" data-min="10" data-max="60" data-inc="5">
         <button type="button" class="iconbtn" data-d="-1" ${dis} aria-label="Azalt">${icon('minus')}</button><output>${s.nightSec} sn</output>
         <button type="button" class="iconbtn" data-d="1" ${dis} aria-label="Artır">${icon('plus')}</button></div></div>
     <div class="set-row"><label>Gündüz süresi</label>
@@ -39,6 +49,9 @@ function formHTML(s, editable, withRoomFields, sampleN) {
     <div class="set-row"><label for="rf-reveal">Ölenlerin rolü açıklansın</label>
       <span class="switch"><input type="checkbox" id="rf-reveal" name="revealRoles" ${s.revealRoles ? 'checked' : ''} ${dis}><i></i></span>
       <small>Kapalıysa ölen oyuncuların rolü oyun bitene kadar gizli kalır (Soytarı asılırsa yine açıklanır).</small></div>
+    <div class="set-row"><label for="rf-random">Rastgele roller</label>
+      <span class="switch"><input type="checkbox" id="rf-random" name="roleMode" ${s.roleMode !== 'all' ? 'checked' : ''} ${dis}><i></i></span>
+      <small>Açıkken açık roller arasından her oyunda rastgele bir kısmı çıkar; kimse neyle karşılaşacağını tam bilemez. Kapalıysa açık rollerin hepsi (sığdığı kadar) dağıtılır.</small></div>
     ${EVENTS_UI ? `<div class="section-title">Köy olayları</div>
     <div class="seg" role="radiogroup" aria-label="Köy olayları" data-evseg>
       ${EVENT_FREQ.map(([k, l]) => `<button type="button" role="radio" class="seg-btn${(s.events || 'some') === k ? ' on' : ''}" data-ev="${k}" aria-checked="${(s.events || 'some') === k}" ${dis}>${l}</button>`).join('')}
@@ -73,7 +86,7 @@ function bindForm(root, s, onChange) {
   const update = () => {
     const n = Number(root.querySelector('[data-sample]').value);
     root.querySelector('[data-n]').textContent = n;
-    const plan = distributionPlan(n, s.roles);
+    const plan = distributionPlan(n, s.roles, s.roleMode === 'all' ? 'all' : 'random');
     root.querySelector('[data-dist]').innerHTML = distChips(plan.list) + poolNote(plan.pool);
     onChange && onChange();
   };
@@ -109,6 +122,7 @@ function bindForm(root, s, onChange) {
     }
   });
   root.querySelector('[name=revealRoles]').addEventListener('change', (e) => { s.revealRoles = e.target.checked; onChange && onChange(); });
+  root.querySelector('[name=roleMode]').addEventListener('change', (e) => { s.roleMode = e.target.checked ? 'random' : 'all'; update(); });
   root.querySelector('[data-sample]').addEventListener('input', update);
   update();
 }
@@ -117,7 +131,7 @@ export function openCreateRoom() {
   const last = store.get(LAST_KEY, null) || {};
   const s = {
     roomName: `${ctx.user.username} Köyü`.slice(0, 24),
-    nightSec: last.nightSec || 30, daySec: last.daySec || 120,
+    nightSec: Math.min(60, last.nightSec || 20), daySec: last.daySec || 120, roleMode: last.roleMode || 'random',
     revealRoles: last.revealRoles !== undefined ? last.revealRoles : true,
     events: EVENTS_UI ? (last.events || 'some') : 'off',
     roles: { ...DEFAULT_ROLES, ...(last.roles || {}) },
@@ -137,7 +151,7 @@ export function openCreateRoom() {
     const btn = sheet.foot.querySelector('[data-create]');
     btn.disabled = true;
     err.textContent = '';
-    const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roles: s.roles };
+    const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, roles: s.roles };
     store.set(LAST_KEY, settings);
     const res = await send('room:create', { roomName, password: form.password.value, settings }, { quiet: true });
     btn.disabled = false;
@@ -156,7 +170,7 @@ export function openRoomSettings() {
   if (!st) return;
   const host = iAmHost() && st.room.phase === 'lobby';
   const cur = st.room.settings;
-  const s = { nightSec: cur.nightSec, daySec: cur.daySec, revealRoles: cur.revealRoles, events: EVENTS_UI ? (cur.events || 'some') : 'off', roles: { ...cur.roles } };
+  const s = { nightSec: cur.nightSec, daySec: cur.daySec, revealRoles: cur.revealRoles, events: EVENTS_UI ? (cur.events || 'some') : 'off', roleMode: cur.roleMode || 'random', roles: { ...cur.roles } };
   const n = Math.max(MIN_PLAYERS, st.players.filter((p) => !p.left).length);
   const sheet = openSheet({
     title: host ? 'Oda Ayarları' : 'Oda Kuralları',
@@ -169,9 +183,9 @@ export function openRoomSettings() {
   bindForm(form, s);
   if (host) {
     sheet.foot.querySelector('[data-save]').addEventListener('click', async () => {
-      const res = await send('room:settings', { settings: { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roles: s.roles } });
+      const res = await send('room:settings', { settings: { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, roles: s.roles } });
       if (res.ok) {
-        store.set(LAST_KEY, { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roles: s.roles });
+        store.set(LAST_KEY, { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, roles: s.roles });
         sheet.close();
       }
     });

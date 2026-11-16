@@ -132,9 +132,14 @@ test('gece süresi dolunca kendiliğinden sabah olur', (t) => {
   const { room } = setup(5);
   startWithRoles(room, [V, D, K, K, K]);
   room.selectNight('p0', 'p4');
-  t.mock.timers.tick(30000);
-  assert.equal(room.phase, 'night', 'eve yürüme payı (4 sn) henüz bitmedi');
-  t.mock.timers.tick(4000);
+  t.mock.timers.tick(23999);
+  assert.equal(room.night.stage, 'pick', 'doktor henüz seçmedi: 4 sn yürüyüş + 20 sn seçim');
+  t.mock.timers.tick(1);
+  assert.equal(room.phase, 'night');
+  assert.equal(room.night.stage, 'show', 'seçim bitti, gece oynanıyor');
+  assert.equal(room.players.get('p4').alive, true, 'ölüm sabah açıklanır');
+  assert.equal(room.viewFor('p4').night.show.dead, true, 'kurban kendi ölümünü hemen görür');
+  t.mock.timers.tick(14000);
   assert.equal(room.phase, 'day');
   assert.equal(room.players.get('p4').alive, false);
   t.mock.timers.tick(120000);
@@ -356,6 +361,7 @@ const J = ROLE.JESTER;
 function setupWith(count, roles) {
   const ctx = setup(count);
   ctx.room.settings.roles = Object.fromEntries(OPTIONAL_ROLES.map((r) => [r, roles.includes(r)]));
+  ctx.room.settings.roleMode = 'all';
   return ctx;
 }
 
@@ -385,8 +391,9 @@ test('kahin baktığı kişinin vampir olup olmadığını sadece kendisi öğre
   room.endNight();
   assert.equal(priv.length, 1);
   assert.deepEqual(priv[0].to, ['p1']);
-  assert.match(priv[0].a.text, /VAMPİR/);
-  assert.match(room.viewFor('p1').me.notes[0].text, /VAMPİR/);
+  assert.match(priv[0].a.text, /^Oyuncu0 şu ikisinden biri: (Vampir ya da \S+|\S+ ya da Vampir)\.$/);
+  assert.ok(priv[0].a.roles.includes(V));
+  assert.match(room.viewFor('p1').me.notes[0].text, /şu ikisinden biri/);
   assert.equal(room.viewFor('p2').me.notes.length, 0);
   room.destroy();
 });
@@ -537,6 +544,7 @@ test('oda sahibi lobide rolleri açıp kapatabilir', (t) => {
   assert.equal(room.settings.roles.soytari, true);
   assert.equal(room.settings.roles.kahin, false);
   assert.equal(room.settings.roles.doktor, true);
-  assert.equal(room.settings.nightSec, 30);
+  assert.equal(room.settings.nightSec, 20);
+  assert.equal(room.settings.roleMode, 'random');
   room.destroy();
 });

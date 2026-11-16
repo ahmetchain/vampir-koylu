@@ -127,7 +127,7 @@ test('herkese açık duyurular anlatılır; sahneler geçerli; özel duyurular a
   }
   const watch = of(events, 'watch')[0];
   assert.deepEqual(Object.keys(watch).sort(), [
-    'blocked', 'blockedCount', 'count', 'dark', 'deathAt', 'kind', 'ownerOut', 'ownerWent', 'targets', 'text', 'title', 'to', 'visitors',
+    'blocked', 'blockedCount', 'count', 'dark', 'deathAt', 'kind', 'ownerOut', 'ownerWent', 'saved', 'targets', 'text', 'title', 'to', 'visitors',
   ]);
 
   // 1. gün: sabah dedikodusu, sonra p0 (vampir) çoğunlukla elenir → iftiracı dönüşür (özel, anlatısız).
@@ -287,7 +287,8 @@ function playAndAudit(seed, revealRoles, count) {
     const me = room.players.get(viewerId);
     if (me && me.role) {
       // Deli rolü açılana kadar kendini sahte rolüyle bilir.
-      const madHidden = me.role === 'deli' && room.phase !== 'ended' && !(!me.alive && room.settings.revealRoles);
+      // Soyulan delinin rolü oyun sonuna kadar gizli kalır (kendine de).
+      const madHidden = me.role === 'deli' && room.phase !== 'ended' && !(!me.alive && room.settings.revealRoles && !me.roleHidden);
       if (madHidden) {
         out.set(me.id, me.fakeRole);
         if (out.get(me.id) === 'deli') out.delete(me.id);
@@ -296,6 +297,48 @@ function playAndAudit(seed, revealRoles, count) {
     }
     return out;
   };
+
+  const seerSeen = [];
+
+  // Gösterim verisi: yalnızca izleyicinin kendi yolculuğu, (kötüyse) takımı, (gözcüyse) izlediği ev,
+  // kendi evinde olanlar (isimsiz) ve kendi ölümü. İçindeki her oyuncu kimliği hak edilmiş olmalı.
+  function auditShow(viewerId, v, problems) {
+    const show = v.night.show;
+    const res = room.nightRes;
+    const me = room.players.get(viewerId);
+    const acting = room.actingRole(me);
+    const where = `show(${viewerId})`;
+    const allowed = new Set([viewerId]);
+    const mine = res.trips.filter((t) => t.actorId === viewerId);
+    if (show.trip) {
+      if (!mine.length || show.trip.to !== mine[0].to || show.trip.outcome !== mine[0].outcome) problems.push(`${where}: trip uyuşmuyor`);
+      mine.forEach((t) => allowed.add(t.to));
+    } else if (mine.length) problems.push(`${where}: trip eksik`);
+    if (show.team) {
+      if (!isEvil(me.role)) problems.push(`${where}: takım sızdı`);
+      for (const x of show.team) {
+        if (!isEvil(room.players.get(x.id).role)) problems.push(`${where}: takımda kötü olmayan`);
+        allowed.add(x.id); allowed.add(x.to);
+      }
+    }
+    if (show.watch) {
+      if (acting !== G) problems.push(`${where}: gözcü bilgisi sızdı`);
+      if (room.eventIs('ruzgar') && (show.watch.ownerWent || show.watch.arrivals.some((x) => x.id))) problems.push(`${where}: rüzgârda isim sızdı`);
+      allowed.add(show.watch.houseId);
+      show.watch.arrivals.forEach((x) => x.id && allowed.add(x.id));
+      if (show.watch.ownerWent) allowed.add(show.watch.ownerWent);
+    }
+    if (show.saved && (![D, W].includes(acting) || me.role === 'deli')) problems.push(`${where}: saved sızdı`);
+    if (Boolean(show.dead) !== res.dies.has(viewerId)) problems.push(`${where}: dead yanlış`);
+    if (show.home) {
+      for (const e of show.home) {
+        if (Object.keys(e).sort().join() !== 'kind,result') problems.push(`${where}: home isimsiz değil`);
+      }
+    }
+    for (const m of JSON.stringify(show).match(/"p\d+"/g) || []) {
+      if (!allowed.has(JSON.parse(m))) problems.push(`${where}: hak edilmeyen kimlik ${m}`);
+    }
+  }
 
   function auditText(text, known, where) {
     if (typeof text !== 'string' || !text || room.phase === 'ended') return;
@@ -339,10 +382,10 @@ function playAndAudit(seed, revealRoles, count) {
           }
           const meEvil = isEvil(v.me.role);
           if (v.night && !meEvil && (v.night.framer || v.night.team.length || v.night.teamTarget)) problems.push(`state(${viewerId}): gece seçimi sızdı`);
-          // Gözcünün canlı bilgisi sadece gözcüde; rüzgârda isim yok.
-          if (v.night && v.night.watch !== undefined && v.me.role !== G) problems.push(`state(${viewerId}): gözcü bilgisi sızdı`);
-          if (v.night && v.night.watch && v.night.watch.dark
-            && (v.night.watch.ownerWent || v.night.watch.visitors.some((x) => x.id))) problems.push(`state(${viewerId}): rüzgârda isim sızdı`);
+          // Gözcünün canlı paneli yok; gösterimde (show) izleyici sadece hakkı olanı görür.
+          if (v.night && v.night.watch !== undefined) problems.push(`state(${viewerId}): canlı gözcü paneli var`);
+          if (v.night && v.night.show) auditShow(viewerId, v, problems);
+          else if (v.night && r.phase === 'night' && r.night && r.night.stage === 'show') problems.push(`state(${viewerId}): gösterimde show yok`);
           // Gardiyanın kilidi sadece gardiyanda.
           if (v.day && v.day.lock && v.me.role !== 'gardiyan') problems.push(`state(${viewerId}): kilit sızdı`);
           if (v.night && v.me.role !== 'gardiyan' && v.night.mySelection && r.nightLock
@@ -357,14 +400,36 @@ function playAndAudit(seed, revealRoles, count) {
         }
       },
       announce(r, a, to) {
-        if (['seer', 'watch', 'promote', 'locked', 'bounced', 'lockreport', 'steal'].includes(a.kind) && (!to || to.length !== 1)) {
+        const PRIVATE = ['seer', 'watch', 'promote', 'locked', 'bounced', 'lockreport', 'rattled', 'steal', 'stealfail', 'saved', 'attacked', 'killed'];
+        if (PRIVATE.includes(a.kind) && (!to || to.length !== 1)) {
           problems.push(`özel duyuru herkese gitti: ${a.kind}`);
         }
-        if (['locked', 'bounced', 'lockreport'].includes(a.kind) && (a.story !== undefined)) problems.push(`kilit anlatıldı: ${a.kind}`);
+        if (PRIVATE.includes(a.kind) && (a.story !== undefined || a.scene !== undefined)) problems.push(`özel duyuru anlatıldı: ${a.kind}`);
+        // Gece sonuçları gösterimin 9. saniyesinde, gösterim aşamasında gelir; ölen yalnızca 'killed' alır.
+        if (['seer', 'watch', 'bounced', 'lockreport', 'rattled', 'steal', 'stealfail', 'saved', 'attacked', 'killed'].includes(a.kind)) {
+          if (!(r.phase === 'night' && r.night && r.night.stage === 'show')) problems.push(`gece sonucu gösterim dışında: ${a.kind}`);
+          if (a.kind !== 'killed' && r.nightRes.dies.has(to[0])) problems.push(`ölen sonuç aldı: ${a.kind}`);
+        }
+        if (a.kind === 'killed' && !r.nightRes.dies.has(to[0])) problems.push('ölmeyen killed aldı');
+        // Kahin (dedektif): iki rol, biri hedefin (kahine göründüğü) gerçek rolü; sahte kahinde rastgele.
+        if (a.kind === 'seer') {
+          const kahin = r.players.get(to[0]);
+          const target = r.players.get(a.targets[0].id);
+          if (r.actingRole(kahin) !== S) problems.push('kahin olmayana seer gitti');
+          if (!Array.isArray(a.roles) || a.roles.length !== 2 || a.roles[0] === a.roles[1]) problems.push(`seer ikilisi bozuk: ${a.roles}`);
+          if (kahin.role === S && !a.roles.includes(r.actingRole(target))) problems.push(`seer gerçek rolü içermiyor: ${a.text}`);
+          if (a.roles.includes('deli')) problems.push('seer deli gösterdi');
+          const framed = kahin.role === S && r.nightRes.trips.some((x) => x.kind === 'frame' && x.outcome === 'done' && x.to === target.id);
+          if (framed && !a.roles.includes(V)) problems.push('iftira vampiri katmadı');
+          seerSeen.push({ key: `${kahin.id}:${target.id}:${r.actingRole(target)}:${framed}`, roles: [...a.roles].sort().join() });
+        }
+        if (['locked', 'bounced', 'lockreport', 'rattled'].includes(a.kind) && (a.story !== undefined)) problems.push(`kilit anlatıldı: ${a.kind}`);
         if (a.kind === 'hunter') a.targets.forEach((x) => knowledge.hunter.add(x.id));
         if (a.kind === 'hanged' && r.players.get(a.targets[0].id).role === J) knowledge.jester.add(a.targets[0].id);
         const recipients = to || [...r.players.keys()];
         for (const id of recipients) {
+          // Kahinin sonucu rol adları içerir (hakkıdır); yukarıda ayrıca denetlendi.
+          if (a.kind === 'seer') continue;
           const known = knownBy(id);
           for (const field of ['title', 'text', 'story']) auditText(a[field], known, `announce ${a.kind}.${field} -> ${id}`);
           if (a.epilogue) auditText(a.epilogue.story, known, `announce ${a.kind}.epilogue -> ${id}`);
@@ -402,6 +467,7 @@ function playAndAudit(seed, revealRoles, count) {
   for (let step = 0; step < 60 && room.phase !== 'ended'; step++) {
     if (room.phase === 'night') {
       for (const p of alive()) {
+        if (rng() < 0.08) room.passNight(p.id);
         for (let tries = 0; tries < 4; tries++) {
           if (room.selectNight(p.id, pick(alive()).id, rng() < 0.4 ? 'poison' : 'heal') === null) break;
         }
@@ -434,6 +500,12 @@ function playAndAudit(seed, revealRoles, count) {
       else room.resolveHunter(null);
     }
     for (const a of room.log) kinds.add(a.kind);
+  }
+  // Aynı kahin aynı hedefe (rolü ve iftira durumu aynıyken) tekrar bakınca aynı ikiliyi görür.
+  const pairs = new Map();
+  for (const s of seerSeen) {
+    if (pairs.has(s.key) && pairs.get(s.key) !== s.roles) problems.push(`seer ikilisi değişti: ${s.key}`);
+    pairs.set(s.key, s.roles);
   }
   const result = { problems, phase: room.phase, kinds, room };
   room.destroy();

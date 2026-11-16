@@ -15,6 +15,7 @@ import { createOverlay } from './overlay.js';
 import { createControls } from './control.js';
 import { createDirector } from './director.js';
 import { createChoreo } from './choreo.js';
+import { createNightShow, PRIVATE_KINDS } from './nightshow.js';
 import { computeLayout, plazaToWorld, worldToPlaza } from './layout.js';
 import { resolveStatic } from './nav.js';
 import { makeTod, evalTod, stepHour } from './tod.js';
@@ -143,8 +144,7 @@ export function create(container, handlers = {}) {
   const ticker = [];              // kare başı geri çağrılar (true dönerse çıkarılır)
   let todOverride = null;
   let room = null;                // iç mekân (tembel kurulur)
-  let roomMode = null;            // 'visit' | 'window' | 'cine'
-  let roomKey = '';
+  let roomMode = null;            // 'cine' (sinematik) | 'show' (gece gösterisi)
   let moonOverrideCol = null;
   let lastDeaths = null;
   let styleT = 0;
@@ -206,6 +206,17 @@ export function create(container, handlers = {}) {
     },
     openRoom(id) { return openRoomFor(id, 'cine'); },
     endCineRoom() { if (roomMode === 'cine') closeRoom(); },
+    // gece gösterisi (nightshow.js)
+    showDead: new Set(),            // gösteride kendi ölümünü gören izleyici (şafaktan önce)
+    mainBusy() { return director.running; },
+    openShowRoom(id) { return director.running ? null : openRoomFor(id, 'show'); },
+    endShowRoom() { if (roomMode === 'show') closeRoom(); },
+    roomModeIs(m) { return roomMode === m; },
+    serverNow() { return Date.now() + skew; },
+    ghostOf(id) { return ghosts.get(id) || null; },
+    showFocusChanged() { if (ready && state && view === 'game') updateShot(false); },
+    sawOwnDeath() { return nightShow.sawDeath(); },
+    showWatched(id) { return nightShow.watched(id); },
     setTodOverride(h, snap) { todOverride = h; if (snap && h != null) hour = h; },
     cineTint() {},
     moonOverride(c) { moonOverrideCol = c ? new THREE.Color(c) : null; },
@@ -286,8 +297,11 @@ export function create(container, handlers = {}) {
   // doğrudan hareket: sanal kol (dokunmatik) + WASD / ok tuşları
   const controls = createControls(root, {});
   const director = createDirector(world);
-  registerCinematics(director, world);
+  const cineH = registerCinematics(director, world);
   const choreo = createChoreo(world);
+  // gece gösterisi: ayrı (kapsamlı) yönetmen; ana yönetmenin sinematikleriyle yan yana çalışır
+  const showDir = createDirector(world, { scoped: true, timeout: 16 });
+  const nightShow = createNightShow(world, showDir, choreo, cineH);
 
   // ---------- durum ----------
   let state = null;
@@ -365,7 +379,7 @@ export function create(container, handlers = {}) {
     renderer.setSize(W, Hh, false);
     rig.setSize(W, Hh);
     overlay.setSize(W, Hh);
-    controls.place(insets, W, Hh);
+    controls.place(joyInsets(), W, Hh);
     updateShot(true);
   }
   let ro = null;
@@ -504,78 +518,11 @@ export function create(container, handlers = {}) {
     const was = roomMode;
     roomMode = null;
     roomFlick = null;
-    roomKey = '';
     if (was) { if (was === 'cine' || !director.running) rig.setOverride(null, true); flashCut(); }
     labelsDirty = true;
   }
-  // Gece: izleyicinin karakteri bir eve girdiyse iç mekân, gözcü pencere arkasındaysa pencere görünümü
-  function nightView() {
-    if (!state || view !== 'game' || !ready || director.running) return null;
-    const { room: rm, me } = state;
-    if (rm.phase !== 'night' || !me.alive) return null;
-    const ch = chars.get(me.id);
-    if (!ch) return null;
-    if (ch.inside && ch.inside !== me.id && village.house(ch.inside)) return { mode: 'visit', house: ch.inside };
-    if (ch.peeking && village.house(ch.peeking)) return { mode: 'window', house: ch.peeking };
-    return null;
-  }
-  function roleSteps(role, i) {
-    const L = room.L, Wp = (p) => room.W(p);
-    const by = [L.bedside, L.bedside2, { x: -1.6, z: 0.9 }][i % 3];
-    switch (role) {
-      case 'vampir':
-        return [{ walk: [Wp(by)], mode: 'sneak' }, { faceTo: Wp({ x: L.sleeper.x, z: -1.4 }) }, { pose: 'loom' }, { wait: 2.2 + Math.random() }, { once: 'attack-melee-right', opts: { timeScale: 0.45 } }, { wait: 1.5 }];
-      case 'doktor':
-        return [{ walk: [Wp(L.bedfoot)], mode: 'walk' }, { faceTo: Wp({ x: L.sleeper.x, z: -1.6 }) }, { pose: 'hold' }, { wait: 3.5 }, { once: 'interact-left', opts: { timeScale: 0.6 } }, { wait: 2 }];
-      case 'kahin':
-        return [{ walk: [Wp({ x: -1.9, z: 1.25 })], mode: 'sneak' }, { faceTo: Wp(L.bookcase) }, { once: 'pick-up', opts: { timeScale: 0.7 } }, { walk: [Wp({ x: -0.3, z: -1.7 })], mode: 'sneak' }, { faceTo: Wp({ x: -0.3, z: -2.8 }) }, { once: 'interact-right', opts: { timeScale: 0.7 } }, { walk: [Wp({ x: 1.5, z: -0.6 })], mode: 'sneak' }, { faceTo: Wp({ x: 1.6, z: -1.5 }) }, { once: 'interact-left', opts: { timeScale: 0.7 } }];
-      case 'cadi':
-        return [{ walk: [Wp(by)], mode: 'sneak' }, { faceTo: Wp({ x: L.sleeper.x, z: -1.3 }) }, { pose: 'hold' }, { wait: 1.8 }, { once: 'interact-right', opts: { timeScale: 0.5 } }, { wait: 1.8 }];
-      case 'iftiraci':
-        return [{ walk: [Wp({ x: -0.3, z: -1.75 })], mode: 'sneak' }, { faceTo: Wp({ x: -0.3, z: -2.8 }) }, { pose: 'peek' }, { wait: 1.2 }, { once: 'pick-up', opts: { timeScale: 0.6 } }, { wait: 1.6 }];
-      default:
-        return [{ walk: [Wp(L.bedfoot)], mode: 'walk' }, { faceTo: Wp(L.bed) }, { wait: 3 }];
-    }
-  }
-  const roleProp = { doktor: ['furniture', 'lantern', 0.55], cadi: ['clues', 'potion', 0.75], iftiraci: ['clues', 'key', 0.9] };
-  function setupNightRoom(nv, team) {
-    const r = openRoomFor(nv.house, nv.mode);
-    if (!r) return false;
-    const me = state.me;
-    const mp = world.playerById(me.id);
-    const portrait = rig.portrait;
-    if (nv.mode === 'visit') {
-      const all = [{ id: me.id, look: mp.look, name: mp.name, role: me.role }, ...team.map((id) => { const p = world.playerById(id); return p ? { id, look: p.look, name: p.name, role: p.role || 'vampir' } : null; }).filter(Boolean)];
-      all.forEach((a, i) => {
-        const ch = r.addActor('a' + i, a.look, a.name, r.L.doorIn, -Math.PI / 2);
-        ch.roomRole = a.role; ch.roomIndex = i;
-        const rp = roleProp[a.role];
-        if (rp) { const tpl = A.prop(rp[0], rp[1]); if (tpl) { const o = tpl.clone(); o.userData.holdScale = rp[2] / 2.8; ch.hold(o, 'right', [0, -0.15, 0.06]); } }
-      });
-      const S = r.shot('inside', portrait);
-      rig.setOverride({ pos: S.pos, look: S.look, fov: S.fov, k: 60 }, true);
-    } else {
-      const g = r.addActor('gozcu', mp.look, '', r.L.winOut, Math.PI / 2);
-      g.setBase('peek', 0);
-      const S = r.shot('window', portrait);
-      rig.setOverride({ pos: S.pos, look: S.look, fov: S.fov, k: 60 }, true);
-    }
-    return true;
-  }
-  function updateRoom() {
-    if (!ready) return;
-    if (roomMode === 'cine') return;
-    const nv = nightView();
-    if (nv) {
-      const vis = Rules.visits(state);
-      const team = [];
-      for (const [a, t] of vis) if (t === nv.house && a !== state.me.id) team.push(a);
-      const key = nv.mode + ':' + nv.house + ':' + team.join(',') + ':' + (rig.portrait ? 'p' : 'l');
-      if (key !== roomKey) { if (setupNightRoom(nv, team)) roomKey = key; }
-      // rol döngüleri
-      if (room && nv.mode === 'visit') for (const a of room.actors.values()) if (!a.ch.busy) a.ch.run(roleSteps(a.ch.roomRole, a.ch.roomIndex));
-    } else if (roomMode === 'visit' || roomMode === 'window') closeRoom();
-  }
+  // Gece iç mekânı artık yalnız gece gösterisinde (nightshow.js, 'show' kipi) ve sinematiklerde açılır;
+  // eski "hedef evde gece boyu kal" döngüsü kaldırıldı (§15.1).
 
   // ---------- senaryo (ruh hali) ----------
   function applyScenario(id) {
@@ -597,6 +544,15 @@ export function create(container, handlers = {}) {
     try { applyState(false); } catch (e) { report('durum', e); }
   }
 
+  // Gecenin aşaması (§15.1: room.night.stage = walk | pick | show); eski sunucuda yok
+  function showStage() { return !!(state && state.room.phase === 'night' && state.room.night && state.room.night.stage === 'show'); }
+  // İzleyicinin eylemi; gösteri aşamasında seçim yapılmaz (arayüz kuralları ne derse desin)
+  function actNow() {
+    if (!state) return null;
+    const a = Rules.action(state);
+    return a === 'night' && showStage() ? null : a;
+  }
+
   function applyState(snapAll) {
     if (!state || view !== 'game') return;
     const changed = setLayoutFrom(state);
@@ -607,7 +563,7 @@ export function create(container, handlers = {}) {
     for (const p of players) {
       seen.add(p.id);
       village.setOwner(p.id, p.look ? p.look.color : -1, p.name);
-      village.setDead(p.id, inGame && (!p.alive || p.left) && !heldDeaths.has(p.id), p.look ? p.look.color : 0);
+      village.setDead(p.id, inGame && (!p.alive || p.left || world.showDead.has(p.id)) && !heldDeaths.has(p.id), p.look ? p.look.color : 0);
     }
     // ayrılan oyuncular
     for (const [id, ch] of chars) if (!seen.has(id)) { ch.dispose(); chars.delete(id); choreo.forget(id); }
@@ -618,9 +574,10 @@ export function create(container, handlers = {}) {
     if (room.phase === 'night' && lastNightPhase !== 'night') { lastNightAlive.clear(); for (const p of players) if (p.alive) lastNightAlive.add(p.id); }
     lastNightPhase = room.phase;
     choreo.apply(state, snapAll || changed && room.phase !== 'lobby');
-    // seçilebilirler
-    selectableIds = new Set(players.filter((p) => Rules.selectable(state, p, ui.witchMode)).map((p) => p.id));
-    nightActors = new Set(Rules.visits(state).keys());
+    try { nightShow.sync(state); } catch (e) { report('gece gösterisi', e); }
+    // seçilebilirler (gece gösterisi aşamasında seçim yok)
+    selectableIds = actNow() ? new Set(players.filter((p) => Rules.selectable(state, p, ui.witchMode)).map((p) => p.id)) : new Set();
+    nightActors = showStage() ? nightShow.actors : new Set(Rules.visits(state).keys());
     refreshLabels();
     updateShot(false);
   }
@@ -630,7 +587,7 @@ export function create(container, handlers = {}) {
     if (!state) return;
     const { room, me, players, day } = state;
     const phase = room.phase;
-    const act = Rules.action(state);
+    const act = actNow();
     const selC = Rules.selColor(state, ui.witchMode);
     const byId = new Map(players.map((p) => [p.id, p]));
     const tagIds = new Set(), plaqueIds = new Set();
@@ -677,6 +634,30 @@ export function create(container, handlers = {}) {
 
   // ---------- kamera çekimleri ----------
   const fitPts = [];
+  const tmpShowT = new THREE.Vector3();
+  let showCamT = 0, showCamMode = '';
+  // gösteri kamerası: yürüyen kendi karakterin (yoksa yürüyen takım arkadaşın) orta mesafeden; kimse dışarıda
+  // değilse ilgili evleri saran genel bakış. Kip değişince yumuşak geçiş (rig hızı), her karede yeniden sığdırma yok.
+  function updateShowCam(force) {
+    if (!state || !village || !nightShow.focus) return;
+    const portrait = rig.portrait;
+    let ch = chars.get(state.me.id);
+    if (!(ch && ch.visible && ch.claimed)) { ch = null; for (const id of nightShow.actors) { const c = chars.get(id); if (c && c.visible && c.claimed && state.players.some((p) => p.id === id && p.role && (p.role === 'vampir' || p.role === 'iftiraci'))) { ch = c; break; } } }
+    if (ch) {
+      showCamMode = 'follow';
+      rig.setShot({ kind: 'show', target: tmpShowT.set(ch.pos.x * 0.9, 0.6, ch.pos.z * 0.9), az: 0.25, el: portrait ? 0.98 : 0.8, fov: portrait ? 46 : 40, dist: portrait ? 27 : 21, snap: force, speed: 1.3 });
+      rig.shot.dynamic = false;
+      return;
+    }
+    if (showCamMode === 'wide' && !force) return;
+    showCamMode = 'wide';
+    const pts = nightShow.focus;
+    let cx = 0, cz = 0;
+    for (const p of pts) { cx += p.x; cz += p.z; }
+    cx /= pts.length; cz /= pts.length;
+    rig.setShot({ kind: 'show', target: tmpShowT.set(cx * 0.85, 0.5, cz * 0.85), az: 0.25, el: portrait ? 1.02 : 0.78, fov: portrait ? 44 : 40, points: pts, margin: portrait ? 0.78 : 0.8, minDist: 18, snap: force, speed: 0.9 });
+    rig.shot.dynamic = false;
+  }
   for (let i = 0; i < 64; i++) fitPts.push(new THREE.Vector3());
   let shotKind = '';
   function updateShot(force) {
@@ -687,10 +668,11 @@ export function create(container, handlers = {}) {
     const L = village.layout;
     const portrait = rig.portrait;
     const phase = state && view === 'game' ? state.room.phase : 'menu';
-    const act = state && view === 'game' ? Rules.action(state) : null;
+    const act = state && view === 'game' ? actNow() : null;
     let kind;
     if (phase === 'menu') kind = 'menu';
-    else if (phase === 'night') kind = act === 'night' ? 'overview' : 'sleep';
+    else if (ghostMode() && wantFollow()) kind = 'follow';   // ölü izleyici hayaletini sürer (gece de)
+    else if (phase === 'night') kind = act === 'night' ? 'overview' : showStage() && nightShow.focus ? 'show' : 'sleep';
     else if (phase === 'reveal') kind = 'gather';
     else if (wantFollow()) kind = 'follow';
     else kind = 'plaza';
@@ -713,6 +695,18 @@ export function create(container, handlers = {}) {
       // kamera meydanın kenarında: ateş önde, karşı evler, orman, dağlar ve gök arkada
       const d = L.Rp + (portrait ? 3.5 : 2.5);
       rig.setShot({ kind, target: new THREE.Vector3(0, portrait ? 3.4 : 3.0, 0), az: s.az, el: portrait ? 0.2 : 0.16, dist: d, fov: portrait ? 64 : 50, speed: 1.2 });
+      s.dynamic = false;
+    } else if (kind === 'show') {
+      showCamMode = '';
+      updateShowCam(force);
+    } else if (kind === 'show-wide') {
+      // gece gösterisi: ilgili evler (kendi evin, hedefin, izlenen ev) kadrajda, biraz yukarıdan
+      const pts = nightShow.focus;
+      let cx = 0, cz = 0;
+      for (const p of pts) { cx += p.x; cz += p.z; }
+      cx /= pts.length; cz /= pts.length;
+      const el = portrait ? 1.02 : 0.78;
+      rig.setShot({ kind, target: tmpShowT.set(cx * 0.85, 0.5, cz * 0.85), az: 0.25, el, fov: portrait ? 44 : 40, points: pts, margin: portrait ? 0.78 : 0.8, minDist: 18, snap: force, speed: 1.1 });
       s.dynamic = false;
     } else if (kind === 'overview' || kind === 'sleep') {
       let n = 0;
@@ -818,7 +812,7 @@ export function create(container, handlers = {}) {
 
   function candidateAt(x, y) {
     if (!state || view !== 'game') return null;
-    const act = Rules.action(state);
+    const act = actNow();
     if (act === 'night') {
       const id = houseAt(x, y, true);
       return id && selectableIds.has(id) ? id : null;
@@ -827,9 +821,19 @@ export function create(container, handlers = {}) {
     return null;
   }
 
+  // Dokunmatik "hayalet tıklama": seçim pointerup'ta yapılır; arayüz hemen bir onay penceresi açar ve tarayıcının
+  // dokunmadan sonra ürettiği uyumluluk 'click'i o pencerenin arka planına düşüp pencereyi kapatıyordu (telefonda
+  // evlere / tabelalara dokunmak hiçbir şey yapmıyor gibi görünüyordu). Seçimden sonraki kısa süre içinde gelen
+  // touchend'in varsayılanı engellenir (click hiç üretilmez) ve yine de gelen click yutulur.
+  let swallowUntil = 0;
   function pick(id) {
+    swallowUntil = performance.now() + 450;
     if (H.onPick) try { H.onPick(id); } catch (e) { /* yok say */ }
   }
+  const onTouchEnd = (e) => { if (performance.now() < swallowUntil && e.cancelable) e.preventDefault(); };
+  const onClickCap = (e) => { if (performance.now() < swallowUntil) { swallowUntil = 0; e.stopPropagation(); e.preventDefault(); } };
+  root.addEventListener('touchend', onTouchEnd, { passive: false });
+  window.addEventListener('click', onClickCap, true);
 
   function tapCharacter(id, fromTag) {
     if (!state) return;
@@ -846,7 +850,7 @@ export function create(container, handlers = {}) {
     const ph = state.room.phase;
     const me = state.me;
     if ((ph === 'lobby' || ph === 'ended') && nearestChar(x, y, (id) => id === me.id, 26)) { if (H.onSelf) H.onSelf(); return; }
-    if (ph === 'lobby' || ph === 'ended') {
+    if (movePhase()) {
       const p = rayAt(x, y).intersectPlane(groundPlane, tmpV);
       if (!p) return;
       const L = village.layout;
@@ -944,7 +948,12 @@ export function create(container, handlers = {}) {
       case 'reveal': return 20.2;
       case 'night': {
         const total = (room.settings && room.settings.nightSec) || 30;
-        const p = rem == null ? 0.3 : clamp(1 - rem / total, 0, 1);
+        let p = rem == null ? 0.3 : clamp(1 - rem / total, 0, 1);
+        // §15.1: seçim aşaması gecenin ilk %70'i, gösteri (14 sn) kalanı — gösteri başlayınca saat geri gitmesin
+        if (room.night && room.night.stage) {
+          if (room.night.stage === 'show') p = 0.7 + 0.3 * (rem == null ? 0 : clamp(1 - rem / 14, 0, 1));
+          else p = 0.7 * (rem == null ? 0.3 : clamp(1 - rem / (total + 4), 0, 1));
+        }
         return (21.2 + p * 7.6) % 24;
       }
       case 'day': {
@@ -1106,7 +1115,6 @@ export function create(container, handlers = {}) {
       try { done = ticker[i](dt, time); } catch (e) { report('ticker', e); }
       if (done) ticker.splice(i, 1);
     }
-    try { updateRoom(); } catch (e) { report('iç mekân', e); }
     if (room && room.visible) { try { room.update(dt, time); } catch (e) { report('oda', e); } }
     for (const a of cineActors.values()) { try { a.ch.update(dt, time); } catch (e) { report('kopya', e); } }
     if (labelsDirty && state && view === 'game') refreshLabels();
@@ -1166,7 +1174,7 @@ export function create(container, handlers = {}) {
     // çizim görünümü: gerçek gölge yok, evlerin altında da yumuşak leke
     if (world.toon && village) for (const h of village.houses.values()) if (h.scale > 0.5) blobs.add(h.cx, 0.03, h.cz, h.info.size * 1.25 * h.scale, blobCol, 0.32);
     const selC = state ? colorOf(Rules.selColor(state, ui.witchMode)) : null;
-    const act = state && view === 'game' ? Rules.action(state) : null;
+    const act = state && view === 'game' ? actNow() : null;
     for (const ch of list) {
       blobs.add(ch.pos.x, 0.025, ch.pos.z, 1.05, blobCol, blobA);
       if (act && act !== 'night' && selectableIds.has(ch.id)) {
@@ -1174,6 +1182,8 @@ export function create(container, handlers = {}) {
         rings.add(ch.pos.x, 0.05, ch.pos.z, picked ? 1.9 : 1.5, selC, picked ? 1 : hoverId === ch.id ? 0.95 : 0.45, ch.seed * 6);
       }
     }
+    // devralınan (gece gösterisi / sinematik) görünür karakterlerin de yer gölgesi olsun
+    for (const ch of chars.values()) if (ch.claimed && ch.visible && ch.root.visible) blobs.add(ch.pos.x, 0.025, ch.pos.z, 1.05, blobCol, blobA);
     for (const g of ghosts.values()) glow.add(g.pos.x, 1.2, g.pos.z, 2.2, colorOf(COLOR_HEX[g.look.color]), 0.22);
     if (act === 'night' && village) {
       for (const id of selectableIds) {
@@ -1189,13 +1199,17 @@ export function create(container, handlers = {}) {
 
     // kamera
     if (view === 'menu') rig.shot.az += dt * 0.045;
+    // gece gösterisi: kendi karakterin (ya da takımın) dışarıdayken orta mesafeden izlenir, sonra genel bakışa dönülür;
+    // görecek bir şeyi olmayan izleyicide geniş gece görünümü yavaşça döner
+    if (shotKind === 'show') { showCamT -= dt; if (showCamT <= 0) { showCamT = 0.2; updateShowCam(false); } }
+    else if (shotKind === 'sleep' && showStage()) rig.shot.az += dt * 0.025;
     if (shotKind === 'plaza' || shotKind === 'gather') {
       // dinamik sığdırma noktalarını tazele (karakterler yürüyor)
       updateShotPointsOnly();
     }
     // takip kamerası: kip uygunluğu değiştiyse (karakter göründü, öldü, kip değişti) çekimi yenile
     followCheckT -= dt;
-    if (view === 'game' && state && followCheckT <= 0) { followCheckT = 0.4; if ((shotKind === 'follow') !== wantFollow() && (shotKind === 'follow' || shotKind === 'plaza')) updateShot(false); }
+    if (view === 'game' && state && followCheckT <= 0) { followCheckT = 0.4; if ((shotKind === 'follow') !== wantFollow() && (shotKind === 'follow' || shotKind === 'plaza' || ghostMode())) updateShot(false); }
     if (shotKind === 'follow') { try { updateFollow(dt); } catch (e) { report('takip', e); } }
     rig.update(dt, time);
     try { camOccluders(dt); } catch (e) { report('örtme', e); }
@@ -1241,7 +1255,19 @@ export function create(container, handlers = {}) {
     return ch && ch.visible ? ch : null;
   }
   // serbest dolaşma yalnız lobide ve oyun sonunda (gündüz herkes ateşin çevresindeki yerinde durur)
-  function movePhase() { const ph = state && view === 'game' ? state.room.phase : null; return ph === 'lobby' || ph === 'ended'; }
+  function movePhase() { const ph = state && view === 'game' ? state.room.phase : null; return ph === 'lobby' || ph === 'ended' || ghostMode(); }
+  // Ölü izleyici oyun sürerken hayaletini serbestçe gezdirir (yaşayanlar hayaletleri hiç görmez)
+  function ghostMode() {
+    if (!state || view !== 'game' || !state.me || state.me.alive) return false;
+    const ph = state.room.phase;
+    return ph !== 'lobby' && ph !== 'ended' && ghosts.has(state.me.id);
+  }
+  // Arayüz oyun içinde kol alanı göndermiyor (null): ölü izleyicide kendi sol alt yerleşimimiz kullanılır
+  function joyInsets() {
+    if (insets.joystick === null && ghostMode() && controls && controls.touch) return { ...insets, joystick: undefined };
+    return insets;
+  }
+  let lastGhostMode = false;
   function followable() { return movePhase() && !!followTarget(); }
   function wantFollow() { return camMode === 'follow' && followable(); }
   function behindAz(ch) { return ch.yaw + Math.PI + 0.38 * fol.side; }
@@ -1277,7 +1303,7 @@ export function create(container, handlers = {}) {
     }
     fol.dragT += dt;
     // oylama / avcı adayları: biraz geri çekil (adaylar kolayca kareye girsin)
-    const act = Rules.action(state);
+    const act = actNow();
     const wide = act === 'vote' || act === 'shoot';
     if (wide !== fol.wide) { fol.wide = wide; if (wide && fol.zoom < 1.6) fol.zoomGoal = 1.6; }
     if (fol.zoomGoal) { fol.zoom += (fol.zoomGoal - fol.zoom) * damp(2.5, dt); if (Math.abs(fol.zoom - fol.zoomGoal) < 0.02) fol.zoomGoal = 0; }
@@ -1417,6 +1443,8 @@ export function create(container, handlers = {}) {
     try { H.onMove(n.x, n.y); } catch (e) { /* yok say */ }
   }
   function updateDrive(dt) {
+    const gm = ghostMode();
+    if (gm !== lastGhostMode) { lastGhostMode = gm; controls.place(joyInsets(), W, Hh); }
     const ch = followTarget();
     const can = !!(ready && ch && movePhase() && !roomMode && !director.current && !ch.claimed);
     controls.setEnabled(can);
@@ -1527,6 +1555,7 @@ export function create(container, handlers = {}) {
     if (!ch || !ch.visible || ch.camHidden) return false;
     // gece genel bakışında yalnızca kendi karakterin ve görebildiğin ziyaretçiler etiketli (eve yürüyenler değil)
     if (state && state.room.phase === 'night' && id !== state.me.id && !nightActors.has(id)) return false;
+    // gece gösterisinde kendi karakterin bile ancak dışarıdayken etiketli (evdeyken görünmez zaten)
     return true;
   }
   function anchorPlaque(id, out) {
@@ -1551,6 +1580,7 @@ export function create(container, handlers = {}) {
     root.dataset.view = v;
     if (!ready) return;
     if (v === 'menu') {
+      nightShow.stop(); showDir.reset(); world.showDead.clear();
       closeRoom();
       applyScenario(null);
       overlay.clear();
@@ -1573,6 +1603,7 @@ export function create(container, handlers = {}) {
 
   function reset() {
     director.reset();
+    nightShow.stop(); showDir.reset(); world.showDead.clear();
     closeRoom();
     applyScenario(null);
     overlay.clear();
@@ -1601,8 +1632,11 @@ export function create(container, handlers = {}) {
     if (disposed) return;
     disposed = true;
     director.dispose();
+    nightShow.dispose();
+    showDir.dispose();
     cancelAnimationFrame(raf);
     document.removeEventListener('visibilitychange', onVis);
+    window.removeEventListener('click', onClickCap, true);
     window.removeEventListener('resize', onWinResize);
     window.removeEventListener('orientationchange', onWinResize);
     if (ro) ro.disconnect();
@@ -1637,6 +1671,8 @@ export function create(container, handlers = {}) {
       if (!ready || view !== 'game') { director.skip(); return Promise.resolve(); }
       if (msg && msg.kind === 'start' && msg.scenario) applyScenario(msg.scenario.id);
       if (msg && msg.kind === 'death') lastDeaths = { ids: (msg.targets || []).map((t) => t.id), at: Date.now() };
+      // herkese açık bir duyuru (şafak, asma, oyun sonu...) gece gösterisini keser: herkes evine
+      if (msg && msg.kind && !PRIVATE_KINDS[msg.kind] && nightShow.running) nightShow.stop();
       return director.announce(msg);
     },
     skip() { director.skip(); },
@@ -1655,7 +1691,7 @@ export function create(container, handlers = {}) {
     resize,
     reset,
     dispose,
-    setInsets(o) { o = o || {}; insets = { top: o.top || 0, bottom: o.bottom || 0, left: o.left || 0, right: o.right || 0, joystick: o.joystick === null ? null : (o.joystick && typeof o.joystick === 'object' ? { left: +o.joystick.left || 0, bottom: +o.joystick.bottom || 0, size: +o.joystick.size || 0 } : undefined) }; rig.setInsets(insets); overlay.setInsets(insets); controls.place(insets, W, Hh); updateShot(false); },
+    setInsets(o) { o = o || {}; insets = { top: o.top || 0, bottom: o.bottom || 0, left: o.left || 0, right: o.right || 0, joystick: o.joystick === null ? null : (o.joystick && typeof o.joystick === 'object' ? { left: +o.joystick.left || 0, bottom: +o.joystick.bottom || 0, size: +o.joystick.size || 0 } : undefined) }; rig.setInsets(insets); overlay.setInsets(insets); controls.place(joyInsets(), W, Hh); updateShot(false); },
     recenter() { recenterCam(); },
     // gündüz kamera kipi: 'follow' (karakterini takip) | 'overview' (meydana genel bakış)
     setCameraMode(m) { if (m === 'follow' || m === 'overview') { if (m !== camMode) toggleCam(); } },

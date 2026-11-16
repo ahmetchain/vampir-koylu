@@ -41,12 +41,16 @@ connection · 7 Client → server events · 8 Server → client events · 9 The 
 | `REVEAL_MS` | 8000 | role-card phase before night 1 |
 | `ALL_VOTED_MS` | 10000 | day timer drops to this when every alive connected player has voted |
 | `HUNTER_MS` | 20000 | hunter's last-shot time |
-| `NIGHT_WALK_MS` | 4000 | walk-home lead-in at the start of every night, before the visible night countdown (`room.timerFrom`) |
+| `NIGHT_WALK_MS` | 4000 | night stage `walk`: walk-home lead-in at the start of every night, before the pick countdown (`room.timerFrom`) |
+| `nightSec` | 10–60, default 20 | night stage `pick` length (room setting; halved by `kisa-gece`) |
+| `PICK_GRACE_MS` | 1500 | the pick stage ends this long after every awaited actor has picked or passed (§12.1a) |
+| `NIGHT_SHOW_MS` | 14000 | night stage `show`: the resolved night is played back, then dawn |
+| `NIGHT_RESULT_MS` | 9000 | private night results are emitted this long after the show stage started |
+| `HOST_GRACE_MS` | 60000 | the host role moves to another human only after the host has been disconnected this long without a break (§12.5) |
 | `TRIAL_TURN_MS` | 15000 | mahkeme: each defendant's defence turn (events only, §12.10) |
 | `TRIAL_VOTE_MS` | 20000 | mahkeme: re-vote between the two defendants; drops to 3000 ms once everyone voted |
-| `LOBBY_GRACE_MS` | 30000 | a player disconnected in `lobby`/`ended` is removed after this |
+| `LOBBY_GRACE_MS` | 120000 | a player disconnected in `lobby`/`ended` is removed after this |
 | `EMPTY_ROOM_MS` | 600000 | room is deleted after 10 min with nobody connected (immediately when it has no players) |
-| `nightSec` | 15–120, default 30 | room setting |
 | `daySec` | 30–300, default 120 | room setting |
 | `COLOR_COUNT` | 20 | `look.color` ∈ 0..19 (unique per room) |
 | `HAT_COUNT` | 9 | `look.hat` ∈ 0..8 (0 = no hat) |
@@ -72,8 +76,8 @@ connection · 7 Client → server events · 8 Server → client events · 9 The 
 | `vampir` | Vampir | `vampir` | the team's **one** kill target: the first vampire to confirm sets it, every vampire goes there (not self, not another vampire, not İftiracı) | always (1–3, see §2) |
 | `iftiraci` | İftiracı | `vampir` | frame a living non-evil player (not self) | setting on **and** ≥ 7 players; exactly 1, in addition to the vampires |
 | `doktor` | Doktor | `koylu` | protect any living player (self allowed) | setting (default on) |
-| `kahin` | Kahin | `koylu` | inspect a living player (not self) | setting (default on) |
-| `gozcu` | Gözcü | `koylu` | watch any living player's house; sees arrivals **live** (§12.6) | setting (default off) |
+| `kahin` | Kahin | `koylu` | inspect a living player (not self); learns **two roles, one of them real** (detective, §12.11) | setting (default on) |
+| `gozcu` | Gözcü | `koylu` | watch any living player's house; sees arrivals in the show stage and the report (§12.6) | setting (default off) |
 | `gardiyan` | Gardiyan | `koylu` | none at night; **by day** picks a door to lock for the coming night (`day:lock`, §12.7) | setting (default off) |
 | `cadi` | Cadı | `koylu` | `heal` (once per game) / `poison` (once per game, not self) | setting (default off) |
 | `avci` | Avcı | `koylu` | none; last shot when killed | setting (default off) |
@@ -87,23 +91,35 @@ Every night choice is **final** once accepted (no change, no clearing).
 
 "Evil" / vampire team = `vampir` + `iftiraci`.
 
-Dealing: `[vampires..., iftiraci?, specials..., koylu...]`. Slots for village specials = players − vampires − iftiracı
-− (1 if players < 8, the reserved plain `koylu`; with 8+ players all slots may go to specials). Hırsız only with ≥ 7 players.
-If the enabled specials fit, all are dealt. If more are enabled than there are slots, the dealt ones are chosen **at random
-per game**; if kahin and/or gözcü are enabled, at least one of them is always dealt.
-Lobby preview: `room.distribution` is deterministic and lists only the certain roles (vampires, iftiracı, certain specials,
-koylu) and never reveals a game's draw; the random part is `room.rolePool` (§9).
-Examples: 7 players with doktor, kahin, gözcü, iftiracı on → `vampir, iftiraci, doktor, kahin, gozcu, koylu, koylu`;
-6 players with iftiracı on → no İftiracı.
+Dealing depends on `settings.roleMode` (§4). In both modes Hırsız and İftiracı need ≥ 7 players, and if kahin and/or
+gözcü are enabled and specials are drawn at random, at least one of them is always dealt.
+
+- **`'random'` (default)**: vampires by player count (§2); İftiracı (if enabled, 7+ players) is dealt with **60 %** chance;
+  plain köylü = `max(1, round(players × 0.2))`; every remaining slot is filled by a random draw from the enabled village
+  specials (doktor … hirsiz; all of them if they fit); slots still left are köylü.
+- **`'all'`** (the previous rule): `[vampires..., iftiraci?, specials..., koylu...]`; İftiracı always when enabled and 7+;
+  slots for village specials = players − vampires − iftiracı − (1 reserved plain `koylu` if players < 8); if the enabled
+  specials fit, all are dealt, otherwise the dealt ones are chosen at random per game.
+
+Lobby preview (`room.distribution` + `room.rolePool`, §9) is deterministic and never reveals a game's draw: `distribution`
+lists the roles that are dealt in **every** draw; the remaining `rolePool.pick` slots are filled from `rolePool.from`
+(specials that may or may not be dealt), `rolePool.maybe` (İftiracı in random mode: 60 %) and köylü.
+In random mode the start log line does not list the roles ("Oyun başladı: 7 oyuncu. Roller rastgele dağıtıldı."); in
+`'all'` mode it does ("Oyun başladı: 7 oyuncu (1 vampir, İftiracı, Doktor, Kahin, Gözcü, 2 köylü).").
+Examples (random): 7 players with doktor, kahin, gözcü, iftiracı on → `distribution: [vampir, doktor, kahin, gozcu, koylu, koylu]`,
+`rolePool: { pick: 1, from: [], maybe: ['iftiraci'] }` (that slot is İftiracı or köylü); 7 players with 10 specials on →
+`distribution: [vampir, koylu]`, `rolePool: { pick: 5, from: [10 specials], maybe: ['iftiraci'] }` if iftiracı is on.
+`'all'`: 7 players with doktor, kahin, gözcü, iftiracı on → `vampir, iftiraci, doktor, kahin, gozcu, koylu, koylu`, `rolePool: null`.
 
 ## 4. Room settings
 
 ```js
 settings = {
-  nightSec: 30,          // 15..120 (integers, clamped)
+  nightSec: 20,          // 10..60 (integers, clamped): length of the night's pick stage
   daySec: 120,           // 30..300
   revealRoles: true,     // reveal the role of players who die / leave
   events: 'off',         // village events: 'off' | 'some' | 'often' (built, OFF by default and hidden in the UI; §12.10)
+  roleMode: 'random',    // 'random' | 'all' – how roles are dealt (§3); anything else → 'random'
   roles: {               // all 11 keys always present, booleans
     doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false,
     avci: false, muhtar: false, soytari: false, deli: false, hirsiz: false, iftiraci: false,
@@ -284,21 +300,23 @@ player is marked `left`, dies (announce `left`) and their seat stays in the list
 | `room:settings` | `{ settings }` (partial §4) | host, lobby | "Ayarları sadece oda sahibi değiştirebilir.", "Ayarlar sadece lobide değiştirilebilir." |
 | `game:start` | – | host, lobby, ≥ 5 connected | "Oyunu sadece oda sahibi başlatabilir.", "Oyun zaten başladı.", "Oyunu başlatmak için en az 5 oyuncu gerekli." Disconnected seats are dropped at start. |
 | `game:lobby` | – | host, ended | "Sadece oda sahibi lobiye döndürebilir.", "Oyun henüz bitmedi." Seats that left or are disconnected are removed; everyone else keeps seat, look and position. |
-| `night:select` | `{ targetId, action? }` | alive night roles, night | see below |
+| `night:select` | `{ targetId, action? }` | alive night roles, night stages `walk`/`pick` | see below |
+| `night:pass` | – (`{}`) | alive night roles, night stages `walk`/`pick` | "Bu gece bekle": the player does nothing more tonight (final, like a pick; e.g. Hırsız waiting, Cadı keeping her potions, or after a heal: no poison tonight). Errors: "Şu an gece değil.", "Ölüler seçim yapamaz.", "Köylüler gece seçim yapamaz.", "Gardiyan kilidini gündüz seçer; gece yapacağın bir şey yok.", "Bu rolün gece görevi yok, sabahı bekle.", "Seçim süresi doldu; gece oynanıyor." (show stage), "Kapın dışarıdan kilitlendi, bu gece evinden çıkamazsın.", "Tipi var: bu gece köylüler evlerinden çıkamaz.", "Bu gece beklemeye karar verdin; seçim kesindir." (passed already), "Bu gece yapacak bir seçimin kalmadı." (already picked everything possible). A Deli gets exactly the errors of the role they believe they have. |
 | `hunter:shoot` | `{ targetId }` | the dying hunter, phase `hunter` | "Şu an atış zamanı değil.", "Sadece avcı ateş edebilir.", "Kendini vuramazsın.", "Bu oyuncu vurulamaz." |
 | `day:vote` | `{ targetId }` = player id, `null` (withdraw) or `'sleep'` | alive, day (and the mahkeme re-vote) | "Oylama sadece gündüz yapılır.", "Ölüler oy veremez.", "Bu oyuncuya oy verilemez.", "Kendine oy veremezsin."; re-vote only: "Savunmalar bitmeden oy verilemez.", "Mahkemede Hızlı Uyu yok; iki sanıktan birini seç.", "Mahkemede yalnızca iki sanıktan birine oy verebilirsin." Voting the same value again withdraws it. |
 | `day:lock` | `{ targetId }` = player id or `null` (clear) | the Gardiyan, alive, day (incl. a mahkeme) | "Kilitlenecek kapı sadece gündüz seçilir.", "Ölüler kapı kilitleyemez.", "Sadece gardiyan kapı kilitleyebilir.", "Bu kapı kilitlenemez.", "Kendi kapını kilitleyemezsin.", "Aynı kapıyı iki gece üst üste kilitleyemezsin." Changeable until the day ends; secret (only in the Gardiyan's `day.lock`). §12.7 |
 | `player:look` | `{ color?, hat?, skin? }` | lobby or ended | "Görünüm sadece lobide değiştirilebilir.", "Bu renk başka bir oyuncuda." Values are parsed as integers and clamped to range (unparsable → unchanged). On success the full look is also saved to the account profile (background, failures only logged). |
-| `player:move` | `{ x, y }` | `lobby` and `ended` only (dead players too) | "Şu an meydanda dolaşamazsın." in every other phase (`reveal`, `night`, `day`, `hunter`; the UI need not show it), "Geçersiz konum." Every move is applied (clamped to the ring, §12.1); the resulting `state` broadcast is coalesced (≤ 1 per 100 ms per room). |
+| `player:move` | `{ x, y }` | living players: `lobby` and `ended` only; **dead players (ghosts): every phase of a running game** (`night` all stages, `day`, `trial`, `hunter`) and `ended` | "Şu an meydanda dolaşamazsın." for a living player outside `lobby`/`ended` (the UI need not show it), "Geçersiz konum." Every move is applied (clamped to the ring, §12.1); the resulting `state` broadcast is coalesced (≤ 1 per 100 ms per room). A ghost's position is visible only to dead viewers until the game ends (§9 `pos`). |
 | `chat:send` | `{ text }` | see §11 | "Biraz yavaş yaz :)", "Boş mesaj gönderilemez.", "Gece köy uyur, konuşamazsın." |
 
 **`night:select`** `{ targetId, action?: 'heal' | 'poison' }` (action only for Cadı; anything other
 than `'poison'` means `'heal'`). **Final:** once accepted it cannot be changed or cleared (the Cadı's
-heal and poison are separate, each final). Allowed from the start of the night (also during the
-walk-home lead-in). Errors:
-- any role: "Şu an gece değil.", "Ölüler seçim yapamaz.", "Bu oyuncu seçilemez." (target missing or dead),
+heal and poison are separate, each final). Allowed in the `walk` and `pick` stages (not in `show`).
+Nothing moves in the village until the show stage; a locked door is discovered only then (§12.2). Errors:
+- any role: "Şu an gece değil.", "Ölüler seçim yapamaz.", "Seçim süresi doldu; gece oynanıyor." (show stage),
+  "Bu oyuncu seçilemez." (target missing or dead),
   "Kapın dışarıdan kilitlendi, bu gece evinden çıkamazsın." (own door locked),
-  "Seçimini yaptın; gece seçimleri kesindir." (already chosen)
+  "Bu gece beklemeye karar verdin; seçim kesindir." (passed tonight), "Seçimini yaptın; gece seçimleri kesindir." (already chosen)
 - vampir: "Vampir kendini seçemez.", "Diğer vampirleri seçemezsin.", "İftiracı sizin takımınızda, onu seçemezsin.",
   "Takımın hedefi zaten belli: `<name>`. Gece seçimleri kesindir." (another vampire already set the team target)
 - iftiraci: "Kendine iftira atamazsın.", "Takım arkadaşına iftira atamazsın."
@@ -337,21 +355,29 @@ Sent per viewer. Full shape:
     name: "Akşam Oyunu",
     phase: "lobby" | "reveal" | "night" | "day" | "trial" | "hunter" | "ended",   // "trial" only with events (§12.10)
     round: 0,                          // night/day number, 0 in lobby, increments at each night start
-    deadline: 1763030030000 | null,    // when the current timed phase really ends (null in lobby/ended)
-    timerFrom: 1763030004000 | null,   // night only: when the visible countdown starts (= night start + 4000 ms
-                                       // walk-home lead-in); null in every other phase (count down from phase start)
+    deadline: 1763030030000 | null,    // when the current timed phase/stage really ends (null in lobby/ended);
+                                       // at night: = night.pickUntil in walk/pick, = night.showUntil in show
+    timerFrom: 1763030004000 | null,   // night only: when the pick countdown starts (= night start + 4000 ms
+                                       // walk-home lead-in); unchanged during the whole night; null in every other phase
+    night: null | {                    // phase 'night' only (§12.1a)
+      stage: 'walk' | 'pick' | 'show',
+      pickUntil: 1763030024000,        // end of the pick stage (moves earlier when everyone picked/passed; may move back)
+      showUntil: 1763030038000,        // end of the show stage = dawn (= pickUntil + 14000 until the show starts)
+    },
     hostId: "player-uuid" | null,
-    settings: { nightSec, daySec, revealRoles, events, roles: {11 keys} },   // §4
+    settings: { nightSec, daySec, revealRoles, events, roleMode, roles: {11 keys} },   // §4
     hasPassword: false,
     winner: null | "koylu" | "vampir" | "soytari",                  // set in 'ended'
     winners: ["player-uuid", ...],      // player ids of the winning side still in the game (not left); [] until ended
     minPlayers: 5, maxPlayers: 20,
     vampireCount: 1,                   // computed from the current number of non-left seats
-    distribution: ["vampir", "doktor", "kahin", "koylu", "koylu"],  // roles that would be dealt for the current
+    distribution: ["vampir", "doktor", "kahin", "koylu", "koylu"],  // roles dealt in EVERY draw for the current
                                        // number of non-left seats (lobby preview; recomputed, so it shrinks when players leave mid-game);
-                                       // excludes the random part, so its length is players − rolePool.pick when rolePool is set
-    rolePool: null | { pick: 6, from: ["doktor", "kahin", ...] },   // more specials enabled than slots: `pick` of `from`
-                                       // are dealt at random per game (kahin/gozcu guaranteed at least one); null when all fit
+                                       // length = players − rolePool.pick when rolePool is set (§3)
+    rolePool: null | { pick: 6, from: ["doktor", "kahin", ...], maybe: ["iftiraci"] },
+                                       // the uncertain part: `pick` slots filled at random from `from` (specials that may be dealt,
+                                       // kahin/gozcu guaranteed at least one), `maybe` (İftiracı, 60 % in random mode; [] otherwise)
+                                       // and köylü; null when nothing is uncertain
     hunterId: "player-uuid" | null,    // the hunter who is shooting (phase 'hunter')
     scenario: null | { id, name, intro },    // theme of this game (§16); set at game:start, null again after game:lobby
     epilogue: null | { title, text, story }, // "Köy Günlüğü" recap (§16); only in phase 'ended' (null on fallback)
@@ -383,7 +409,9 @@ Sent per viewer. Full shape:
       role: null | "<role id>",        // visibility rules below
       fakeRole: null | "<role id>",    // only when this entry's role is visible as "deli" (game end, or death with revealRoles): the role the Deli believed
       look: { color: 0..19, hat: 0..8, skin: 0..11 },
-      pos: { x: 0..1, y: 0..1 },       // normalized plaza coordinates, see §12.1
+      pos: { x: 0..1, y: 0..1 },       // normalized plaza coordinates, see §12.1. A dead player who moved as a
+                                       // ghost: dead viewers get the ghost position, living viewers the position at
+                                       // death; at 'ended' everyone gets the ghost position (§12.1)
     },
   ],
   log: [{ text, kind, ts }],           // public room log, last 250 (oldest dropped first), identical for every viewer.
@@ -411,15 +439,46 @@ Note: when İftiracı is promoted, their role becomes `vampir` everywhere (also 
 Seats freed in the lobby are reused; seats never change during a game; `game:lobby` keeps seats
 (gaps are possible).
 
-**`night`** – only in phase `night`, only for an **alive** viewer whose role (for a Deli: believed role)
-has a night role; otherwise `null`. Every `night` object has these common fields:
+**`night`** – only in phase `night`, only for an **alive** viewer (players who die tonight are still
+alive until dawn) whose role (for a Deli: believed role) has a night role; **in the `show` stage every
+alive viewer** gets it (roles without a night action get just the common fields, so they can see what
+happens in their own house); otherwise `null`. Every `night` object has these common fields:
 ```js
 {
   mySelection: id | null,   // this viewer's final choice tonight (see table)
-  canAct: bool,             // a choice is still possible (false: already chosen, locked in, tipi, …)
+  canAct: bool,             // a choice is still possible (false: already chosen, passed, locked in, tipi, show stage, …)
+  passed: bool,             // the viewer sent night:pass tonight
   locked: bool,             // own door locked by the Gardiyan tonight
-  bounced: bool,            // one of this viewer's trips was turned back by a locked door
+  bounced: bool,            // show stage only: one of this viewer's trips was turned back by a locked door (false before)
   team: [], framer: null, teamTarget: null,   // filled only for the evil team
+  show: null | { ... },     // show stage only: this viewer's playback (below); null in walk/pick
+}
+```
+
+**`night.show`** – private playback of the resolved night (§12.2), computed at the start of the show
+stage; every field is optional (absent = nothing to show; `{}` = watch the quiet village). It never contains
+anything the viewer may not know (covered by the leak audit in `test/narration.test.js`).
+```js
+show: {
+  trip:  { to, kind, outcome, interior },   // my own walk (the first one, see trips)
+         // kind: 'kill' | 'steal' | 'protect' | 'heal' | 'poison' | 'inspect' | 'frame' | 'watch'
+         // outcome: 'done'    – happened (kill/steal/poison: the victim dies or was already dead; others: done)
+         //          'bounced' – turned back at a locked door (any kind except watch)
+         //          'saved'   – kill/poison: the victim was saved; protect/heal: MY protection stopped an attack
+         //          'foiled'  – steal: the doktor's protection stopped the theft (ability kept)
+         // interior: true only for kill/steal/poison that got inside (outcome != 'bounced')
+  trips: [trip, trip],      // only when I walked twice (Cadı: heal and poison the same night), in order
+  team:  [{ id, to, kind, outcome }],     // evil viewers only: the other evil players' trips (kind 'kill' or 'frame')
+  home:  [{ kind, result }],              // what happened in MY house, in order; visitors are anonymous
+         // kind: 'attack' (vampires) | 'steal' (Hırsız) | 'poison' (Cadı) | 'protect' (a protector who saved me;
+         //       listed right after the attempt it stopped; absent when I protected/healed myself)
+         // result: 'died' | 'saved'; nothing is listed after 'died'; a locked house has no entries
+  dead:  true,                            // I die tonight (I see it now; public at dawn)
+  watch: { houseId, arrivals: [{ id, blocked }], ownerWent: id | null, died: bool, saved: bool },
+         // gözcü (and a Deli who believes so): who came to the watched house (sorted by name, gözcüs never count,
+         // the owner never counts), whether/where the owner went, whether a death happened in a house the gözcü
+         // saw (= report deathAt non-empty), `saved` = a protection/heal really stopped an attack on the watched house's owner (green plus signs; a Deli gets a plausible random one). rüzgâr event: ids and ownerWent are null
+  saved: true,                            // doktor/cadı: my protection actually stopped an attack (green plus signs)
 }
 ```
 | viewer role | extra / meaning |
@@ -427,7 +486,7 @@ has a night role; otherwise `null`. Every `night` object has these common fields
 | vampir | `mySelection` = team target; `team: [{ vampId, name, targetId }]` all living vampires (`targetId` = team target if that vampire went, else null); `teamTarget: { targetId, by, byName } \| null` (who set it); `framer` = İftiracı's frame target |
 | iftiraci | `mySelection` = frame target; `team`, `teamTarget` as above (read-only); `framer` = own target |
 | doktor / kahin / hirsiz | `mySelection` = protected / inspected / steal target |
-| gozcu | `mySelection` = watched house; `watch: null \| { targetId, dark, visitors: [{ id, blocked }], count, blockedCount, ownerOut, ownerWent }` – **live**: everyone who came to that house so far in arrival order (`blocked` = turned back by a lock), whether the owner left and to which house (`ownerWent` id). `dark` (rüzgâr event): `visitors[i].id` and `ownerWent` are `null`, counts only |
+| gozcu | `mySelection` = watched house. **No live panel any more** (the old `night.watch` field is gone): arrivals come in `show.watch` and the 9 s `watch` report |
 | gardiyan | `mySelection` = the door locked tonight (chosen yesterday), `canAct: false` |
 | cadi | `witch: { heal, poison, healUsed, poisonUsed, victims: [id] }` – `victims` = the vampire team target (0–1 entries) |
 | others / dead | `null` |
@@ -460,7 +519,12 @@ sentences (≤ 220 chars) to show as a caption under the cinematic. The same tex
 `state.log` as `kind:'story'`. `story` and `scene` come from the story engine (§16).
 **`story` may be an empty string** (engine failure / fallback): then `title`/`text` are the plain v1
 lines and `scene` is its default – always be able to show just `text`. Private announces (`seer`,
-`watch`, `promote`, `locked`, `bounced`, `lockreport`, `steal`, `stealfail`) are never narrated: no `story`, no `scene`.
+`watch`, `promote`, `locked`, `bounced`, `lockreport`, `rattled`, `steal`, `stealfail`, `saved`, `attacked`, `killed`) are never narrated: no `story`, no `scene`.
+
+**Night results timing.** `bounced`, `seer`, `watch`, `lockreport`, `steal`/`stealfail`, `saved`, `attacked` and
+`killed` are emitted **9 s into the show stage** (`NIGHT_RESULT_MS`), in that order, while `room.night.stage` is
+`'show'` (a `state` follows). A player who dies tonight gets only `killed` (rule 4 of §12.2: no results). The public
+`death`/`safe` comes at dawn (end of the show stage).
 
 | kind | to | title | text | extra |
 |---|---|---|---|---|
@@ -468,11 +532,15 @@ lines and `scene` is its default – always be able to show just `text`. Private
 | `night` | all, narrated | "`<round>`. Gece" | "Köy uyuyor... Gece rolleri seçimini yapsın." | `story` |
 | `death` | all, narrated | "Sabah oldu" | per death "`<name>` bu gece vampir tarafından öldürüldü!`{role}`", "… zehirlenerek öldü!`{role}`" or "… soyulup öldürüldü!`{role}`" (Hırsız), joined with a space | `targets: [{ id, cause: 'vampir' \| 'zehir' \| 'hirsiz', scene }]` (1–3 entries; `bite`\|`bats`\|`vanish` for `vampir`, `poison` for `zehir`, always `vanish` for `hirsiz`), `scene` = `targets[0].scene`, `story` |
 | `safe` | all, narrated | "Sabah oldu" | "Bu gece kimse ölmedi." | `story` (also when someone was saved; who was saved is never revealed) |
-| `seer` | **kahin only** | "Kristal küre konuştu" | "`<name>` bir VAMPİR!" or "`<name>` vampir değil." | `targets: [{ id, cause: 'vampir' \| 'temiz' }]` |
-| `watch` | **gözcü only** | "Gözcünün raporu" | e.g. "Bu gece `<X>'in` evine gelenler: A, B. Kilitli kapıdan dönenler: C. `<X>` gece evinden çıkıp `<Y>'nin` evine gitti. Sabah `<Y>'nin` evinden ölüm haberi geldi." / "… kimse gelmedi."; dark: "Rüzgârlı karanlıkta bu gece `<X>'in` evine 2 gölge geldi (1 tanesi kilitli kapıdan döndü). Ev sahibi gece dışarı çıktı." | `targets: [{ id: watchedId }]`, `visitors: [id]` (everyone who came, sorted by name), `blocked: [id]` (subset turned back), `count`, `blockedCount`, `ownerOut: bool`, `ownerWent: id\|null`, `dark: bool` (ids empty/null when dark), `deathAt: [id]` (houses the gözcü saw – watched house or `ownerWent` – whose owner died tonight; public anyway) |
+| `seer` | **kahin only** (9 s into show) | "Kristal küre konuştu" | "`<name>` şu ikisinden biri: `<A>` ya da `<B>`." (role labels, e.g. "Oyuncu3 şu ikisinden biri: Köylü ya da Vampir.") | `targets: [{ id }]`, `roles: [a, b]` (role ids in the text's order; one is the real role, §12.11) |
+| `saved` | **the doktor / cadı** whose protection stopped an attack (9 s into show) | doktor: "Koruman işe yaradı"; cadı: "Hayat iksiri işe yaradı" | doktor: "`<X>` bu gece saldırıya uğradı; senin koruman sayesinde kurtuldu." / self: "Bu gece evine saldırı oldu; kendini korudun ve kurtuldun."; cadı: "`<X>` bu gece vampirlerin saldırısına uğradı; hayat iksirin onu kurtardı." / self: "Vampirler bu gece evine geldi; hayat iksirin seni kurtardı." | `targets: [{ id: savedId }]` |
+| `attacked` | **the saved victim** (9 s into show) | "Saldırıdan kurtuldun" | "Bu gece evinde saldırıya uğradın ama sağ kurtuldun." (who/what is not said; `show.home` has the kinds) | `targets: [{ id: ownId }]` |
+| `killed` | **the dying victim** (9 s into show) | "Bu gece öldün" | vampir: "Vampirler bu gece evine girdi. Sabahı göremeyeceksin."; zehir: "Bu gece zehirlendin. Sabahı göremeyeceksin."; hirsiz: "Bu gece evine biri girdi, seni soydu ve canını aldı. Sabahı göremeyeceksin." | `targets: [{ id: ownId }]`, `cause: 'vampir' \| 'zehir' \| 'hirsiz'` |
+| `watch` | **gözcü only** (9 s into show) | "Gözcünün raporu" | e.g. "Bu gece `<X>'in` evine gelenler: A, B. Kilitli kapıdan dönenler: C. `<X>` gece evinden çıkıp `<Y>'nin` evine gitti. Sabah `<Y>'nin` evinden ölüm haberi geldi." / "… kimse gelmedi."; dark: "Rüzgârlı karanlıkta bu gece `<X>'in` evine 2 gölge geldi (1 tanesi kilitli kapıdan döndü). Ev sahibi gece dışarı çıktı." | `targets: [{ id: watchedId }]`, `visitors: [id]` (everyone who came, sorted by name), `blocked: [id]` (subset turned back), `count`, `blockedCount`, `ownerOut: bool`, `ownerWent: id\|null`, `dark: bool` (ids empty/null when dark), `saved: bool` (adds " Evden yeşil ışıklar yükseldi…" sentence), `deathAt: [id]` (houses the gözcü saw – watched house or `ownerWent` – whose owner died tonight; public anyway) |
 | `locked` | **owner of the locked house** | "Kapın kilitli" | "Kapın dışarıdan kilitlendi. Bu gece evinden çıkamazsın." (at night start) | `targets: [{ id: ownId }]` |
-| `bounced` | **the visitor** | "Kapı kilitliydi" | "`<X>'in` kapısı dışarıdan kilitliydi; eve döndün." (immediately) | `targets: [{ id: houseId }]` |
+| `bounced` | **the visitor** (9 s into show; one per house) | "Kapı kilitliydi" | "`<X>'in` kapısı dışarıdan kilitliydi; eve döndün." | `targets: [{ id: houseId }]` |
 | `lockreport` | **Gardiyan only** (alive at dawn) | "Gardiyanın raporu" | "Kilitlediğin kapıyı (`<X>'in` evi) bu gece N kişi zorladı." / "… kimse zorlamadı." | `targets: [{ id: lockedId }]`, `count` |
+| `rattled` | **The locked-in owner only** (alive at that point; only if >=1 distinct player tried the door; the Gardiyan's survival is irrelevant) | "Kapın zorlandı" | "Bu gece kilitli kapını N kişi zorladı." (never who) | `targets: [{ id: ownerId }]`, `count` |
 | `stealfail` | **the Hırsız only** (alive at dawn) | "Soygun başarısız" | "`<X>'in` evi bu gece korunuyordu; çalamadın ama hakkın yanmadı." (the doktor protected the target; a locked door gives `bounced` instead) | `targets: [{ id: targetId }]` |
 | `steal` | **the Hırsız only** | "Rolü çaldın!" | "`<X>'in` evinden rolünü çaldın. Artık rolün: `<Label>`." | `targets: [{ id: victimId }]`, `role` (new role id; for a stolen Deli the believed role) |
 | `event` | all, narrated (events only) | event name / town crier title | event description | `event: { id, name, desc, phase }`, `story` |
@@ -488,10 +556,12 @@ lines and `scene` is its default – always be able to show just `text`. Private
 | `win` | all, narrated | "Köylüler kazandı!" / "Vampirler kazandı!" / "Soytarı kazandı!" | "Tüm vampirler yok edildi. Köy kurtuldu!" / "Köyde vampirlere karşı koyacak kimse kalmadı." / "Köy Soytarı'yı astı\|köyden sürdü\|mahzene kapattı… tam da onun istediği gibi!" (verb follows the jester's `hanged` scene) | `winner: 'koylu'\|'vampir'\|'soytari'`, `targets: [{ id }]` = winners, `story`, `epilogue: { title, text, story } \| null` (= `room.epilogue`) |
 
 Private announces are also stored as a note in the recipient's `me.notes` ("🔮 `<round>`. gece: …" seer,
-"👁️ …" watch, "🔒 …" locked/bounced, "🗝️ …" lockreport/steal, "🧛 `<round>`. tur: Vampire dönüştün.").
+"👁️ …" watch, "🔒 …" locked/bounced, "🗝️ …" lockreport/steal/stealfail, "🛡️ …" saved/attacked, "💀 …" killed,
+"🧛 `<round>`. tur: Vampire dönüştün.").
 
-Typical dawn sequence: `death` | `safe` → [`seer`] → [`watch`] → [`lockreport`] → [`steal` | `stealfail`] → [`promote`] → [`hunter`] | [`win`],
-then the `day` (or `hunter`/`ended`) state. There is no `day` announce: the day start shows in
+Typical night sequence: `night` (start) → [`locked`] → … pick … → show stage starts (`state`) → 9 s:
+[`bounced`] → [`seer`] → [`watch`] → [`lockreport`] → [`steal` | `stealfail`] → [`saved`] → [`attacked`] → [`killed`] →
+dawn (5 s later): `death` | `safe` → [`promote`] → [`hunter`] | [`win`], then the `day` (or `hunter`/`ended`) state. There is no `day` announce: the day start shows in
 `state.room.phase` and in the log (a `day` line, then a `story` line and a `rumor` line).
 
 **Scene ids** (the world plays the matching cinematic variant; same for every client; unknown → default):
@@ -521,10 +591,10 @@ The sender receives their own message through the `chat` event too.
 
 ## 12. Game flow and rules
 
-Phases: `lobby` → `game:start` → `reveal` (8 s) → `night` (4 s walk home + `nightSec`) → `day` (`daySec`, or 10 s
-after everyone voted, or immediately if every alive connected player voted `sleep`) → `night` … ;
-`hunter` (20 s) is inserted whenever a hunter dies and the village has not already won;
-`trial` (2 × 15 s defence + 20 s re-vote) replaces the end of a mahkeme day (events only);
+Phases: `lobby` → `game:start` → `reveal` (8 s) → `night` (stages `walk` 4 s → `pick` ≤ `nightSec` → `show` 14 s,
+§12.1a) → `day` (`daySec`, or 10 s after everyone voted, or immediately if every alive connected player voted `sleep`)
+→ `night` … ; `hunter` (20 s) is inserted whenever a hunter dies and the village has not already won (after the
+show stage for night deaths); `trial` (2 × 15 s defence + 20 s re-vote) replaces the end of a mahkeme day (events only);
 `ended` when someone wins; host `game:lobby` → `lobby`.
 
 ### 12.1 Positions and movement
@@ -534,49 +604,78 @@ after everyone voted, or immediately if every alive connected player voted `slee
   along the same direction to 0.10 (exactly the center goes to `(0.5, 0.6)`), farther than 0.48 is
   pulled in to 0.48. Coordinates are not rounded.
 - Join spawn: random angle, radius 0.22–0.42.
-- `player:move` is allowed only in `lobby` and `ended` (dead players too); it is rejected in
-  `reveal`, `night`, `day` and `hunter`. By day everyone stands at a fixed spot by seat (the world
+- Living players: `player:move` is allowed only in `lobby` and `ended`; it is rejected in `reveal`,
+  `night`, `day`, `trial` and `hunter`. By day everyone stands at a fixed spot by seat (the world
   places them; `pos` is not changed by the server). Positions persist across phases (the server does
   not move anyone at phase changes; the world decides where characters are shown outside lobby/ended).
+- **Ghosts**: a dead (not left) player may move in every phase of a running game (all night stages,
+  `day`, `trial`, `hunter`), same clamping. The ghost position is sent only to **dead** viewers (incl.
+  the ghost); living viewers keep getting the position the player had at death. When the game ends
+  the ghost position becomes the player's `pos` for everyone (and stays in the lobby).
 
-### 12.1a Night walk-home lead-in
+### 12.1a Night stages: walk → pick → show
 
-Every night starts with `NIGHT_WALK_MS` = 4000 ms for everyone to walk home. The server sets
-`room.deadline = nightStart + 4000 + nightSec·1000` (the real end) and
-`room.timerFrom = nightStart + 4000`. Selections (`night:select`) and the vampire chat are allowed
-from the very start of the night, including the lead-in. Show the countdown from `timerFrom` to
-`deadline` (full `nightSec`); before `timerFrom` show it as full / "eve dönülüyor". Bots start acting
-only after `timerFrom`. `timerFrom` is `null` in every other phase; the day timer, the 10 s
+`phase` stays `'night'`; `room.night = { stage, pickUntil, showUntil }` (§9).
+- **walk** (`NIGHT_WALK_MS` = 4000): everyone walks home. Picks (`night:select`, `night:pass`) and the
+  vampire chat are already allowed. `room.timerFrom = nightStart + 4000` (unchanged for the whole night).
+  A `state` is sent when the stage becomes `pick`.
+- **pick** (`nightSec`, default 20 s, `kisa-gece`: half): every night role makes its final pick or
+  passes. Nothing moves in the village. `room.deadline = room.night.pickUntil`. **Early end:** when no
+  living player is still awaited – awaited = alive, connected (bots always count as connected),
+  `night.canAct` true (i.e. not locked in, not stopped by tipi, has an unused choice, has not passed) –
+  the stage ends `PICK_GRACE_MS` (1.5 s) later, but never before the walk is over; `pickUntil`,
+  `showUntil` and `deadline` move earlier accordingly. If someone becomes awaited again before that
+  (a human reconnects, an İftiracı is promoted because the last vampire left), the original `pickUntil`
+  is restored. Vampires: once the team target is set no vampire is awaited; the Cadı is awaited while she
+  still has a usable potion (she must pass to keep it).
+- **show** (`NIGHT_SHOW_MS` = 14000): the server resolves the night at the start of this stage (§12.2),
+  every alive viewer gets `state.night.show`, `room.deadline = room.night.showUntil`. No picks. 9 s in,
+  the private results are sent (§10). At the end: dawn – public `death`/`safe`, promotion, hunter/win,
+  then `day`.
+
+Show the pick countdown from `timerFrom` to `room.night.pickUntil` (before `timerFrom`: full /
+"eve dönülüyor"). `timerFrom` and `room.night` are `null` in every other phase; the day timer, the 10 s
 "everyone voted" shortening and the hunter timer are unchanged.
 
-### 12.2 Night resolution
+### 12.2 Night resolution (at the start of the show stage)
 
-During the night every accepted choice is a **trip** to the target's house (self-targets – doktor
-or cadı heal on self, gözcü on own house – are no trip). The gözcü's trip only looks from outside:
-it is never blocked and never counts as a visitor. A trip to a **locked** house is turned back at
-once (`bounced` announce) and has no effect (a turned-back potion is not spent; a turned-back
-Hırsız keeps their ability). At the end of the night, all at once (choices count if their owner is
-alive at night end, even if they die this night; a player who left counts as dead):
-1. Vampire victim: the team target, if at least one living vampire reached it (vampires never
-   attack two houses).
-2. Doktor's protected player cannot die this night (attack, poison or theft).
-3. Cadı heal saves the vampire victim only; poison kills its target (unless protected).
-4. Hırsız: if they reached the house and the target is not protected, the target dies (`hirsiz`).
-   Public cause precedence when several apply: `vampir`, then `zehir`, then `hirsiz`.
-5. Deaths → `death` or `safe`.
-6. Private reports to those alive after the deaths: `seer` ("VAMPİR" for vampir, İftiracı, or a
-   player framed this night; Deli and an un-stolen Hırsız are "vampir değil"), `watch`, `lockreport`
-   (and the Deli's fabricated versions, §12.8), then the Hırsız takeover (`steal`, §12.9).
-7. Promotion check (§12.3), then hunter / win check, then `day`.
+Every accepted choice is a planned **trip** to the target's house (self-targets – doktor or cadı heal on
+self, gözcü on own house – are no trip). The gözcü's trip only looks from outside: it is never blocked
+and never counts as a visitor. A trip to a **locked** house is turned back (`show.trip.outcome:
+'bounced'`, `bounced` announce at 9 s) and has no effect (a turned-back potion is not spent; a
+turned-back Hırsız keeps their ability). A player who left the game before the show counts as dead and
+does nothing. Order:
+1. The Gardiyan's lock (chosen by day) holds all night: the locked-in owner does nothing; visitors bounce.
+2. Kills, in this order:
+   a. the vampires' team target, if at least one living vampire reached it (vampires never attack two houses);
+   b. the Hırsız – **unless the vampires killed the Hırsız in (a)**: then no theft, no trip, the target lives;
+      if the target already died in (a) the Hırsız still takes the role (cause stays `vampir`);
+   c. the Cadı's poison – **unless the Cadı was killed in (a) or (b)**: then no poison, no trip, not spent;
+      poison on someone already dead tonight changes nothing (but is spent).
+3. The doktor's protection and the Cadı's heal count **unless their owner is killed by the vampires' attack**
+   (a doktor or cadı killed later by the Hırsız still protected). Protection stops any kill (attack, theft,
+   poison); the heal stops the vampire attack only. Self-protection / self-heal saves from the vampires.
+4. **Anyone killed this night never left home**: their own non-kill action is cancelled – no trip, no
+   result: inspect (kahin), watch (gözcü), frame (İftiracı: the kahin then sees the real roles), the
+   Gardiyan's lock report, every fake action of a Deli; protect/heal per rule 3. Kill actions stay: a
+   vampire killed by the Hırsız after attacking still attacked; a Hırsız poisoned after stealing still
+   killed the target (but gets no role, see §12.9).
+5. Only actions that really happen create trips (what `show` and a gözcü can see).
+
+Deaths are then known to the affected players at once (`show.dead`, `killed` at 9 s) and become public
+at dawn exactly as before: `death` (targets in resolution order: `vampir`, `hirsiz`, `zehir`) or `safe`.
+Private results at 9 s go only to players who survive the night: `seer` (§12.11), `watch`, `lockreport`
+(and the Deli's fabricated versions, §12.8), the Hırsız's `steal`/`stealfail` (the takeover happens at
+that moment), `saved`, `attacked`. At dawn: promotion check (§12.3), then hunter / win check, then `day`.
 
 ### 12.3 İftiracı promotion
 
 Whenever no vampire is alive but the İftiracı is, the İftiracı immediately becomes a `vampir`
-(private `promote` announce + note). This is checked after night deaths, after a hanging, after the
-hunter's shot and when a player leaves (any phase of a running game, e.g. the last vampire leaving in
-the middle of the night: the new vampire can still pick a victim that same night; their frame for
-that night is dropped). Vampires and İftiracı cannot target each other, so the İftiracı is the last
-evil player when this happens.
+(private `promote` announce + note). This is checked after night deaths (at dawn), after a hanging, after
+the hunter's shot and when a player leaves (any phase of a running game, e.g. the last vampire leaving in
+the pick stage: the new vampire can still pick a victim that same night; their frame for that night is
+dropped). Vampires and İftiracı cannot target each other, so the İftiracı is the last evil player when
+this happens.
 
 ### 12.4 Win conditions (checked after every death)
 
@@ -588,65 +687,75 @@ evil player when this happens.
 
 ### 12.5 Disconnects
 
-- lobby/ended: a disconnected seat stays 30 s (`connected:false`), then is removed. Reconnecting in
+- lobby/ended: a disconnected seat stays **120 s** (`connected:false`), then is removed. Reconnecting in
   time (`session:resume`/`room:join`) keeps it.
 - running game: the seat stays (`connected:false`); the player keeps their role and can rejoin at
   any time with the same account. Timers keep running while they are away. A room in which nobody is
   connected is deleted after 10 minutes. During the day, disconnected players are not counted as
-  voters.
+  voters; during the pick stage they are not awaited (§12.1a).
 - Room closing: bots never keep a room alive. When no human seat is left (every human removed in
   the lobby/ended, or marked `left` in a running game) the room is closed immediately, in any phase.
   If humans still hold seats but none is connected, the 10-minute rule above applies.
-- Host: if the host disconnects or leaves, the first connected **human** seat becomes host (log entry).
-  A bot never becomes host; if no other human is connected the host id stays on the absent human.
+- **Host**: the host role moves only when the host leaves explicitly (`room:leave`), is removed, or has
+  been disconnected for `HOST_GRACE_MS` = 60 s without a break (lobby and in game). A host who reconnects
+  within 60 s simply keeps it. Meanwhile the others just wait (only the host can start / change
+  settings / add bots). After 60 s the first connected **human** seat becomes host (log entry
+  "`<name>` artık oda sahibi."); if no other human is connected then, the host id stays on the absent
+  human and moves as soon as another human connects (or stays if the host comes back first). A
+  returning former host does not get the role back. A bot never becomes host.
 
-### 12.6 Gözcü (live)
+### 12.6 Gözcü
 
-The gözcü's `night.watch` updates live as trips happen: every arrival (with `blocked` if turned
-back by a lock), and the owner leaving (`ownerOut`, destination `ownerWent`). It never shows roles
-or what anyone did. Arrivals during the whole night count, also before the gözcü chose the house.
-The dawn `watch` report states the same in words plus `deathAt`.
+No live panel. In the show stage the gözcü sees `show.watch` (who came to the watched house, sorted by
+name, `blocked` if turned back by a lock; whether the owner went out and where; `died`), and 9 s into the
+show gets the `watch` report stating the same in words plus `deathAt`. Only trips that really happen
+count (§12.2 rule 5). It never shows roles or what anyone did.
 
 ### 12.7 Gardiyan
 
 By day the Gardiyan picks a door with `day:lock` (changeable until the day ends, `null` clears;
 not own door; not the door locked the previous night; never on night 1). At night start the lock
 applies if the Gardiyan is alive: the owner gets `locked` and cannot act (`night.locked`, error on
-`night:select`), every trip to that house is turned back (`bounced` to the visitor; a real gözcü
-sees it with `blocked: true`). The lock holds all night even if the Gardiyan dies; the dawn
-`lockreport` (number of distinct people who tried, not who) goes to the Gardiyan only if alive.
-Locks are secret: never in public texts, never given to the story engine.
+`night:select`/`night:pass`), every trip to that house is turned back in the show (`bounced` to the
+visitor at 9 s; a real gözcü sees it with `blocked: true`). The lock holds all night even if the
+Gardiyan dies; the `lockreport` (number of distinct people who tried, not who) goes to the Gardiyan
+only if they survive the night. Locks are secret: never in public texts, never given to the story engine.
 
 ### 12.8 Deli
 
 Dealt as `deli` but told a believed role F, chosen at deal time at random among doktor, kahin,
 gozcu, gardiyan **enabled in the room settings** (if none: kahin). Until their real role is public
-(death with `revealRoles`, or game end) everything the Deli receives is exactly what a real F gets:
-`me.role`/own `players[i].role` = F, the same `night`/`day` fields, acks, error texts, private
-announces and notes. Their choices have no real effect: a "doktor" protects nobody, a "kahin" gets a
-random verdict, a "gözcü" gets an invented live panel and matching dawn report (0–2 random living
-visitors, owner sometimes out), a "gardiyan" locks nothing and gets a random small count. They still
-walk: their trip is real (seen by a real gözcü, bounced by a real lock). Publicly they are `deli`
-(team `koylu`); the kahin sees "vampir değil". Once the role `deli` is visible, that `players[i]` entry also
-carries `fakeRole` (the believed role) for the end screen ("Deli (kendini Doktor sanıyordu)"). Otherwise
-**the UI needs nothing special for the Deli.**
+(death with `revealRoles` – not when robbed, see §12.9 –, or game end) everything the Deli receives is
+exactly what a real F gets: `me.role`/own `players[i].role` = F, the same `night`/`day` fields (incl.
+`show` shapes and pass behaviour), acks, error texts, private announces and notes, at the same times. Their
+choices have no real effect: a "doktor" protects nobody (never `saved`), a "kahin" gets two random roles
+(same shape and mix as a real result, fixed per (Deli, target)), a "gözcü" gets an invented `show.watch`
+and matching report (0–2 random living visitors, owner sometimes out), a "gardiyan" locks nothing and gets
+a random small count. They still walk: their trip is real (seen by a real gözcü, bounced by a real lock),
+unless they die that night (§12.2 rule 4). Publicly they are `deli` (team `koylu`); a real kahin sees them as
+their believed role. Once the role `deli` is visible, that `players[i]` entry also carries `fakeRole` (the
+believed role) for the end screen ("Deli (kendini Doktor sanıyordu)"). Otherwise **the UI needs nothing
+special for the Deli.**
 
 ### 12.9 Hırsız
 
-Neutral until the theft: counts as non-evil for parity, the kahin sees "vampir değil", and loses if the
+Neutral until the theft: counts as non-evil for parity, the kahin sees the role `hirsiz`, and loses if the
 game ends before a successful theft (team `hirsiz`, never in `winners`). At night (any night,
-`night:select`, final per night; not choosing = wait) the thief goes to a living player's house. If
-the thief reached it (not locked) and the target dies that night (by the thief – unless protected
-by the doktor – or by any other cause), and the thief is still alive, the thief **takes over the
-victim's role as it is** (used potions stay used; a stolen Deli stays Deli with the same believed
-role; a stolen vampir/İftiracı joins the evil team with mutual visibility and the vampire chat) and
-gets the private `steal` announce (`role` = new role). If the doktor's protection foiled it the thief gets
-the private `stealfail` (ability kept). When the victim died *of the theft* (`cause: hirsiz`) their role stays **hidden from everyone until the game ends**
-even with `revealRoles` on (death text "Rolü bilinmiyor; çalındı.", `viewFor` role `null` apart from the
-victim's own view and normal evil-team visibility, no role in the narration); a victim killed by another
-cause the same night is revealed by the normal rule. A bounced or doktor-foiled attempt keeps the ability; the target of a thief who dies the same
-night still dies but there is no takeover. A stolen Avcı does not trigger a last shot for the robbed victim (the role lives on in the thief, who gets the hunter phase on their own death).
-After the theft, `me.role` changes to the new role (the state reflects it immediately).
+`night:select`, final per night; `night:pass` = wait for another night) the thief goes to a living
+player's house. If the thief reached it (not locked), was not killed by the vampires (§12.2 2b), survives
+the night, and the target dies that night (by the thief – unless protected by the doktor – or killed by
+the vampires first), the thief **takes over the victim's role as it is** (used potions stay used; a stolen
+Deli stays Deli with the same believed role; a stolen vampir/İftiracı joins the evil team with mutual
+visibility and the vampire chat) and gets the private `steal` announce (`role` = new role) 9 s into the
+show; `me.role` changes at that moment. If the doktor's protection foiled it the thief gets the private
+`stealfail` (ability kept). When the victim died *of the theft* (`cause: hirsiz`) their role stays **hidden
+from everyone until the game ends** even with `revealRoles` on (death text "Rolü bilinmiyor; çalındı.",
+`viewFor` role `null` apart from the victim's own view and normal evil-team visibility, no role in the
+narration; a robbed Deli keeps seeing the believed role); a victim killed by another cause the same night
+is revealed by the normal rule. A bounced or doktor-foiled attempt keeps the ability. A thief killed by the
+vampires never left home (target lives); a thief poisoned after stealing: the target dies, no takeover.
+A stolen Avcı does not trigger a last shot for the robbed victim (the role lives on in the thief, who gets
+the hunter phase on their own death).
 
 ### 12.10 Village events and mahkeme (built, **off by default**, hidden in the UI)
 
@@ -654,13 +763,33 @@ Setting `events: 'some' | 'often'` enables them (default `'off'`). At most one e
 never in round 1, at least 3 (`some`) / 2 (`often`) rounds apart, never the same twice in a row;
 `tipi` never when the village side is at most one more than the evil side; `mahkeme` only with ≥ 6
 living players. While active `room.event = { id, name, desc, phase }` and a public `event` announce
-starts it. Effects: `tipi` (night) non-evil roles cannot act; `ruzgar` (night) the gözcü sees
-anonymous visitors; `kisa-gece` night length halved; `ayaz` day length halved; `sis` (day) secret votes
+starts it. Effects: `tipi` (night) non-evil roles cannot act (and are not awaited in the pick stage); `ruzgar` (night) the gözcü sees
+anonymous visitors; `kisa-gece` pick stage halved (walk and show unchanged); `ayaz` day length halved; `sis` (day) secret votes
 (`day.secret`); `mahkeme` (day): at day end, if at least two players got votes and the top count
 beats "Hızlı Uyu", the two most-voted (ties for a place broken by lot) each get a 15 s defence turn
 (phase `trial`, `room.trial`), then a 20 s re-vote between only those two (no Hızlı Uyu; 3 s after
 everyone voted); a single top count hangs, a tie or no votes → nobody (`hanged`/`nohang` with
-`trial: true`).
+`trial: true`). Events work with the staged night as described (no other change).
+
+### 12.11 Kahin (detective)
+
+The kahin's result (`seer`, 9 s into the show, only if the kahin reached the house and survives the
+night) is **two roles, one of them the target's real role** at resolution time, in random order:
+`roles: [a, b]`, text "`<X>` şu ikisinden biri: `<A>` ya da `<B>`.". The real role is the role the
+target holds (an un-stolen Hırsız shows as `hirsiz`, the İftiracı as `iftiraci`, a promoted İftiracı as
+`vampir`); **a Deli shows as the role they believe they have**. The other role (decoy):
+- is fixed per (kahin, target) for the whole game: inspecting the same person again gives the same pair
+  (a new decoy is drawn only if the target's role has changed to the old decoy);
+- is never the real role and never `kahin`, and never `deli`;
+- comes from the roles that can be in this game (`vampir`, `koylu` and every enabled role that can be
+  dealt with this player count): with probability **2/3 from the opposite alignment** (innocent target →
+  `vampir` or `iftiraci` if it can be in the game; evil target → an innocent role), otherwise from the
+  same alignment (if one side has no candidate, the other is used). "Evil" = vampir, iftiraci; everything
+  else is innocent;
+- **an İftiracı's frame** (İftiracı alive through the night and reached the house, §12.2) replaces the decoy
+  with `vampir` for that night only.
+A Deli who believes they are kahin gets two random roles in the same shape and mix (a random role and its
+decoy, fixed per (Deli, target)).
 
 ## 13. Stats
 
@@ -700,8 +829,11 @@ accepted, the finished game is written to no account's stats and does not affect
   (`resumed:true`).
 - **Look editor**: outside a room `PATCH /api/me`; inside a room (lobby/ended) `player:look`
   (saves to the profile too). In-game the look is fixed.
-- **Countdown**: `remaining = room.deadline - (Date.now() + (serverNow - receivedAt))`; at night show
-  `min(remaining, deadline - timerFrom)` so the count only starts after the walk home (§12.1a).
+- **Countdown**: `remaining = room.deadline - (Date.now() + (serverNow - receivedAt))`; at night in the
+  `walk`/`pick` stages show `min(remaining, room.night.pickUntil - timerFrom)` so the count only starts after
+  the walk home; in `show` there is no pick countdown (the show ends at `room.night.showUntil` = `deadline`) (§12.1a).
+- **Night HUD**: `walk`/`pick` → prompt + countdown, offer "Bu gece bekle" (`night:pass`) while
+  `night.canAct`; `show` → play back `night.show`, then the result cards (announces at 9 s); dawn = `death`/`safe`.
 
 ## 16. Story: scenario, jobs, scenes, chronicle
 
@@ -750,8 +882,12 @@ Bots let one person start and test a full game alone (`MIN_PLAYERS` counts bots)
   Bots are dealt roles exactly like humans; their roles are hidden by the same rules (§9).
 - **Behaviour** (server-side, through the same game actions as human players, so every rule,
   validation and the story/rumour record apply unchanged):
-  - night: every living bot with a night role (a Deli bot: its believed role) acts once (choices are final), after the walk-home lead-in (`timerFrom`), at a random moment in the first half of the
-    night (the cadı later, at 55–85 %, so she can see the victim): vampires pick a living non-evil
+  - night: every living bot that can act (a Deli bot: as its believed role) decides once in the pick
+    stage, 2–8 s after the walk (`timerFrom`) like a human (vampires/İftiracı at 2–5 s, the cadı at
+    5.5–8 s so she can see the victim; always before the pick time runs out), and **sends `night:pass`
+    when it has nothing (more) to do** (Hırsız not stealing tonight, cadı keeping a potion), so a night
+    decided only by bots ends early (§12.1a). A bot that becomes able to act during the pick stage (e.g.
+    a promoted İftiracı) is scheduled then. Vampires pick a living non-evil
     player unless the team target is already set (then it simply goes there); Hırsız bots steal on a random night (35 %);
     Gardiyan bots pick a door by day; İftiracı frames a
     living non-evil player; doktor protects a random living player (self allowed); kahin inspects
@@ -765,15 +901,15 @@ Bots let one person start and test a full game alone (`MIN_PLAYERS` counts bots)
   - lobby / ended: now and then a bot strolls; a newly added bot may greet once.
   - pace: while a human is alive and connected, delays scale with the room's timers; once no
     living, connected human remains, day and hunter delays shrink to 35 % so a watching (dead)
-    player sees the game finish quickly. Night length is unchanged (always `nightSec`).
+    player sees the game finish quickly. Night pace is not scaled (bots decide in 2–8 s anyway).
 - **Chat:** bots send ordinary `chat` events (channel `genel`, only in lobby and by day, only while
   alive). Lines come from a fixed list chosen independently of role and night results, contain no
   role words and never reveal anything. Bots never use the `vampir` or `olu` channels.
 - **Robustness:** all bot timers are dropped on every phase change, game end, `game:lobby`, kick and
   room close; a failing bot action is logged and the phase still ends by its timer.
-- **Typical length** with default timers (`nightSec` 30, `daySec` 120, doktor + kahin), 1 human +
-  6 bots, measured over 60 simulated games each: human votes early each day ≈ 5.4 min (3.6 rounds);
-  human never votes ≈ 7 min (days run the full 120 s because the day only shortens when every
-  living connected player has voted); human dead on night 1 ≈ 2.5 min. (Measured before the 4 s
-  night lead-in was added; add ~4 s per night, i.e. ~15 s per game.)
+- **Typical length** (round 6, default timers `nightSec` 20, `daySec` 120), 1 human + 6 bots, 40
+  simulated games each: a night is 4 s walk + ≈ 5–8 s pick (bots' decisions + 1.5 s grace) + 14 s show
+  ≈ **25 s on average (min 18 s, max 27.5 s)** when the human has no night role or picks within ~6 s
+  (doktor + kahin, or all roles on); a human with a night role who neither picks nor passes keeps the
+  pick stage at the full `nightSec`. Whole game ≈ 5 min (4.7 min with all roles on).
 

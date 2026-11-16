@@ -442,7 +442,20 @@ input[type="range"] { width: 100%; accent-color: var(--fire); height: 28px; }
 /* ---------- sayfa içerikleri (nasıl oynanır, liderlik, ayarlar) ---------- */
 .stack { display: grid; gap: 14px; }
 .section-title { font-family: var(--font-display); font-weight: 800; font-size: 19px; margin: 8px 0 2px; color: var(--parchment); }
-.role-grid { display: grid; gap: 8px; }
+.role-grid { display: grid; gap: 14px; }
+.role-group { display: grid; gap: 6px; align-content: start; }
+.role-group-h { margin: 0 0 2px; }
+.role-acc { border-radius: var(--r-m); background: rgba(255, 255, 255, .045); border: 1px solid var(--line); }
+.role-acc[open] { border-color: color-mix(in srgb, var(--rc) 55%, transparent); background: rgba(255, 255, 255, .06); }
+.role-acc summary { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; cursor: pointer; list-style: none; min-height: 52px; }
+.role-acc summary::-webkit-details-marker { display: none; }
+.role-acc summary b { display: block; font-size: 16px; font-weight: 900; }
+.role-acc summary small { display: block; font-size: var(--fs-xs); color: var(--text-3); font-weight: 700; }
+.role-acc summary > .ic { width: 18px; height: 18px; color: var(--text-3); transition: transform var(--t-fast); }
+.role-acc[open] summary > .ic { transform: rotate(180deg); }
+.role-acc dl { margin: 0; padding: 0 14px 12px; display: grid; gap: 8px; }
+.role-acc dt { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; color: var(--rc); }
+.role-acc dd { margin: 2px 0 0; font-size: 15px; line-height: 1.45; color: var(--text-2); }
 @media (min-width: 560px) { .role-grid { grid-template-columns: 1fr 1fr; } }
 .role-card { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; padding: 12px; border-radius: var(--r-m); background: rgba(255, 255, 255, .045); border: 1px solid var(--line); }
 .role-card h4 { margin: 0; font-size: 16px; font-weight: 900; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
