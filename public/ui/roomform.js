@@ -3,7 +3,7 @@ import { ctx, send, iAmHost } from './ctx.js';
 import { openSheet } from './kit.js';
 import { esc, clamp, sfx, store } from './util.js';
 import { icon, emblem } from './icons.js';
-import { ROLES, TOGGLE_ROLES, DEFAULT_ROLES, distribution, countRoles, FRAMER_MIN, MIN_PLAYERS, MAX_PLAYERS, EVENTS, EVENT_FREQ, EVENTS_UI } from './data.js';
+import { ROLES, TOGGLE_ROLES, DEFAULT_ROLES, distribution, countRoles, FRAMER_MIN, THIEF_MIN, MIN_PLAYERS, MAX_PLAYERS, EVENTS, EVENT_FREQ, EVENTS_UI } from './data.js';
 
 const LAST_KEY = 'vk.lastSettings';
 
@@ -43,7 +43,7 @@ function formHTML(s, editable, withRoomFields, sampleN) {
       ${TOGGLE_ROLES.map((r) => `
         <button type="button" class="rtoggle${s.roles[r] ? ' on' : ''}" data-role="${r}" aria-pressed="${!!s.roles[r]}" ${dis}>
           ${emblem(r, 'm')}
-          <span><b>${ROLES[r].name}</b><small>${ROLES[r].short}</small>${r === 'iftiraci' ? `<small class="warn">${FRAMER_MIN}+ oyuncuda dağıtılır</small>` : ''}</span>
+          <span><b>${ROLES[r].name}</b><small>${ROLES[r].short}</small>${r === 'iftiraci' || r === 'hirsiz' ? `<small class="warn">${r === 'iftiraci' ? FRAMER_MIN : THIEF_MIN}+ oyuncuda dağıtılır</small>` : ''}</span>
           <span class="check">${icon('check')}</span>
         </button>`).join('')}
     </div>
@@ -52,7 +52,7 @@ function formHTML(s, editable, withRoomFields, sampleN) {
       <div class="explain">
         <p>Vampir sayısı oyuncu sayısına göre belirlenir: 5–9 kişide 1, 10–14 kişide 2, 15 ve üstünde 3 vampir.</p>
         <p>İftiracı açıksa ve en az ${FRAMER_MIN} oyuncu varsa vampirlere ek olarak 1 İftiracı dağıtılır.</p>
-        <p>Açık özel roller şu sırayla, yer kaldıkça eklenir: Doktor, Kahin, Gözcü, Gardiyan, Cadı, Avcı, Muhtar, Soytarı. Her oyunda en az bir sade köylü kalır.</p>
+        <p>Açık özel roller şu sırayla, yer kaldıkça eklenir: Doktor, Kahin, Gözcü, Gardiyan, Cadı, Avcı, Muhtar, Soytarı, Deli, Hırsız. Hırsız sadece en az ${THIEF_MIN} oyuncuda dağıtılır. Her oyunda en az bir sade köylü kalır.</p>
       </div>
       <div class="row-between" style="margin-top:8px"><b class="small">Örnek: <span data-n>${sampleN}</span> oyuncu</b></div>
       <input type="range" min="${MIN_PLAYERS}" max="${MAX_PLAYERS}" value="${sampleN}" data-sample aria-label="Örnek oyuncu sayısı">

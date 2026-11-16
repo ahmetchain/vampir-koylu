@@ -450,6 +450,7 @@ input[type="range"] { width: 100%; accent-color: var(--fire); height: 28px; }
 .team-tag { font-size: 11px; font-weight: 900; padding: 1px 8px; border-radius: 99px; text-transform: uppercase; letter-spacing: .06em; }
 .team-koylu { background: rgba(95, 211, 154, .16); color: #aef0cf; }
 .team-vampir { background: rgba(215, 38, 61, .22); color: #ffb9c3; }
+.team-hirsiz { background: rgba(63, 167, 181, .2); color: #b5ecf3; }
 .team-soytari { background: rgba(255, 111, 174, .2); color: #ffc4de; }
 .steps { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 10px; counter-reset: s; }
 .steps li { position: relative; padding-left: 40px; color: var(--text-2); font-size: var(--fs-s); }

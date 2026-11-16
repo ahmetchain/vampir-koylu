@@ -257,6 +257,7 @@ function mulberry(seed) {
 const SPECIAL_WORDS = {
   doktor: ['doktor'], kahin: ['kahin'], gozcu: ['gözcü'], cadi: ['cadı'], avci: ['avcı'],
   muhtar: ['muhtar'], soytari: ['soytarı'], iftiraci: ['iftiracı', 'iftira'], gardiyan: ['gardiyan'],
+  deli: [/(^|[^a-zçğıöşü])deli([^a-zçğıöşü]|$)/], hirsiz: ['hırsız'],
 };
 const LABEL_TO_ROLE = Object.fromEntries(Object.entries(ROLE_LABEL).map(([r, l]) => [l, r]));
 
@@ -285,7 +286,12 @@ function playAndAudit(seed, revealRoles, count) {
     const out = publicRoles();
     const me = room.players.get(viewerId);
     if (me && me.role) {
-      out.set(me.id, me.role);
+      // Deli rolü açılana kadar kendini sahte rolüyle bilir.
+      const madHidden = me.role === 'deli' && room.phase !== 'ended' && !(!me.alive && room.settings.revealRoles);
+      if (madHidden) {
+        out.set(me.id, me.fakeRole);
+        if (out.get(me.id) === 'deli') out.delete(me.id);
+      } else out.set(me.id, me.role);
       if (isEvil(me.role)) for (const p of room.players.values()) if (isEvil(p.role)) out.set(p.id, p.role);
     }
     return out;
@@ -296,7 +302,7 @@ function playAndAudit(seed, revealRoles, count) {
     const lower = text.toLocaleLowerCase('tr');
     const knownRoles = new Set(known.values());
     for (const [role, words] of Object.entries(SPECIAL_WORDS)) {
-      if (words.some((w) => lower.includes(w)) && !knownRoles.has(role)) {
+      if (words.some((w) => (w instanceof RegExp ? w.test(lower) : lower.includes(w))) && !knownRoles.has(role)) {
         problems.push(`${where}: "${role}" geçiyor ama bilinmiyor: ${text}`);
       }
     }
@@ -318,7 +324,7 @@ function playAndAudit(seed, revealRoles, count) {
     name: 'Denetim',
     settings: {
       revealRoles, events: 'often',
-      roles: { gozcu: true, gardiyan: true, iftiraci: true, cadi: true, avci: true, muhtar: true, soytari: true },
+      roles: { gozcu: true, gardiyan: true, iftiraci: true, cadi: true, avci: true, muhtar: true, soytari: true, deli: true, hirsiz: true },
     },
     storySeed: `denetim-${seed}`,
     eventRng: mulberry(`olay-${seed}`),
@@ -351,7 +357,7 @@ function playAndAudit(seed, revealRoles, count) {
         }
       },
       announce(r, a, to) {
-        if (['seer', 'watch', 'promote', 'locked', 'bounced', 'lockreport'].includes(a.kind) && (!to || to.length !== 1)) {
+        if (['seer', 'watch', 'promote', 'locked', 'bounced', 'lockreport', 'steal'].includes(a.kind) && (!to || to.length !== 1)) {
           problems.push(`özel duyuru herkese gitti: ${a.kind}`);
         }
         if (['locked', 'bounced', 'lockreport'].includes(a.kind) && (a.story !== undefined)) problems.push(`kilit anlatıldı: ${a.kind}`);
@@ -381,10 +387,14 @@ function playAndAudit(seed, revealRoles, count) {
   }
   room.start('p0');
   // Rolleri tohumdan yeniden dağıt (oyun tekrarlanabilir olsun).
-  const list = rolesFor(count, [D, S, G, 'gardiyan', W, H, M, J, F]);
+  const list = rolesFor(count, [D, S, G, 'gardiyan', W, H, M, J, 'deli', 'hirsiz', F]);
   const ids = [...room.players.keys()];
   for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
-  ids.forEach((id, i) => { room.players.get(id).role = list[i]; });
+  ids.forEach((id, i) => {
+    const p = room.players.get(id);
+    p.role = list[i];
+    p.fakeRole = p.role === 'deli' ? pick(['doktor', 'kahin', 'gozcu', 'gardiyan']) : null;
+  });
   room.startNight();
 
   const alive = () => [...room.players.values()].filter((p) => p.alive);
@@ -408,7 +418,7 @@ function playAndAudit(seed, revealRoles, count) {
         if (rng() < 0.6) room.chat(p.id, 'bence o');
       }
       for (const p of room.players.values()) if (!p.alive && rng() < 0.3) room.chat(p.id, 'ölüler konuşur');
-      for (const p of alive()) if (p.role === 'gardiyan' && room.phase === 'day') room.lockHouse(p.id, pick(alive()).id);
+      for (const p of alive()) if (room.actingRole(p) === 'gardiyan' && room.phase === 'day') room.lockHouse(p.id, pick(alive()).id);
       if (room.phase === 'day' && rng() < 0.05) room.removePlayer(pick(alive()).id);
       if (room.phase === 'day') room.endDay();
     } else if (room.phase === 'trial') {

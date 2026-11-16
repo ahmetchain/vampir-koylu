@@ -74,6 +74,8 @@ const R = {
   muhtar: '<circle cx="12" cy="14.5" r="5.5"/><path d="M9 3.5l3 5 3-5M8 3.5h2.5M13.5 3.5H16"/><path d="M12 11.8l.9 1.8 2 .3-1.4 1.4.3 2-1.8-.9-1.8.9.3-2-1.4-1.4 2-.3z"/>',
   soytari: '<path d="M4 9c2.5-4 5.5-5 8-2 2.5-3 5.5-2 8 2-2 0-3.4 1-4 3H8c-.6-2-2-3-4-3z"/><circle cx="4" cy="9" r="1.3"/><circle cx="20" cy="9" r="1.3"/><circle cx="12" cy="5" r="1.3"/><path d="M8 12c0 5 1.8 8 4 8s4-3 4-8"/><path d="M10 15.5c.6.7 1.3 1 2 1s1.4-.3 2-1"/>',
   gardiyan: '<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/><path d="M9 13.5v4M12 13.5v4M15 13.5v4"/>',
+  deli: '<circle cx="12" cy="14" r="6.5"/><path d="M9.5 13.2h.01M14.5 13.2h.01"/><path d="M9.5 16.8c1.2.9 3.8.9 5 0"/><path d="M12 7.5c-1.6 0-2.4-1-2.4-2.1S10.6 3.5 12 3.5s2.6.8 2.6 2.1"/><path d="M14.6 5.6c.8 0 1.4.5 1.4 1.2"/>',
+  hirsiz: '<path d="M3.5 9.5c2.5-1.5 5.5-2 8.5-2s6 .5 8.5 2c-.4 2.6-2.4 4-4.7 4-1.6 0-2.8-.8-3.8-2-1 1.2-2.2 2-3.8 2-2.3 0-4.3-1.4-4.7-4z"/><circle cx="8" cy="10" r=".9" fill="currentColor"/><circle cx="16" cy="10" r=".9" fill="currentColor"/><path d="M9.5 16.5h5l1.3 4h-7.6z"/><path d="M10.5 16.5c0-1 .6-1.5 1.5-1.5s1.5.5 1.5 1.5"/>',
   koylu: '<path d="M12 21V8"/><path d="M12 8c-2.5 0-3.5-2-3.5-4.5C11 3.5 12 5.5 12 8zM12 8c2.5 0 3.5-2 3.5-4.5C13 3.5 12 5.5 12 8z"/><path d="M12 13c-2.5 0-4-1.8-4-4.3 2.6 0 4 1.8 4 4.3zM12 13c2.5 0 4-1.8 4-4.3-2.6 0-4 1.8-4 4.3zM12 17.5c-2.5 0-4-1.8-4-4.3 2.6 0 4 1.8 4 4.3zM12 17.5c2.5 0 4-1.8 4-4.3-2.6 0-4 1.8-4 4.3z"/>',
 };
 
@@ -112,7 +114,7 @@ export function hatIcon(i, cls = '') {
 
 const ROLE_COLORS = {
   vampir: '#d7263d', iftiraci: '#b0408a', doktor: '#3fb58a', kahin: '#8f7cff', gozcu: '#e8a33a', gardiyan: '#7f9cc4',
-  cadi: '#6cc04a', avci: '#c9772b', muhtar: '#f2c12e', soytari: '#ff6fae', koylu: '#c9a96e',
+  cadi: '#6cc04a', avci: '#c9772b', muhtar: '#f2c12e', soytari: '#ff6fae', deli: '#9aa3c7', hirsiz: '#3fa7b5', koylu: '#c9a96e',
 };
 
 // Oyunun amblemi: hilal ay, sivri çatılı ev ve iki küçük diş.

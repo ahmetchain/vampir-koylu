@@ -13,8 +13,8 @@ import { renderChatState, isDocked } from './chat.js';
 import { isAnnouncing } from './announce.js';
 import { openChronicle } from './chronicle.js';
 
-const SEL_COLOR = { vampir: '#ff4b5f', iftiraci: '#e070c0', doktor: '#4fe0a8', kahin: '#a898ff', gozcu: '#ffc062' };
-const SEL_LABEL = { vampir: 'Hedef', iftiraci: 'İftira', doktor: 'Koruma', kahin: 'Bakılacak', gozcu: 'Gözetle' };
+const SEL_COLOR = { vampir: '#ff4b5f', iftiraci: '#e070c0', doktor: '#4fe0a8', kahin: '#a898ff', gozcu: '#ffc062', hirsiz: '#5fd0de' };
+const SEL_LABEL = { vampir: 'Hedef', iftiraci: 'İftira', doktor: 'Koruma', kahin: 'Bakılacak', gozcu: 'Gözetle', hirsiz: 'Soyulacak' };
 
 let phaseKey = '';
 let lastTick = -1;
@@ -97,6 +97,7 @@ const NIGHT_VERB = {
   doktor: (n) => `Bu gece <b>${n}</b> korunsun mu?`,
   kahin: (n) => `Kristal küre <b>${n}</b> için çalışsın mı?`,
   gozcu: (n) => `Bu gece <b>${n}</b> evini gözetleyecek misin?`,
+  hirsiz: (n) => `<b>${n}</b> soyulsun, rolü çalınsın mı?`,
   heal: (n) => `Hayat iksiri <b>${n}</b> için kullanılsın mı?`,
   poison: (n) => `<b>${n}</b> zehirlensin mi?`,
 };
@@ -111,9 +112,9 @@ function confirmNight(s, p) {
   const sheet = openSheet({
     title: 'Emin misin?', cls: 'sheet-small confirm-pick',
     body: `<div class="pinfo"><span class="pinfo-av" style="background:${c};color:${inkOn(c)}">${esc(initial(p.name))}</span>
-      <div><h3>${verb}</h3><p>Bu seçim geri alınamaz.</p></div></div>`,
+      <div><h3>${verb}</h3><p>${role === 'hirsiz' ? 'Kapıya ulaşırsan o kişi bu gece ölür, sen de rolünü olduğu gibi alırsın. Tek kullanımlık; kilitli kapı ya da Doktor yüzünden başarısız olursa hakkın yanmaz. ' : ''}Bu seçim geri alınamaz.</p></div></div>`,
     footer: `<button type="button" class="btn btn-ghost" data-close>Vazgeç</button>
-      <button type="button" class="btn ${key === 'poison' || key === 'vampir' ? 'btn-danger' : 'btn-primary'}" data-ok>${emblem(role, 's')}Evet, kesin</button>`,
+      <button type="button" class="btn ${key === 'poison' || key === 'vampir' || key === 'hirsiz' ? 'btn-danger' : 'btn-primary'}" data-ok>${emblem(role, 's')}Evet, kesin</button>`,
     onClose: () => { if (confirmSheet === sheet) confirmSheet = null; },
   });
   confirmSheet = sheet;
@@ -509,6 +510,13 @@ function promptFor(s) {
           <button type="button" class="btn btn-s mode-btn poison${m === 'poison' && !w.poisonUsed && !w.poison ? ' on' : ''}" data-a="poison" ${w.poisonUsed || w.poison ? 'disabled' : ''}>${icon('tomb')}${w.poison ? 'Zehir verildi' : w.poisonUsed ? 'Zehir (bitti)' : 'Zehir'}</button>`;
         break;
       }
+      case 'hirsiz':
+        out.tone = 'vampir';
+        out.html = sel
+          ? `Bu gece soymaya gidiyorsun: ${name(sel)} ${st}. Seçim kesin; sabah sonucu öğreneceksin.`
+          : '<b>Bu gece birini soyacak mısın?</b> Birine dokun: kapıya ulaşırsan o kişi ölür, rolünü çalarsın. Tek kullanımlık; başarısız olursa hakkın yanmaz. <span class="muted">Seçmezsen başka bir geceyi beklersin.</span>';
+        if (sel) out.short = `Soyulacak: ${name(sel)} ${st}`;
+        break;
       case 'gardiyan': {
         out.lead = emblem('gardiyan', 's');
         const tgt = n.mySelection;
@@ -855,6 +863,12 @@ function renderOverlay(s) {
   host.dataset.sig = '';
 }
 
+// Deli'nin sandığı rol: sadece rol herkese açıkken (oyun sonu, ölü) ve sunucu gönderdiyse.
+function madAs(p) {
+  const f = p.role === 'deli' && (p.fakeRole || p.thought);
+  return f && ROLES[f] ? ` <small>(kendini ${ROLES[f].name} sanıyordu)</small>` : '';
+}
+
 function endHTML(s) {
   const { room, me } = s;
   const winners = new Set(room.winners || []);
@@ -868,7 +882,7 @@ function endHTML(s) {
       <span class="pchip-av" style="width:34px;height:34px;font-size:14px;background:${c};color:${inkOn(c)}">${esc(initial(p.name))}</span>
       <span class="end-name">${esc(p.name)}${p.id === me.id ? ' <small>(sen)</small>' : ''}${p.bot ? ` <span class="bot-mark">${icon('bot')}bot</span>` : ''}
         <span class="sub">${p.job && p.job.label ? `${esc(p.job.label)} · ` : ''}${p.left ? 'ayrıldı' : p.alive ? 'hayatta' : 'öldü'}${winners.has(p.id) ? ' · kazandı' : ''}</span></span>
-      <span class="chip">${r ? `${emblem(p.role, 's')}${r.name}` : '?'}</span>
+      <span class="chip">${r ? `${emblem(p.role, 's')}${r.name}${madAs(p)}` : '?'}</span>
     </div>`;
   }).join('');
   // Hikâye: sunucunun kapanış metni (room.epilogue); yoksa story satırları; o da yoksa önemli olaylar.

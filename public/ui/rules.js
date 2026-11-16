@@ -53,6 +53,7 @@
       case 'doktor': return true;
       case 'gozcu': return true;
       case 'kahin': return !isMe;
+      case 'hirsiz': return !isMe;
       case 'cadi': {
         if (witchBlocked(state, witchMode)) return false;
         var w = n.witch || {};
