@@ -733,6 +733,7 @@ function lobbySheetHTML(s) {
   if (room.settings.roles.temizlikci && total < 7) notes.push('Temizlikçi 7 oyuncudan az olduğu için dağıtılmayacak.');
   if (room.settings.roles.hirsiz && total < 7) notes.push('Hırsız 7 oyuncudan az olduğu için dağıtılmayacak.');
   notes.push(bots ? `Odada ${bots} bot var. Botlu oyunlar istatistiğe sayılmaz.` : host ? 'Tek başına denemek için bot ekleyebilirsin. Botlu oyunlar istatistiğe sayılmaz.' : '');
+  if (room.aiAvailable && room.settings.smartBots !== false && bots) notes.push('Akıllı botlar açık: sohbet mesajları ve oyuncu adları bir yapay zekâ hizmetine gönderilir.');
   return `<div class="lobby-sheet">
     <div class="row-between"><b>${icon('users')} ${total}/${room.maxPlayers} oyuncu</b>${room.hasPassword ? `<span class="chip">${icon('lock')}Şifreli</span>` : ''}<span class="chip">Kod <code>${esc(room.id)}</code></span></div>
     ${total >= MIN_PLAYERS ? `<div><div class="section-title">Bu oyunda</div>${rolesPreview(room)}</div>` : `<p class="muted">Roller ${MIN_PLAYERS} oyuncu olunca gösterilir.</p>`}

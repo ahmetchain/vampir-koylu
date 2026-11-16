@@ -10,6 +10,7 @@ const { Server } = require('socket.io');
 const { Room } = require('./game');
 const { createStore } = require('./lib/store');
 const { Accounts } = require('./lib/auth');
+const { createAiClient } = require('./lib/ai');
 const { createApi } = require('./lib/api');
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -54,7 +55,8 @@ function cacheHeaders(res, filePath) {
 
 // Sunucuyu kurar ama dinlemeye başlamaz (testler aynı süreçte kullanabilsin).
 // options: store (init edilmiş depo), origins, trustProxy, authOptions, limits
-function createGameServer({ store, origins = [], trustProxy = false, authOptions = {}, limits = {}, port = 0 } = {}) {
+// ai: akıllı botların API istemcisi (lib/ai) ya da null. Testler ve anahtarsız sunucu: null (yalnızca rastgele botlar).
+function createGameServer({ store, origins = [], trustProxy = false, authOptions = {}, limits = {}, port = 0, ai = null } = {}) {
   const accounts = new Accounts(store, authOptions);
   const rooms = new Map();
   const moveTimers = new Map();
@@ -71,7 +73,8 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
   // Barındırma servislerinin sağlık kontrolü ve uyandırma isteği için.
   app.get('/healthz', (req, res) => {
     res.set('Cache-Control', 'no-store');
-    res.json({ ok: true, rooms: rooms.size, store: store.kind });
+    // Akıllı botlar: yalnızca toplu sayılar (çağrı, token, tahmini maliyet); içerik asla.
+    res.json({ ok: true, rooms: rooms.size, store: store.kind, ...(ai ? { ai: ai.stats() } : {}) });
   });
 
   // localhost'tan açan oda sahibinin davet linki, aynı ağdakilerin açabileceği adresle oluşturulsun.
@@ -316,6 +319,7 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
         password: cleanText(data.password, 20),
         settings: data.settings && typeof data.settings === 'object' ? data.settings : {},
         hooks,
+        ai,
       });
       rooms.set(room.id, room);
       const playerId = crypto.randomUUID();
@@ -423,6 +427,7 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
       const res = room.chat(player.id, data.text);
       if (res.error) return res.error;
       sendToPlayers(room, res.recipients, 'chat', res.message);
+      room.observeChat(res.recipients, res.message);   // alıcı koltuklardaki (akıllı) botlar da duyar
       return null;
     });
 
@@ -492,8 +497,10 @@ async function main() {
     console.error('Hesap deposu açılamadı:', err);
     process.exit(1);
   }
+  const ai = createAiClient(process.env);
   const game = createGameServer({
     store,
+    ai,
     origins: parseOrigins(process.env.CLIENT_ORIGIN),
     trustProxy: trustProxySetting(),
     port: PORT,
@@ -502,6 +509,7 @@ async function main() {
 
   console.log('Vampir Köylü sunucusu çalışıyor.');
   console.log(`  Hesap deposu:         ${store.kind === 'postgres' ? 'PostgreSQL (DATABASE_URL)' : `JSON dosyası (${store.file})`}`);
+  console.log(`  Akıllı botlar:        ${ai ? `açık (${ai.config.model}, günlük en fazla ${ai.config.dailyCalls} çağrı)` : 'kapalı (ANTHROPIC_API_KEY yok)'}`);
   console.log(`  Bu bilgisayardan:     http://localhost:${PORT}`);
   for (const ip of lanAddresses()) {
     console.log(`  Aynı Wi-Fi'dakiler:   http://${ip}:${PORT}`);

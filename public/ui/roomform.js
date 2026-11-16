@@ -6,6 +6,7 @@ import { icon, emblem } from './icons.js';
 import { ROLES, TOGGLE_ROLES, DEFAULT_ROLES, distribution, distributionPlan, countRoles, FRAMER_MIN, THIEF_MIN, MIN_PLAYERS, MAX_PLAYERS, EVENTS, EVENT_FREQ, EVENTS_UI } from './data.js';
 
 const LAST_KEY = 'vk.lastSettings';
+const AI_KEY = 'vk.aiAvailable';
 
 export function distChips(list) {
   return countRoles(list).map(({ role, n }) => `<span class="chip">${emblem(role, 's')}${n > 1 ? `${n} × ` : ''}${ROLES[role].name}</span>`).join('');
@@ -18,11 +19,16 @@ export function poolNote(pool) {
   const chip = (r) => (ROLES[r] ? `<span class="chip">${emblem(r, 's')}${ROLES[r].name}</span>` : '');
   const from = (pool.from || []).filter((r) => ROLES[r]);
   let out = '';
-  if (from.length && pool.pick) {
-    out += `<p class="muted" style="margin:6px 0 0">${pool.pick >= from.length ? 'Bu özel roller çıkacak:' : `Bu ${from.length} özel rolden ${pool.pick} tanesi rastgele çıkacak:`}</p><div class="dist">${from.map(chip).join('')}</div>`;
+  const pick = Math.max(0, (pool.pick || 0) - (pool.helpersMax || 0));   // yardımcı yerleri ayrı yazılır
+  if (from.length && pick) {
+    out += `<p class="muted" style="margin:6px 0 0">${pick >= from.length ? 'Bu özel roller çıkacak:' : `Bu ${from.length} özel rolden ${pick} tanesi rastgele çıkacak:`}</p><div class="dist">${from.map(chip).join('')}</div>`;
   }
   const maybe = [].concat(pool.maybe || []).map((m) => (typeof m === 'string' ? { role: m } : m)).filter((m) => m && ROLES[m.role]);
-  if (maybe.length) {
+  const helpers = pool.helpers || 0;
+  if (helpers > 0 && maybe.length) {
+    // Yardımcı kesin, hangisi olduğu belli değil (sunucu: rolePool.helpers / helpersMax).
+    out += `<p class="muted" style="margin:6px 0 0">${helpers} yardımcı: ${maybe.map((m) => ROLES[m.role].name).join(' ya da ')}${(pool.helpersMax || 0) > helpers ? '; belki bir yardımcı daha' : ''}.</p>`;
+  } else if (maybe.length) {
     out += `<p class="muted" style="margin:6px 0 0">Belki: ${maybe.map((m) => `${ROLES[m.role].name}${m.chance ? ` (%${Math.round(m.chance * (m.chance <= 1 ? 100 : 1))})` : ''}`).join(', ')}. Her oyunda çıkmayabilir.</p>`;
   }
   return out;
@@ -52,6 +58,9 @@ function formHTML(s, editable, withRoomFields, sampleN) {
     <div class="set-row"><label for="rf-random">Rastgele roller</label>
       <span class="switch"><input type="checkbox" id="rf-random" name="roleMode" ${s.roleMode !== 'all' ? 'checked' : ''} ${dis}><i></i></span>
       <small>Açıkken açık roller arasından her oyunda rastgele bir kısmı çıkar; kimse neyle karşılaşacağını tam bilemez. Kapalıysa açık rollerin hepsi (sığdığı kadar) dağıtılır.</small></div>
+    ${s.aiAvailable ? `<div class="set-row"><label for="rf-smart">Akıllı botlar</label>
+      <span class="switch"><input type="checkbox" id="rf-smart" name="smartBots" ${s.smartBots !== false ? 'checked' : ''} ${dis}><i></i></span>
+      <small>Botlar rolüne göre düşünür, konuşur, soru sorar, ikna edilebilir ve blöf yapar. Açıkken sohbet mesajları ve oyuncu adları bir yapay zekâ hizmetine gönderilir.</small></div>` : ''}
     ${EVENTS_UI ? `<div class="section-title">Köy olayları</div>
     <div class="seg" role="radiogroup" aria-label="Köy olayları" data-evseg>
       ${EVENT_FREQ.map(([k, l]) => `<button type="button" role="radio" class="seg-btn${(s.events || 'some') === k ? ' on' : ''}" data-ev="${k}" aria-checked="${(s.events || 'some') === k}" ${dis}>${l}</button>`).join('')}
@@ -123,6 +132,8 @@ function bindForm(root, s, onChange) {
   });
   root.querySelector('[name=revealRoles]').addEventListener('change', (e) => { s.revealRoles = e.target.checked; onChange && onChange(); });
   root.querySelector('[name=roleMode]').addEventListener('change', (e) => { s.roleMode = e.target.checked ? 'random' : 'all'; update(); });
+  const smart = root.querySelector('[name=smartBots]');
+  if (smart) smart.addEventListener('change', (e) => { s.smartBots = e.target.checked; onChange && onChange(); });
   root.querySelector('[data-sample]').addEventListener('input', update);
   update();
 }
@@ -135,6 +146,8 @@ export function openCreateRoom() {
     revealRoles: last.revealRoles !== undefined ? last.revealRoles : true,
     events: EVENTS_UI ? (last.events || 'some') : 'off',
     roles: { ...DEFAULT_ROLES, ...(last.roles || {}) },
+    smartBots: last.smartBots !== false,
+    aiAvailable: Boolean(store.get(AI_KEY, false)),   // son görülen oda durumundan (sunucuda anahtar var mı)
   };
   const sheet = openSheet({
     title: 'Oda Kur',
@@ -151,7 +164,7 @@ export function openCreateRoom() {
     const btn = sheet.foot.querySelector('[data-create]');
     btn.disabled = true;
     err.textContent = '';
-    const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, roles: s.roles };
+    const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, roles: s.roles, smartBots: s.smartBots };
     store.set(LAST_KEY, settings);
     const res = await send('room:create', { roomName, password: form.password.value, settings }, { quiet: true });
     btn.disabled = false;
@@ -170,7 +183,11 @@ export function openRoomSettings() {
   if (!st) return;
   const host = iAmHost() && st.room.phase === 'lobby';
   const cur = st.room.settings;
-  const s = { nightSec: cur.nightSec, daySec: cur.daySec, revealRoles: cur.revealRoles, events: EVENTS_UI ? (cur.events || 'some') : 'off', roleMode: cur.roleMode || 'random', roles: { ...cur.roles } };
+  const s = {
+    nightSec: cur.nightSec, daySec: cur.daySec, revealRoles: cur.revealRoles, events: EVENTS_UI ? (cur.events || 'some') : 'off',
+    roleMode: cur.roleMode || 'random', roles: { ...cur.roles }, smartBots: cur.smartBots !== false, aiAvailable: Boolean(st.room.aiAvailable),
+  };
+  store.set(AI_KEY, Boolean(st.room.aiAvailable));
   const n = Math.max(MIN_PLAYERS, st.players.filter((p) => !p.left).length);
   const sheet = openSheet({
     title: host ? 'Oda Ayarları' : 'Oda Kuralları',
@@ -183,9 +200,10 @@ export function openRoomSettings() {
   bindForm(form, s);
   if (host) {
     sheet.foot.querySelector('[data-save]').addEventListener('click', async () => {
-      const res = await send('room:settings', { settings: { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, roles: s.roles } });
+      const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, roles: s.roles, smartBots: s.smartBots };
+      const res = await send('room:settings', { settings });
       if (res.ok) {
-        store.set(LAST_KEY, { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, roles: s.roles });
+        store.set(LAST_KEY, settings);
         sheet.close();
       }
     });

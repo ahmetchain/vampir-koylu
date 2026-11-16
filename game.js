@@ -133,7 +133,7 @@ const DEFAULT_ROLES = {
 };
 const EVENT_MODES = ['off', 'some', 'often'];
 const ROLE_MODES = ['random', 'all'];
-const DEFAULT_SETTINGS = { nightSec: 20, daySec: 120, revealRoles: true, events: 'off', roleMode: 'random', roles: DEFAULT_ROLES };
+const DEFAULT_SETTINGS = { nightSec: 20, daySec: 120, revealRoles: true, events: 'off', roleMode: 'random', smartBots: true, roles: DEFAULT_ROLES };
 
 // Gece seçimi olan roller ve tipide evden çıkamayan köy rolleri.
 const NIGHT_ACTION_ROLES = new Set([ROLE.VAMPIRE, ROLE.FRAMER, ROLE.CLEANER, ROLE.DOCTOR, ROLE.SEER, ROLE.WATCHER, ROLE.WITCH, ROLE.THIEF]);
@@ -188,6 +188,8 @@ function normalizeSettings(raw = {}) {
     revealRoles: raw.revealRoles === undefined ? DEFAULT_SETTINGS.revealRoles : Boolean(raw.revealRoles),
     events: EVENT_MODES.includes(raw.events) ? raw.events : DEFAULT_SETTINGS.events,
     roleMode: ROLE_MODES.includes(raw.roleMode) ? raw.roleMode : DEFAULT_SETTINGS.roleMode,
+    // Akıllı botlar (sunucuda API anahtarı varsa; V2-PLAN §17). Varsayılan açık; anahtar yoksa etkisiz.
+    smartBots: raw.smartBots === undefined ? DEFAULT_SETTINGS.smartBots : Boolean(raw.smartBots),
     roles,
   };
 }
@@ -426,7 +428,7 @@ class Room {
   // seerRng: testlerde kahinin şaşırtmaca rolünün tohumlu üreteci (Math.random gibi).
   constructor({
     id, name, password, settings, hooks, storySeed = null, botRng = Math.random, eventRng = Math.random,
-    dealRng = crypto.randomInt, seerRng = null,
+    dealRng = crypto.randomInt, seerRng = null, ai = null,
   }) {
     this.dealRng = dealRng;
     this.seerRng = seerRng || (() => this.rand());
@@ -442,7 +444,9 @@ class Room {
     this.phase = 'lobby';
     this.timer = null;
     this.emptyTimer = null;
-    this.bots = new BotBrain(this, { rng: botRng });
+    // ai: akıllı botların API istemcisi (lib/ai/client.js AiClient) ya da null (yalnızca rastgele botlar).
+    this.ai = ai;
+    this.bots = new BotBrain(this, { rng: botRng, ai });
     this.botRng = botRng;
     this.eventRng = eventRng;
     this.resetGame();
@@ -640,7 +644,17 @@ class Room {
     const res = this.chat(fromId, text);
     if (res.error) return res.error;
     if (typeof this.hooks.chat === 'function') this.hooks.chat(this, res.recipients, res.message);
+    this.observeChat(res.recipients, res.message);
     return null;
+  }
+
+  // Gönderilen her sohbet mesajı (insan ya da bot) alıcı koltuklardaki botlara da ulaşır (akıllı botlar).
+  observeChat(recipients, message) {
+    try {
+      this.bots.observeChat(recipients, message);
+    } catch (err) {
+      console.error(`[${this.id}] Bot sohbeti işleyemedi:`, err && err.message ? err.message : err);
+    }
   }
 
   // Odadaki en küçük boş koltuk numarası (evlerin sırası buna göre).
@@ -2008,6 +2022,9 @@ class Room {
     }
     const ended = inTrial ? this.checkTrialProgress() : this.checkDayProgress();
     if (!ended) this.changed();
+    if (!ended && after !== before && after && after !== SLEEP) {
+      try { this.bots.observeVote(byId, after); } catch (err) { /* bot tepkisi önemsiz */ }
+    }
     return null;
   }
 
@@ -2447,6 +2464,9 @@ class Room {
         id: this.id, name: this.name, phase: this.phase, round: this.round,
         deadline: this.deadline, timerFrom: this.timerFrom, hostId: this.hostId, settings: this.settings,
         hasPassword: Boolean(this.password), winner: this.winner, winners: this.winners,
+        // Akıllı bot seçeneği bu sunucuda var mı (API anahtarı); cevap yazan botlar (yalnızca herkese açık sohbet evrelerinde).
+        aiAvailable: Boolean(this.ai && this.ai.available()),
+        typing: ['day', 'trial', 'hunter'].includes(this.phase) ? this.bots.typingIds() : [],
         minPlayers: MIN_PLAYERS, maxPlayers: MAX_PLAYERS,
         vampireCount: vampireCount(activeCount),
         ...distributionFor(activeCount, enabledSpecials(this.settings), this.settings.roleMode),

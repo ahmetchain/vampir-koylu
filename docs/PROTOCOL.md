@@ -122,6 +122,7 @@ settings = {
   revealRoles: true,     // reveal the role of players who die / leave
   events: 'off',         // village events: 'off' | 'some' | 'often' (built, OFF by default and hidden in the UI; §12.10)
   roleMode: 'random',    // 'random' | 'all' – how roles are dealt (§3); anything else → 'random'
+  smartBots: true,       // bots driven by Claude when the server has an API key (§17); no effect without one
   roles: {               // all 12 keys always present, booleans
     doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false,
     avci: false, muhtar: false, soytari: false, deli: false, hirsiz: false, iftiraci: false, temizlikci: false,
@@ -368,8 +369,10 @@ Sent per viewer. Full shape:
       showUntil: 1763030038000,        // end of the show stage = dawn (= pickUntil + 14000 until the show starts)
     },
     hostId: "player-uuid" | null,
-    settings: { nightSec, daySec, revealRoles, events, roleMode, roles: {11 keys} },   // §4
+    settings: { nightSec, daySec, revealRoles, events, roleMode, smartBots, roles: {…} },   // §4
     hasPassword: false,
+    aiAvailable: false,                // the server has an AI key: the "Akıllı botlar" setting exists (§17)
+    typing: ["bot-…"],                 // bots writing a chat reply right now ("yazıyor…"); only in day/trial/hunter, else []
     winner: null | "koylu" | "vampir" | "soytari",                  // set in 'ended'
     winners: ["player-uuid", ...],      // player ids of the winning side still in the game (not left); [] until ended
     minPlayers: 5, maxPlayers: 20,
@@ -839,7 +842,9 @@ accepted, the finished game is written to no account's stats and does not affect
 
 ## 14. Static files, health, caching
 
-- `GET /healthz` → `{ ok: true, rooms: <number>, store: 'json' | 'postgres' }` (no-store).
+- `GET /healthz` → `{ ok: true, rooms: <number>, store: 'json' | 'postgres', ai? }` (no-store). `ai` only when the
+  server has an AI key: aggregate numbers only – `{ enabled, model, day, callsToday, dailyLimit, calls, ok, inputTokens,
+  outputTokens, cacheWriteTokens, cacheReadTokens, costUsd, failures: { reason: n } }` (no content).
 - `GET /lan.json` → `{ addresses: ["192.168.1.20", ...], port }` (LAN IPv4 addresses for invite links).
 - Static files from `public/`, gzip-compressed when the client accepts it, with ETag/Last-Modified:
   - `/assets/**` → `Cache-Control: public, max-age=3600, must-revalidate`
@@ -849,7 +854,9 @@ accepted, the finished game is written to no account's stats and does not affect
   - `.glb` is served as `model/gltf-binary`.
 - Server environment: `PORT` (default 3000), `DATA_DIR` (JSON store folder, default `./data`),
   `DATABASE_URL` (use Postgres instead), `DATABASE_SSL` (`off`|`on`|`no-verify`, default automatic),
-  `CLIENT_ORIGIN`, `TRUST_PROXY`.
+  `CLIENT_ORIGIN`, `TRUST_PROXY`; smart bots: `ANTHROPIC_API_KEY`, `AI_BOTS`, `AI_BOT_MODEL`, `AI_BOT_EFFORT`,
+  `AI_MAX_TOKENS`, `AI_DAILY_CALL_LIMIT`, `AI_GAME_CALL_LIMIT`, `AI_BOT_CALL_LIMIT`, `AI_CONCURRENCY`, `AI_TIMEOUT_MS`
+  (defaults in `docs/AI-BOTS.md`).
 
 ## 15. Client recipes
 
@@ -938,6 +945,16 @@ Bots let one person start and test a full game alone (`MIN_PLAYERS` counts bots)
 - **Chat:** bots send ordinary `chat` events (channel `genel`, only in lobby and by day, only while
   alive). Lines come from a fixed list chosen independently of role and night results, contain no
   role words and never reveal anything. Bots never use the `vampir` or `olu` channels.
+- **Smart bots** (`settings.smartBots`, only when `room.aiAvailable`; details `docs/AI-BOTS.md`): the decisions
+  above come from Claude (Haiku) instead of chance, through the same game actions and within the same windows
+  (night: answer applied 1.2–4.5 s after the walk, random choice at `min(walk end + 7 s (Cadı 9 s), pick end − 1.5 s)`;
+  day: a vote turn at 30–55 % of the day, random vote at 88 % if no turn succeeded). Bots chat in `genel` by day
+  (and evil bots whisper in `vampir` at night): a bot addressed by name (with or without "Bot ", any case) always
+  answers; up to two bots react to an unaddressed human line; bot→bot chains are short and cooled down.
+  `room.typing` lists bots writing a reply. A bot's prompt is built only from its own `viewFor`, the chat its seat
+  received and its own memory note. Any API error, timeout, refusal, malformed answer or exhausted budget →
+  the random behaviour above (or silence; a bot addressed by a human still sends a short neutral line).
+  The canned-line rule above applies to random bots only.
 - **Robustness:** all bot timers are dropped on every phase change, game end, `game:lobby`, kick and
   room close; a failing bot action is logged and the phase still ends by its timer.
 - **Typical length** (round 6, default timers `nightSec` 20, `daySec` 120), 1 human + 6 bots, 40

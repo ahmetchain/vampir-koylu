@@ -124,14 +124,19 @@ export function distributionPlan(n, roles, mode = 'all') {
   if (mode === 'random') {
     const list = [];
     for (let i = 0; i < vampireCount(n); i++) list.push('vampir');
+    // Yardımcılar (7+): açık olanlardan biri hep gelir; 13+ ve ikisi de açıksa ikincisi belki.
     const maybe = ['iftiraci', 'temizlikci'].filter((r) => roles[r] && n >= FRAMER_MIN);
+    const helpersMax = maybe.length >= 2 && n >= 13 ? 2 : (maybe.length ? 1 : 0);
+    if (maybe.length === 1) list.push(maybe[0]);
     const plain = Math.max(1, Math.round(n * 0.2));
-    const slots = Math.max(0, n - list.length - plain);
+    const slots = Math.max(0, n - vampireCount(n) - helpersMax - plain);
     const village = SPECIAL_ORDER.filter((r) => roles[r] && !(r === 'hirsiz' && n < THIEF_MIN));
     let pool = null;
     if (village.length && slots > 0) pool = { pick: Math.min(slots, village.length), from: village };
+    const openHelpers = maybe.length >= 2 ? helpersMax : 0;
+    if (openHelpers) pool = { ...(pool || { pick: 0, from: [] }), maybe, helpers: 1, helpersMax };
+    if (pool && openHelpers) pool.pick += helpersMax;
     while (list.length < n - (pool ? pool.pick : 0)) list.push('koylu');
-    if (maybe.length) pool = { ...(pool || { pick: 0, from: [] }), maybe };
     return { list, pool };
   }
   const out = [];

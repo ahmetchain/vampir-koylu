@@ -202,10 +202,13 @@ export function renderChatState(state) {
   if (inGame && !me.alive) { mode = ['ghost', 'Sadece ölüler görür']; ph = 'Ölülere yaz…'; }
   else if (room.phase === 'night' && (me.role === 'vampir' || me.role === 'iftiraci' || me.role === 'temizlikci')) { mode = ['moon', 'Sadece vampir takımı görür']; ph = 'Vampirlere fısılda…'; }
   else if (room.phase === 'night') { mode = ['moon', 'Gece köy uyur, konuşamazsın']; disabled = true; ph = 'Gece köy uyur, konuşamazsın'; }
-  el.mode.innerHTML = `${icon(mode[0])}${mode[1]}`;
+  // Akıllı botlar cevap yazarken "yazıyor…" (yalnızca herkese açık sohbette; sunucu room.typing gönderir).
+  const typing = (room.typing || []).map((id) => state.players.find((p) => p.id === id)).filter(Boolean).map((p) => p.name);
+  const typingText = typing.length ? `${typing.slice(0, 2).join(', ')}${typing.length > 2 ? ` +${typing.length - 2}` : ''} yazıyor…` : '';
+  el.mode.innerHTML = `${icon(mode[0])}${mode[1]}${typingText ? ` · <i class="typing">${esc(typingText)}</i>` : ''}`;
   el.input.disabled = disabled;
   el.send.disabled = disabled;
-  el.input.placeholder = ph;
+  el.input.placeholder = typingText && !disabled ? typingText : ph;
   el.form.classList.toggle('night', disabled);
   if (disabled && document.activeElement === el.input) el.input.blur();
 }
