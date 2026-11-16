@@ -289,7 +289,7 @@ test('hırsız çalar: hedef "soyuldu" (vanish), rolü olduğu gibi alır, özel
   const death = of(ev, 'death').pop();
   assert.deepEqual(death.targets, [{ id: 'p1', cause: 'hirsiz', scene: 'vanish' }]);
   assert.equal(death.scene, 'vanish');
-  assert.match(death.text, /Oyuncu1 bu gece soyulup öldürüldü! Rolü: Doktor\./);
+  assert.match(death.text, /Oyuncu1 bu gece soyulup öldürüldü! Rolü bilinmiyor; çalındı\./);
   assert.ok(room.log.some((e) => e.kind === 'death' && /soyulup öldürüldü/.test(e.text)));
   assert.equal(of(ev, 'stealfail').length, 0);
   const steal = of(ev, 'steal').pop();
@@ -367,7 +367,7 @@ test('hırsız vampir çalarsa kötü takıma geçer: karşılıklı görünürl
   room.destroy();
 });
 
-test('hırsız deliyi çalarsa deli olur ve aynı sahte rolü görür; avcıyı çalarsa avcı son atışını yapar', (t) => {
+test('hırsız deliyi çalarsa deli olur ve aynı sahte rolü görür; avcıyı çalarsa hırsız avcı olur', (t) => {
   clock(t);
   const { room, ev } = setup(8);
   startWithRoles(room, [V, [X, S], T, K, K, K, K, K]);
@@ -384,8 +384,7 @@ test('hırsız deliyi çalarsa deli olur ve aynı sahte rolü görür; avcıyı 
   startWithRoles(r2, [V, H, T, K, K, K, K, K]);
   r2.selectNight('p2', 'p1');
   r2.endNight();
-  assert.equal(r2.phase, 'hunter');
-  assert.equal(r2.hunterId, 'p1');
+  assert.notEqual(r2.phase, 'hunter', 'soyulan avcı için son atış yok');
   assert.equal(r2.players.get('p2').role, H);
   r2.destroy();
 });
@@ -417,4 +416,55 @@ test('istatistik: hiç çalamamış hırsız sadece toplamlara sayılır (takım
   assert.deepEqual(Object.keys(back.stats.teams).sort(), ['koylu', 'soytari', 'vampir']);
   assert.ok(Object.values(back.stats.teams).every((x) => x.games === 0));
   await store.close();
+});
+
+// ---------- hırsız: çalınan rol gizli kalır ----------
+
+test('hırsız çalar: kurbanın rolü oyun bitene kadar kimseye açıklanmaz (revealRoles açık)', (t) => {
+  clock(t);
+  const { room, ev } = setup(8, { revealRoles: true });
+  startWithRoles(room, [V, D, T, K, K, K, K, K]);
+  room.selectNight('p2', 'p1');
+  room.endNight();
+  assert.equal(room.players.get('p1').alive, false);
+  const death = of(ev, 'death').pop();
+  assert.match(death.text, /Rolü bilinmiyor; çalındı\./);
+  assert.doesNotMatch(death.text, /Doktor/);
+  for (const e of room.log) if (/Oyuncu1|soyul/.test(e.text)) assert.doesNotMatch(e.text, /Doktor/, e.text);
+  for (let i = 0; i < 8; i++) {
+    const v = room.viewFor(`p${i}`);
+    const p1 = v.players.find((p) => p.id === 'p1');
+    if (i !== 1) assert.equal(p1.role, null, `p${i} kurbanın rolünü görmemeli`);
+    assert.doesNotMatch(JSON.stringify(v.log || []), /Rolü: Doktor/);
+  }
+  assert.equal(room.viewFor('p2').me.role, D);
+  room.phase = 'ended';
+  assert.equal(room.viewFor('p3').players.find((p) => p.id === 'p1').role, D, 'oyun bitince açık');
+  room.destroy();
+});
+
+test('hırsız çalar: kurban avcıysa son atış tetiklenmez ve "avcıydı" açıklanmaz', (t) => {
+  clock(t);
+  const { room, ev } = setup(8, { revealRoles: true });
+  startWithRoles(room, [V, H, T, K, K, K, K, K]);
+  room.selectNight('p2', 'p1');
+  room.endNight();
+  assert.notEqual(room.phase, 'hunter');
+  assert.equal(of(ev, 'hunter').length, 0);
+  assert.equal(room.players.get('p2').role, H);
+  assert.equal(room.viewFor('p3').players.find((p) => p.id === 'p1').role, null);
+  room.destroy();
+});
+
+test('başarısız soygun hiçbir şeyi değiştirmez; rol normal kurala göre açıklanır', (t) => {
+  clock(t);
+  const { room, ev } = setup(8, { revealRoles: true });
+  startWithRoles(room, [V, D, T, K, K, K, K, K]);
+  room.selectNight('p1', 'p4');
+  room.selectNight('p2', 'p4');
+  room.endNight();
+  assert.equal(room.players.get('p4').alive, true);
+  assert.equal(of(ev, 'death').length, 0);
+  assert.equal(room.players.get('p4').roleHidden, false);
+  room.destroy();
 });

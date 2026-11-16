@@ -641,9 +641,11 @@ by the doktor – or by any other cause), and the thief is still alive, the thie
 victim's role as it is** (used potions stay used; a stolen Deli stays Deli with the same believed
 role; a stolen vampir/İftiracı joins the evil team with mutual visibility and the vampire chat) and
 gets the private `steal` announce (`role` = new role). If the doktor's protection foiled it the thief gets
-the private `stealfail` (ability kept). The victim's role is revealed by the normal
-rule. A bounced or doktor-foiled attempt keeps the ability; the target of a thief who dies the same
-night still dies but there is no takeover. A stolen Avcı triggers the hunter's last shot as usual.
+the private `stealfail` (ability kept). When the victim died *of the theft* (`cause: hirsiz`) their role stays **hidden from everyone until the game ends**
+even with `revealRoles` on (death text "Rolü bilinmiyor; çalındı.", `viewFor` role `null` apart from the
+victim's own view and normal evil-team visibility, no role in the narration); a victim killed by another
+cause the same night is revealed by the normal rule. A bounced or doktor-foiled attempt keeps the ability; the target of a thief who dies the same
+night still dies but there is no takeover. A stolen Avcı does not trigger a last shot for the robbed victim (the role lives on in the thief, who gets the hunter phase on their own death).
 After the theft, `me.role` changes to the new role (the state reflects it immediately).
 
 ### 12.10 Village events and mahkeme (built, **off by default**, hidden in the UI)
