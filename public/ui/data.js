@@ -75,21 +75,34 @@ export const ROLES = {
     short: 'Asılmak ister.',
     desc: 'Amacın köyü seni asmaya ikna etmek. Gündüz asılırsan tek başına kazanırsın ve oyun biter. Gece ölürsen kaybedersin.',
   },
+  deli: {
+    name: 'Deli', team: 'koylu', teamName: 'Köylüler', color: '#9aa3c7',
+    short: 'Kendini başka bir rol sanır.',
+    desc: 'Deli kendini başka bir köylü rolü sanır (Doktor, Kahin, Gözcü ya da Gardiyan; odada açık olanlardan biri) ve kartında da o rol yazar. O rol gibi oynar ama yaptıklarının hiçbir etkisi yoktur, öğrendikleri de uydurmadır. Gece yine evinden çıkıp yürür: gerçek Gözcü onu görür, kilitli kapı onu da geri çevirir. Kahin ona bakarsa "vampir değil" görür. Gerçeği ancak ölünce ya da oyun bitince öğrenir. Köyle birlikte kazanır.',
+    note: 'Odada Deli açıksa kendi bilgilerinden de şüphe et: Deli olduğunu bilemezsin.',
+  },
+  hirsiz: {
+    name: 'Hırsız', team: 'hirsiz', teamName: 'Tarafsız', color: '#3fa7b5',
+    short: 'Bir kez soyar, rolü çalar.',
+    desc: 'Oyunda bir kez, gece yaşayan birini soymaya gidersin; seçim kesindir. Kapıya ulaşırsan o kişi o gece ölür (Doktor korumuyorsa) ve sen onun rolünü olduğu gibi alırsın: kullanılmış iksirleri dahil, takımıyla birlikte. Kilitli kapıdan dönersen ya da Doktor korursa hakkın yanmaz; başka bir gece yine deneyebilirsin. Seçmemek de bir seçimdir: başka geceyi beklersin. Çalana kadar tarafsızsın, Kahin seni "vampir değil" görür; oyun sen çalmadan biterse kaybedersin.',
+    note: 'Sadece 7 ve üstü oyuncuda dağıtılır.',
+  },
   koylu: {
     name: 'Köylü', team: 'koylu', teamName: 'Köylüler', color: '#c9a96e',
     short: 'Tartışır, oy verir.',
     desc: 'Gece uyursun. Gündüz tartış, şüphelendiğin kişiye oy ver ve vampirleri bul.',
   },
 };
-export const ROLE_LIST = ['vampir', 'iftiraci', 'doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'koylu'];
+export const ROLE_LIST = ['vampir', 'iftiraci', 'doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz', 'koylu'];
 // Sunucunun özel rolleri ekleme sırası (PROTOCOL §3).
-export const SPECIAL_ORDER = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari'];
-export const TOGGLE_ROLES = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'iftiraci'];
-export const DEFAULT_ROLES = { doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false, avci: false, muhtar: false, soytari: false, iftiraci: false };
+export const SPECIAL_ORDER = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz'];
+export const TOGGLE_ROLES = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz', 'iftiraci'];
+export const DEFAULT_ROLES = { doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false, avci: false, muhtar: false, soytari: false, deli: false, hirsiz: false, iftiraci: false };
 export const MIN_PLAYERS = 5;
 export const MAX_PLAYERS = 20;
 export const FRAMER_MIN = 7;
-export const TEAM_NAME = { koylu: 'Köylüler', vampir: 'Vampirler', soytari: 'Soytarı' };
+export const THIEF_MIN = 7;
+export const TEAM_NAME = { koylu: 'Köylüler', vampir: 'Vampirler', soytari: 'Soytarı', hirsiz: 'Tarafsız' };
 export const WIN_TITLE = { koylu: 'Köylüler kazandı!', vampir: 'Vampirler kazandı!', soytari: 'Soytarı kazandı!' };
 export const isEvil = (role) => role === 'vampir' || role === 'iftiraci';
 
@@ -105,6 +118,7 @@ export function distribution(n, roles) {
   if (roles.iftiraci && n >= FRAMER_MIN) out.push('iftiraci');
   let room = n - out.length - 1;
   for (const r of SPECIAL_ORDER) {
+    if (r === 'hirsiz' && n < THIEF_MIN) continue;
     if (roles[r] && room > 0) { out.push(r); room--; }
   }
   while (out.length < n) out.push('koylu');

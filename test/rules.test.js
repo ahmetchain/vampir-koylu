@@ -51,7 +51,8 @@ test('iftiracı 7+ oyuncuda vampirlere ek verilir, özel roller yeni sırayla ek
   assert.deepEqual(rolesFor(5, [D, S, G, W, H, M, J, F]), [V, D, S, G, K]);
   assert.deepEqual(rolesFor(7, [D, S, G, W, H, M, J, F]), [V, F, D, S, G, W, K], 'en az bir köylü kalır');
   assert.deepEqual(normalizeSettings({}).roles, {
-    doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false, avci: false, muhtar: false, soytari: false, iftiraci: false,
+    doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false, avci: false, muhtar: false, soytari: false,
+    deli: false, hirsiz: false, iftiraci: false,
   });
   assert.deepEqual(rolesFor(8, [D, S, G, ROLE.JAILER, W]), [V, D, S, G, ROLE.JAILER, W, K, K], 'gardiyan gözcüden sonra');
   assert.equal(teamOf(ROLE.JAILER), K);

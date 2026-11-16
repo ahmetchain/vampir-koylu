@@ -12,7 +12,7 @@ let playing = false;
 let skipFn = null;
 let gen = 0;
 
-const PRIVATE = { seer: true, watch: true, promote: true, locked: true, bounced: true, lockreport: true };
+const PRIVATE = { seer: true, watch: true, promote: true, locked: true, bounced: true, lockreport: true, steal: true, stealfail: true };
 const KIND = {
   start: ['sparkle', '#f4e4c1', 'start'],
   night: ['moon', '#8fb4ff', 'night'],
@@ -34,6 +34,8 @@ const KIND = {
   bounced: ['lock', '#7f9cc4', 'door'],
   lockreport: ['role:gardiyan', null, 'door'],
   trial: ['gavel', '#ffb347', 'bell'],
+  steal: ['role:hirsiz', null, 'whoosh'],
+  stealfail: ['role:hirsiz', null, 'door'],
 };
 
 export function initAnnounce() {
@@ -77,7 +79,8 @@ async function next(g) {
     return;
   }
   playing = true;
-  const [ic, color, snd] = KIND[a.kind] || ['scroll', '#f4e4c1', null];
+  let [ic, color, snd] = KIND[a.kind] || ['scroll', '#f4e4c1', null];
+  if (a.kind === 'steal' && a.role) ic = `role:${a.role}`;
   const priv = !!PRIVATE[a.kind];
   el.dataset.kind = a.kind;
   el.dataset.private = String(priv);

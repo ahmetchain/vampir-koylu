@@ -404,3 +404,36 @@ or per 2 rounds (`often`); never the same event twice in a row; `tipi` never whe
 is at most one more than the evil side; `mahkeme` only with 6+ living players. Bots handle all of it.
 
 Deferred to round 5: Bombacı, vasiyet (last will), Âşıklar, Hızlı Köy mode, preset room settings.
+
+## 14. Round 5a: Deli and Hırsız (requested by the owner on 2026-11-16)
+
+### 14.1 Deli (`deli`, village team, optional special role)
+- Dealt as Deli, but the player is **told and shown a fake role** F, drawn at random from the
+  village night roles enabled in the room among doktor, kahin, gozcu, gardiyan (if none of those is
+  enabled: kahin). The player must not be able to tell: everything they receive — `me.role`, their
+  own entry in `players`, role card data, `night`/`day` views, acks, errors, private announces and
+  notes — is exactly what a real F would get.
+- Their actions have no real effect and their information is fabricated:
+  fake doktor protects nobody; fake kahin gets a random verdict (independent of the truth); fake
+  gözcü gets an invented live panel and dawn report (0–2 random living players as visitors, owner
+  "went out" at random; live panel and report consistent with each other); fake gardiyan locks
+  nothing (nobody is locked in or bounced) and gets a random small count at dawn.
+- Physically they still walk: their visit is a real trip (a real gözcü sees them arrive; a real
+  lock bounces them with the usual notice).
+- Publicly they are Deli wherever a role becomes public (death with roles revealed, end of game);
+  the kahin sees "vampir değil". They learn the truth only then. Wins with the village.
+
+### 14.2 Hırsız (`hirsiz`, neutral until the theft, optional, only dealt with 7+ players)
+- Once per game, at night, may pick a living player (final choice like every night pick; not
+  picking = waiting for another night). If the thief reaches the house and the target dies that
+  night (the thief's own attack kills unless the doktor protects the target; a locked door bounces
+  the thief), the thief **takes over the victim's role** as it is (including used potions; a stolen
+  Deli stays a Deli who is told the same fake role; a stolen vampire/iftiracı joins the evil team
+  with the usual mutual visibility) and from then on belongs to that role's team. Private announce
+  `steal` + note. A bounced or doctor-foiled attempt does not use up the ability.
+- The death is public like any night death, with cause `hirsiz` ("soyuldu"), cinematic scene
+  `vanish`. The victim's role reveal follows the room's normal rule.
+- Until the theft the thief counts as a non-evil player for parity, the kahin sees "vampir
+  değil", and if the game ends before a successful theft the thief loses.
+- Dealing order of specials: doktor, kahin, gozcu, gardiyan, cadi, avci, muhtar, soytari, deli,
+  hirsiz. Both default off.

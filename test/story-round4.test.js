@@ -23,6 +23,7 @@ function allowedFor(key) {
   if (key.startsWith('trial.defense.')) return [...BASE, ...A];
   if (key === 'trial.verdict') return [...BASE, ...A, 'n', 'nw', 'Nw'];
   if (key.endsWith('.gardiyan')) return [...BASE, ...A];
+  if (/[.](deli|hirsiz)$/.test(key) || key === 'epi.first.hirsiz') return [...BASE, ...A];
   if (key === 'epi.events') return [...BASE, 'list'];
   return null;
 }
