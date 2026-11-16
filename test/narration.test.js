@@ -275,7 +275,8 @@ function playAndAudit(seed, revealRoles, count) {
     for (const p of room.players.values()) {
       if (!p.role) continue;
       if (room.phase === 'ended') out.set(p.id, p.role);
-      else if (!p.alive && room.settings.revealRoles) out.set(p.id, p.role);
+      // Ölünün herkese açık rolü: iftira tuttuysa 'vampir' (§16.1); soyulan/temizlenen ölünün rolü gizli.
+      else if (!p.alive && room.settings.revealRoles && !p.roleHidden) out.set(p.id, p.shownRole || p.role);
       else if ((knowledge.hunter.has(p.id) || room.hunterId === p.id) && p.role === H) out.set(p.id, p.role);
       else if (knowledge.jester.has(p.id) || (p.hanged && p.role === J)) out.set(p.id, p.role);
     }
@@ -358,7 +359,7 @@ function playAndAudit(seed, revealRoles, count) {
     for (const m of checks) {
       const p = [...room.players.values()].find((x) => x.name === m[1]);
       const role = LABEL_TO_ROLE[m[2]];
-      if (!p || role !== p.role || known.get(p.id) !== role) problems.push(`${where}: yanlış/gizli rol eşlemesi: ${text}`);
+      if (!p || role !== (p.shownRole || p.role) || (known.get(p.id) !== role && publicRoles().get(p.id) !== role)) problems.push(`${where}: yanlış/gizli rol eşlemesi: ${text}`);
     }
   }
 
@@ -367,7 +368,7 @@ function playAndAudit(seed, revealRoles, count) {
     name: 'Denetim',
     settings: {
       revealRoles, events: 'often',
-      roles: { gozcu: true, gardiyan: true, iftiraci: true, cadi: true, avci: true, muhtar: true, soytari: true, deli: true, hirsiz: true },
+      roles: { gozcu: true, gardiyan: true, iftiraci: true, cadi: true, avci: true, muhtar: true, soytari: true, deli: true, hirsiz: true, temizlikci: true },
     },
     storySeed: `denetim-${seed}`,
     eventRng: mulberry(`olay-${seed}`),
@@ -379,6 +380,11 @@ function playAndAudit(seed, revealRoles, count) {
           const known = knownBy(viewerId);
           for (const p of v.players) {
             if (p.role && known.get(p.id) !== p.role) problems.push(`state(${viewerId}): ${p.id} rolü ${p.role} sızdı`);
+            // Sahte 'vampir' ile gerçek ayırt edilemez: oyun bitene kadar framed/cleaned bayrağı yok.
+            if (r.phase !== 'ended' && (p.framed !== false || p.cleaned !== false)) problems.push(`state(${viewerId}): framed/cleaned erken`);
+            const real = r.players.get(p.id);
+            if (real.shownRole && (real.alive || isEvil(real.role) || ['avci', 'soytari'].includes(real.role) || real.roleHidden)) problems.push(`iftira kuralı dışı: ${p.id}`);
+            if (r.phase === 'ended' && p.framed !== Boolean(real.framedReveal)) problems.push('framed bayrağı yanlış');
           }
           const meEvil = isEvil(v.me.role);
           if (v.night && !meEvil && (v.night.framer || v.night.team.length || v.night.teamTarget)) problems.push(`state(${viewerId}): gece seçimi sızdı`);
@@ -452,7 +458,7 @@ function playAndAudit(seed, revealRoles, count) {
   }
   room.start('p0');
   // Rolleri tohumdan yeniden dağıt (oyun tekrarlanabilir olsun).
-  const list = rolesFor(count, [D, S, G, 'gardiyan', W, H, M, J, 'deli', 'hirsiz', F]);
+  const list = rolesFor(count, [D, S, G, 'gardiyan', W, H, M, J, 'deli', 'hirsiz', F, 'temizlikci']);
   const ids = [...room.players.keys()];
   for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
   ids.forEach((id, i) => {

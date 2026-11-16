@@ -63,7 +63,7 @@ function formHTML(s, editable, withRoomFields, sampleN) {
       ${TOGGLE_ROLES.map((r) => `
         <button type="button" class="rtoggle${s.roles[r] ? ' on' : ''}" data-role="${r}" aria-pressed="${!!s.roles[r]}" ${dis}>
           ${emblem(r, 'm')}
-          <span><b>${ROLES[r].name}</b><small>${ROLES[r].short}</small>${r === 'iftiraci' || r === 'hirsiz' ? `<small class="warn">${r === 'iftiraci' ? FRAMER_MIN : THIEF_MIN}+ oyuncuda dağıtılır</small>` : ''}</span>
+          <span><b>${ROLES[r].name}</b><small>${ROLES[r].short}</small>${r === 'iftiraci' || r === 'temizlikci' || r === 'hirsiz' ? `<small class="warn">${r === 'hirsiz' ? THIEF_MIN : FRAMER_MIN}+ oyuncuda dağıtılır</small>` : ''}</span>
           <span class="check">${icon('check')}</span>
         </button>`).join('')}
     </div>
@@ -71,7 +71,7 @@ function formHTML(s, editable, withRoomFields, sampleN) {
       <summary>${icon('info')}Roller nasıl dağıtılır?</summary>
       <div class="explain">
         <p>Vampir sayısı oyuncu sayısına göre belirlenir: 5–9 kişide 1, 10–14 kişide 2, 15 ve üstünde 3 vampir.</p>
-        <p>İftiracı açıksa ve en az ${FRAMER_MIN} oyuncu varsa vampirlere ek olarak 1 İftiracı dağıtılır.</p>
+        <p>İftiracı ve Temizlikçi vampirlerin yardımcılarıdır; en az ${FRAMER_MIN} oyuncuda dağıtılırlar. Rastgele dağıtımda açık olanlardan biri her zaman çıkar, 13 ve üstü oyuncuda ikisi de açıksa ikincisi %50 ihtimalle gelir. Klasik dağıtımda açık olanların hepsi gelir.</p>
         <p>Açık özel roller şu sırayla, yer kaldıkça eklenir: Doktor, Kahin, Gözcü, Gardiyan, Cadı, Avcı, Muhtar, Soytarı, Deli, Hırsız. Hırsız sadece en az ${THIEF_MIN} oyuncuda dağıtılır. 8 kişiden az oyunda en az bir sade köylü kalır. Roller sığmazsa hangilerinin çıkacağı her oyun rastgele seçilir (kahin/gözcüden en az biri hep çıkar).</p>
       </div>
       <div class="row-between" style="margin-top:8px"><b class="small">Örnek: <span data-n>${sampleN}</span> oyuncu</b></div>

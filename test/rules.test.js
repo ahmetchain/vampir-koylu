@@ -54,7 +54,7 @@ test('iftiracı 7+ oyuncuda vampirlere ek verilir, özel roller yeni sırayla ek
   assert.equal(r5.filter((r) => r === F).length, 0);
   assert.deepEqual(normalizeSettings({}).roles, {
     doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false, avci: false, muhtar: false, soytari: false,
-    deli: false, hirsiz: false, iftiraci: false,
+    deli: false, hirsiz: false, iftiraci: false, temizlikci: false,
   });
   assert.deepEqual(rolesFor(8, [D, S, G, ROLE.JAILER, W]), [V, D, S, G, ROLE.JAILER, W, K, K], 'gardiyan gözcüden sonra');
   assert.equal(teamOf(ROLE.JAILER), K);
@@ -479,9 +479,9 @@ test('görünüme yeni alanlar eklenir: koltuk, model, hesap, yeni roller', (t) 
   assert.ok(view.players.every((p) => Number.isInteger(p.seat) && Number.isInteger(p.look.skin)));
   assert.equal(view.room.settings.roles.gozcu, true);
   assert.equal(view.room.settings.roles.iftiraci, true);
-  // Varsayılan rastgele dağıtım: iftiracı belirsiz (maybe), geri kalanı kesin.
-  assert.deepEqual(view.room.distribution, [V, D, S, G, K, K]);
-  assert.deepEqual(view.room.rolePool, { pick: 1, from: [], maybe: [F] });
+  // Varsayılan rastgele dağıtım: 7+ oyuncuda tek açık yardımcı (iftiracı) kesin.
+  assert.deepEqual(view.room.distribution, [V, F, D, S, G, K, K], 'tek açık yardımcı 7+ oyuncuda kesin');
+  assert.equal(view.room.rolePool, null);
   room.updateSettings('p0', { roleMode: 'all' });
   assert.deepEqual(room.viewFor('p2').room.distribution, [V, F, D, S, G, K, K]);
   assert.equal(room.viewFor('p2').room.rolePool, null);
@@ -625,7 +625,7 @@ test('kapasite aşımı: roller oyun başına rastgele seçilir, kahin/gözcüde
   // önizleme deterministik ve tutarlı
   const a = distributionFor(7, all);
   assert.deepEqual(a, distributionFor(7, all));
-  assert.deepEqual(a.rolePool, { pick: 5, from: all, maybe: [] });
+  assert.deepEqual(a.rolePool, { pick: 5, from: all, maybe: [], helpers: 0, helpersMax: 0 });
   assert.deepEqual(a.distribution, [V, K]);
   assert.equal(a.distribution.length + a.rolePool.pick, 7);
   assert.deepEqual(distributionFor(7, [D, S]), { distribution: [V, D, S, K, K, K, K], rolePool: null });

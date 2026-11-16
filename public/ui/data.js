@@ -32,7 +32,13 @@ export const ROLES = {
   iftiraci: {
     name: 'İftiracı', team: 'vampir', teamName: 'Vampirler', color: '#b0408a',
     short: 'Masumlara iftira atar.',
-    desc: 'Vampirlerin gizli yardımcısısın: onları tanırsın, onlar da seni; gece onlarla yazışırsın ama öldürme seçimine katılmazsın. Her gece vampir olmayan birine iftira at: Kahin o gece ona bakarsa "Vampir" iki seçenekten biri olur. Son vampir düşerse sen vampire dönüşürsün.',
+    desc: 'Vampirlerin gizli yardımcısısın: onları tanırsın, onlar da seni; gece onlarla yazışırsın ama öldürme seçimine katılmazsın. Her gece vampir olmayan birine iftira at: Kahin o gece ona bakarsa "Vampir" iki seçenekten biri olur. İftiraya uğrayan kişi o gece ölürse ya da ertesi gün oyla elenirse köye "Vampir" olarak duyurulur; gerçek oyun sonunda ortaya çıkar. Son vampir düşerse sen vampire dönüşürsün.',
+    note: 'Sadece 7 ve üstü oyuncuda dağıtılır.',
+  },
+  temizlikci: {
+    name: 'Temizlikçi', team: 'vampir', teamName: 'Vampirler', color: '#7d4fb0',
+    short: 'Ölenin izlerini siler.',
+    desc: 'Vampirlerin gizli yardımcısısın: onları tanırsın, onlar da seni; gece onlarla yazışırsın ama öldürme seçimine katılmazsın. Her gece vampir olmayan birinin evine git: o kişi o gece ölürse rolü oyun sonuna kadar köyden gizlenir. Son vampir düşerse sen vampire dönüşürsün.',
     note: 'Sadece 7 ve üstü oyuncuda dağıtılır.',
   },
   doktor: {
@@ -93,18 +99,18 @@ export const ROLES = {
     desc: 'Gece uyursun. Gündüz tartış, şüphelendiğin kişiye oy ver ve vampirleri bul.',
   },
 };
-export const ROLE_LIST = ['vampir', 'iftiraci', 'doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz', 'koylu'];
+export const ROLE_LIST = ['vampir', 'iftiraci', 'temizlikci', 'doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz', 'koylu'];
 // Sunucunun özel rolleri ekleme sırası (PROTOCOL §3).
 export const SPECIAL_ORDER = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz'];
-export const TOGGLE_ROLES = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz', 'iftiraci'];
-export const DEFAULT_ROLES = { doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false, avci: false, muhtar: false, soytari: false, deli: false, hirsiz: false, iftiraci: false };
+export const TOGGLE_ROLES = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz', 'iftiraci', 'temizlikci'];
+export const DEFAULT_ROLES = { doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false, avci: false, muhtar: false, soytari: false, deli: false, hirsiz: false, iftiraci: false, temizlikci: false };
 export const MIN_PLAYERS = 5;
 export const MAX_PLAYERS = 20;
 export const FRAMER_MIN = 7;
 export const THIEF_MIN = 7;
 export const TEAM_NAME = { koylu: 'Köylüler', vampir: 'Vampirler', soytari: 'Soytarı', hirsiz: 'Tarafsız' };
 export const WIN_TITLE = { koylu: 'Köylüler kazandı!', vampir: 'Vampirler kazandı!', soytari: 'Soytarı kazandı!' };
-export const isEvil = (role) => role === 'vampir' || role === 'iftiraci';
+export const isEvil = (role) => role === 'vampir' || role === 'iftiraci' || role === 'temizlikci';
 
 export function vampireCount(n) {
   return n >= 15 ? 3 : n >= 10 ? 2 : 1;
@@ -118,7 +124,7 @@ export function distributionPlan(n, roles, mode = 'all') {
   if (mode === 'random') {
     const list = [];
     for (let i = 0; i < vampireCount(n); i++) list.push('vampir');
-    const maybe = roles.iftiraci && n >= FRAMER_MIN ? ['iftiraci'] : [];
+    const maybe = ['iftiraci', 'temizlikci'].filter((r) => roles[r] && n >= FRAMER_MIN);
     const plain = Math.max(1, Math.round(n * 0.2));
     const slots = Math.max(0, n - list.length - plain);
     const village = SPECIAL_ORDER.filter((r) => roles[r] && !(r === 'hirsiz' && n < THIEF_MIN));
@@ -131,7 +137,7 @@ export function distributionPlan(n, roles, mode = 'all') {
   const out = [];
   const v = vampireCount(n);
   for (let i = 0; i < v; i++) out.push('vampir');
-  if (roles.iftiraci && n >= FRAMER_MIN) out.push('iftiraci');
+  for (const h of ['iftiraci', 'temizlikci']) if (roles[h] && n >= FRAMER_MIN) out.push(h);
   const slots = Math.max(0, n - out.length - (n < 8 ? 1 : 0));
   const village = SPECIAL_ORDER.filter((r) => roles[r] && !(r === 'hirsiz' && n < THIEF_MIN));
   let pool = null;
@@ -191,7 +197,7 @@ export function checkPassword(raw) {
 
 // "Nasıl Oynanır" rol rehberi: ne yapar, ne zaman, sınırları, diğer rollerle, bir ipucu.
 export const ROLE_GROUPS = [
-  ['vampir', 'Vampir takımı', ['vampir', 'iftiraci']],
+  ['vampir', 'Vampir takımı', ['vampir', 'iftiraci', 'temizlikci']],
   ['koylu', 'Köy', ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'deli', 'koylu']],
   ['soytari', 'Tek başına', ['soytari', 'hirsiz']],
 ];
@@ -199,7 +205,7 @@ export const ROLE_GUIDE = {
   vampir: {
     what: 'Takımınla birlikte her gece bir kişiyi öldürmeye gidersin.',
     when: 'Gece, seçim bölümünde. İlk onaylayan vampirin seçimi takımın tek hedefi olur; diğer vampirler de oraya yürür.',
-    limits: 'Kendini, diğer vampirleri ve İftiracı\'yı seçemezsin. Seçim kesindir.',
+    limits: 'Kendini, diğer vampirleri, İftiracı\'yı ve Temizlikçi\'yi seçemezsin. Seçim kesindir.',
     with: 'Doktor korursa ya da Cadı hayat iksiri verirse kurban yaşar. Gardiyanın kilitlediği kapıdan geri dönersin. Gözcü o eve gelenleri görür. Kahin sana bakarsa "Vampir" iki seçenekten biri olur.',
     tip: 'Gündüz susmak da şüphe çeker: tartışmaya katıl, oyları başkasına yönlendir.',
   },
@@ -207,8 +213,15 @@ export const ROLE_GUIDE = {
     what: 'Vampirlerin gizli yardımcısısın. Her gece vampir olmayan birine iftira atarsın.',
     when: 'Gece, seçim bölümünde. Gece vampirlerle yazışabilirsin.',
     limits: 'Öldürme seçimine katılmazsın; kendine ve takım arkadaşına iftira atamazsın. Sadece 7 ve üstü oyuncuda dağıtılır.',
-    with: 'Kahin o gece iftira attığın kişiye bakarsa "Vampir" iki seçenekten biri olur. Son vampir ölürse sen vampire dönüşürsün.',
+    with: 'Kahin o gece iftira attığın kişiye bakarsa "Vampir" iki seçenekten biri olur. İftiraya uğrayan kişi o gece ölürse ya da ertesi gün oyla elenirse köye "Vampir" olarak duyurulur; gerçek oyun sonunda ortaya çıkar. Son vampir ölürse sen vampire dönüşürsün.',
     tip: 'Kahin olduğunu söyleyen birinin bakacağı kişiyi tahmin et ve ona iftira at.',
+  },
+  temizlikci: {
+    what: 'Vampirlerin gizli yardımcısısın. Her gece vampir olmayan birinin evine gidersin.',
+    when: 'Gece, seçim bölümünde. Gece vampirlerle yazışabilirsin; takımı ve takımın hedefini görürsün.',
+    limits: 'Öldürme seçimine katılmazsın; kendini ve takım arkadaşlarını seçemezsin. Sadece 7 ve üstü oyuncuda dağıtılır. Evine gittiğin kişi o gece ölmezse hiçbir şey olmaz.',
+    with: 'Gittiğin kişi o gece ölürse rolü oyun sonuna kadar açıklanmaz ("izler silinmiş"). Gözcü evine geldiğini görebilir; Gardiyanın kilitlediği kapıdan geri dönersin. Avcı yine de son atışını yapar ve rolü görünür. Kahin sana bakarsa Temizlikçi görünür. Son vampir ölürse sen vampire dönüşürsün.',
+    tip: 'Vampirlerin hedefini seç: böylece köy kimi kaybettiğini anlasa da rolünü bilemez.',
   },
   doktor: {
     what: 'Her gece bir kişiyi korursun; kendini de seçebilirsin.',
@@ -221,7 +234,7 @@ export const ROLE_GUIDE = {
     what: 'Her gece bir kişiye bakarsın ve iki rol öğrenirsin: biri onun gerçek rolü, öteki yanıltıcı. ("X şu ikisinden biri: A ya da B.")',
     when: 'Gece, seçim bölümünde seçersin; sonuç gece yaşanırken sadece sana gelir.',
     limits: 'Kendine bakamazsın. Aynı kişiye yine bakarsan aynı ikiliyi görürsün. O gece ölürsen ya da kilitli kapıdan dönersen sonuç gelmez.',
-    with: 'İftiracı o kişiye iftira attıysa "Vampir" seçeneklerden biri olur. Deli, kendini hangi rol sanıyorsa öyle görünür.',
+    with: 'İftiracı o kişiye iftira attıysa "Vampir" seçeneklerden biri olur. Deli, kendini hangi rol sanıyorsa öyle görünür. Masum biri çoğu zaman iki masum rolle görünür (yanıltıcı rol sadece yaklaşık yarı ihtimalle öbür taraftan gelir).',
     tip: 'İkilileri gündüz söylenenlerle karşılaştır: kendini Doktor diyen birinin ikilisinde Doktor yoksa yalan söylüyordur.',
   },
   gozcu: {

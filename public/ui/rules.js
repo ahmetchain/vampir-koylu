@@ -7,7 +7,7 @@
 (function () {
   'use strict';
 
-  var EVIL = { vampir: true, iftiraci: true };
+  var EVIL = { vampir: true, iftiraci: true, temizlikci: true };
 
   function trialVote(state) {
     var t = state.room.trial;
@@ -50,6 +50,7 @@
     switch (me.role) {
       case 'vampir': return !n.teamTarget && !isMe && !EVIL[p.role];
       case 'iftiraci': return !isMe && !EVIL[p.role];
+      case 'temizlikci': return !isMe && !EVIL[p.role];
       case 'doktor': return true;
       case 'gozcu': return true;
       case 'kahin': return !isMe;
