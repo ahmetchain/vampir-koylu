@@ -360,7 +360,7 @@ function setupWith(count, roles) {
 }
 
 test('özel roller sıraya göre eklenir ve en az bir köylü kalır', () => {
-  assert.deepEqual(rolesFor(5, [D, S, W, H, M, J]), [V, D, S, W, K]);
+  assert.deepEqual(rolesFor(5, [D, S, W]), [V, D, S, W, K]);
   assert.deepEqual(rolesFor(7, [S, J]), [V, S, J, K, K, K, K]);
   assert.equal(rolesFor(10, []).filter((r) => r === V).length, 2);
 });

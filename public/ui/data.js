@@ -110,19 +110,24 @@ export function vampireCount(n) {
   return n >= 15 ? 3 : n >= 10 ? 2 : 1;
 }
 
-// Sunucudaki dağıtımın aynısı: [vampirler, iftiracı?, özel roller..., köylüler].
-export function distribution(n, roles) {
+// Sunucudaki önizlemenin aynısı: { list: [vampirler, iftiracı?, kesin özel roller..., köylüler], pool }.
+// Özel roller sığmazsa pool = { pick, from } (hangilerinin çıkacağı oyunda rastgele belirlenir).
+export function distributionPlan(n, roles) {
   const out = [];
   const v = vampireCount(n);
   for (let i = 0; i < v; i++) out.push('vampir');
   if (roles.iftiraci && n >= FRAMER_MIN) out.push('iftiraci');
-  let room = n - out.length - 1;
-  for (const r of SPECIAL_ORDER) {
-    if (r === 'hirsiz' && n < THIEF_MIN) continue;
-    if (roles[r] && room > 0) { out.push(r); room--; }
-  }
-  while (out.length < n) out.push('koylu');
-  return out;
+  const slots = Math.max(0, n - out.length - (n < 8 ? 1 : 0));
+  const village = SPECIAL_ORDER.filter((r) => roles[r] && !(r === 'hirsiz' && n < THIEF_MIN));
+  let pool = null;
+  if (village.length <= slots) out.push(...village);
+  else if (slots > 0) pool = { pick: slots, from: village };
+  while (out.length < n - (pool ? pool.pick : 0)) out.push('koylu');
+  return { list: out, pool };
+}
+
+export function distribution(n, roles) {
+  return distributionPlan(n, roles).list;
 }
 
 export function countRoles(list) {

@@ -47,9 +47,11 @@ const pick = (obj, keys) => Object.fromEntries(keys.map((k) => [k, obj[k]]));
 test('iftiracı 7+ oyuncuda vampirlere ek verilir, özel roller yeni sırayla eklenir', () => {
   assert.deepEqual(rolesFor(7, [D, S, G, F]), [V, F, D, S, G, K, K]);
   assert.deepEqual(rolesFor(6, [D, F]), [V, D, K, K, K, K], '7 kişiden az: iftiracı yok');
-  assert.deepEqual(rolesFor(10, [D, S, G, W, H, M, J, F]), [V, V, F, D, S, G, W, H, M, K]);
-  assert.deepEqual(rolesFor(5, [D, S, G, W, H, M, J, F]), [V, D, S, G, K]);
-  assert.deepEqual(rolesFor(7, [D, S, G, W, H, M, J, F]), [V, F, D, S, G, W, K], 'en az bir köylü kalır');
+  assert.deepEqual(rolesFor(10, [D, S, G, W, H, M, J, F]), [V, V, F, D, S, G, W, H, M, J], '8+ kişide köylü ayrılmaz');
+  const r5 = rolesFor(5, [D, S, G, W, H, M, J, F]);
+  assert.equal(r5.length, 5);
+  assert.equal(r5.filter((r) => r === K).length >= 1, true, '8 kişiden az: en az bir köylü kalır');
+  assert.equal(r5.filter((r) => r === F).length, 0);
   assert.deepEqual(normalizeSettings({}).roles, {
     doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false, avci: false, muhtar: false, soytari: false,
     deli: false, hirsiz: false, iftiraci: false,
@@ -558,4 +560,39 @@ test('avcı evresinde timerFrom yoktur, süre değişmez', (t) => {
   assert.equal(room.timerFrom, null);
   assert.equal(room.deadline, Date.now() + 20000);
   room.destroy();
+});
+
+// ---------- rastgele rol seçimi (kapasite aşımı) ----------
+
+test('kapasite aşımı: roller oyun başına rastgele seçilir, kahin/gözcüden biri hep çıkar', () => {
+  const { distributionFor, rolePlan } = require('../game');
+  const all = [D, S, G, ROLE.JAILER, W, H, M, J, ROLE.MAD, ROLE.THIEF];
+  const seen = new Set();
+  let seed = 12345;
+  const rng = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return (seed >>> 8) % n; };
+  for (let i = 0; i < 400; i++) {
+    const list = rolesFor(7, all, rng);
+    assert.equal(list.length, 7);
+    assert.equal(list.filter((r) => r === V).length, 1);
+    assert.ok(list.includes(S) || list.includes(G), 'kahin veya gözcü');
+    list.forEach((r) => seen.add(r));
+  }
+  for (const r of all) assert.ok(seen.has(r), `${r} hiç çıkmadı`);
+  // yalnızca kahin açıksa ve yer varsa her zaman çıkar
+  for (let i = 0; i < 50; i++) assert.ok(rolesFor(5, [D, S, W, H, M, J], rng).includes(S));
+  // 8+ oyuncuda köylü ayrılmaz, 8'den azında ayrılır
+  assert.equal(rolesFor(8, [D, S, G, ROLE.JAILER, W, H, M, J], rng).filter((r) => r === K).length, 0);
+  assert.equal(rolesFor(7, [D, S, G, ROLE.JAILER, W, H, M, J], rng).filter((r) => r === K).length, 1);
+  // minimum oyuncu kuralları
+  assert.ok(!rolesFor(6, [D, ROLE.THIEF, F], rng).includes(ROLE.THIEF));
+  assert.ok(!rolesFor(6, [D, F], rng).includes(F));
+  assert.ok(rolesFor(7, [D, ROLE.THIEF, F], rng).includes(F));
+  // önizleme deterministik ve tutarlı
+  const a = distributionFor(7, all);
+  assert.deepEqual(a, distributionFor(7, all));
+  assert.deepEqual(a.rolePool, { pick: 5, from: all });
+  assert.deepEqual(a.distribution, [V, K]);
+  assert.equal(a.distribution.length + a.rolePool.pick, 7);
+  assert.deepEqual(distributionFor(7, [D, S]), { distribution: [V, D, S, K, K, K, K], rolePool: null });
+  assert.equal(rolePlan(5, [D, S, W, H, M]).pool.pick, 3);
 });

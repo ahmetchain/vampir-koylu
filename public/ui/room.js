@@ -8,7 +8,7 @@ import { ROLES, COLORS, inkOn, isEvil, WIN_TITLE, levelOf, countRoles, MIN_PLAYE
 import { W } from './world-host.js';
 import { openSheet, confirmBox, toast } from './kit.js';
 import { openLookEditor } from './look.js';
-import { openRoomSettings, distChips } from './roomform.js';
+import { openRoomSettings, distChips, poolNote } from './roomform.js';
 import { renderChatState, isDocked } from './chat.js';
 import { isAnnouncing } from './announce.js';
 import { openChronicle } from './chronicle.js';
@@ -691,7 +691,7 @@ function renderLobby(s) {
       <button type="button" class="iconbtn" data-l="min" aria-label="${lobbyMin ? 'Lobi kartını aç' : 'Lobi kartını küçült'}" style="width:36px;height:36px">${icon(lobbyMin ? 'plus' : 'minus')}</button>
     </div>
     <div class="lobby-full" style="display:grid;gap:10px">
-      ${total >= MIN_PLAYERS ? `<div class="dist" aria-label="Rol dağılımı">${distChips(room.distribution)}</div>` : ''}
+      ${total >= MIN_PLAYERS ? `<div class="dist" aria-label="Rol dağılımı">${distChips(room.distribution)}</div>${poolNote(room.rolePool)}` : ''}
       ${host ? (why || iftiraOff ? `<p class="lobby-why">${esc(why + iftiraOff)}</p>` : '') : `<p class="lobby-why">${esc(hostP ? hostP.name : 'Oda sahibi')} oyunu başlatınca roller dağıtılacak.${need > 0 ? ` En az ${room.minPlayers} oyuncu gerekli (şu an ${connected}).` : ''}</p>`}
       ${botNote}
       <div class="lobby-btns">
