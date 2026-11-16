@@ -515,3 +515,31 @@ candidate pool (`distribution` + `rolePool`, plus `rolePool.maybe` for İftirac�
 - Night HUD: pick stage = prompt + countdown (+ "Bu gece bekle" where passing makes sense);
   show stage = HUD steps back so the animation is visible; result cards after.
 - "Nasıl oynanır": each role explained properly (what, when, limits, interactions, a tip).
+
+## 16. Round 7: stronger evil team (approved by the owner on 2026-11-17)
+
+### 16.1 İftiracı upgrade (slander sticks)
+Besides the Kahin effect (unchanged), a framed player who **dies that same night** (any cause) or
+is **eliminated by the vote on the following day** is publicly revealed as **`vampir`** instead of
+their real role (where the room reveals roles); the lie holds until the game ends. Exceptions: an
+Avcı's last shot and a hanged Soytarı reveal the truth as today (their announces would contradict
+the lie); a victim whose role is hidden (Hırsız, Temizlikçi) stays hidden. The frame of night N
+lasts until the end of day N. Narration receives the fake role as the public role.
+
+### 16.2 Temizlikçi (`temizlikci`, evil team, optional, 7+ players)
+Night: picks a living non-evil player and goes there (a real trip: seen by a Gözcü, bounced by a
+lock; cancelled if the Temizlikçi is killed that night). If that player dies that night (any
+cause), their role is **not revealed** until the game ends ("Rolü bilinmiyor; izler silinmiş").
+Sees and is seen by the evil team (role, team target, vampire chat), counts as evil for parity, is
+shown to the Kahin as `temizlikci`. An Avcı's last shot still happens and reveals the Avcı.
+
+### 16.3 Evil helpers and dealing
+Helpers = İftiracı, Temizlikçi (each only with 7+ players). If no vampire is alive but a helper
+is, one helper is promoted to vampire (İftiracı first). Random mode: with 7+ players exactly one
+enabled helper is always dealt (chosen at random among the enabled ones); with 13+ players and
+both enabled, the second one is dealt with 50 % chance. `'all'` mode: every enabled helper.
+Lobby preview: `rolePool.maybe` lists helper candidates; the certain part states "1 yardımcı".
+
+### 16.4 Kahin decoy mix
+The decoy comes from the opposite alignment with probability 1/2 (was 2/3), so an innocent is
+shown with two innocent roles about half the time.
