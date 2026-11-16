@@ -23,6 +23,7 @@ const { BotBrain, botName } = require('./lib/bots');
 const ROLE = {
   VAMPIRE: 'vampir',
   FRAMER: 'iftiraci',
+  CLEANER: 'temizlikci',
   DOCTOR: 'doktor',
   SEER: 'kahin',
   WATCHER: 'gozcu',
@@ -39,11 +40,14 @@ const ROLE = {
 // Oda sahibinin açıp kapatabildiği köy/soytarı rolleri. Oyuncu sayısı yetmezse bu sıraya göre eklenir.
 const SPECIAL_ROLES = [ROLE.DOCTOR, ROLE.SEER, ROLE.WATCHER, ROLE.JAILER, ROLE.WITCH, ROLE.HUNTER, ROLE.MAYOR, ROLE.JESTER, ROLE.MAD, ROLE.THIEF];
 // Ayarlarda açılıp kapatılabilen tüm roller (iftiracı vampir takımından, özel rollerin yerini almaz).
-const OPTIONAL_ROLES = [...SPECIAL_ROLES, ROLE.FRAMER];
+// Kötü takımın yardımcıları (vampir değil, ama vampir takımından; 7+ oyuncuda). Dönüşme sırası da budur.
+const HELPER_ROLES = [ROLE.FRAMER, ROLE.CLEANER];
+const OPTIONAL_ROLES = [...SPECIAL_ROLES, ...HELPER_ROLES];
 
 const ROLE_LABEL = {
   [ROLE.VAMPIRE]: 'Vampir',
   [ROLE.FRAMER]: 'İftiracı',
+  [ROLE.CLEANER]: 'Temizlikçi',
   [ROLE.DOCTOR]: 'Doktor',
   [ROLE.SEER]: 'Kahin',
   [ROLE.WATCHER]: 'Gözcü',
@@ -60,6 +64,8 @@ const ROLE_LABEL = {
 const MIN_PLAYERS = 5;
 const MAX_PLAYERS = 20;
 const FRAMER_MIN_PLAYERS = 7;    // iftiracı ancak bu kadar oyuncu varsa dağıtılır
+const CLEANER_MIN_PLAYERS = 7;  // temizlikçi ancak bu kadar oyuncu varsa dağıtılır
+const SECOND_HELPER_MIN_PLAYERS = 13; // rastgele dağıtımda ikinci yardımcı ancak bu kadar oyuncuyla (%50)
 const THIEF_MIN_PLAYERS = 7;     // hırsız ancak bu kadar oyuncu varsa dağıtılır
 // Delinin kendini sandığı rol bunlardan biridir (odada açık olanlardan; hiçbiri açık değilse kahin).
 const MAD_FAKE_ROLES = ['doktor', 'kahin', 'gozcu', 'gardiyan'];
@@ -69,9 +75,10 @@ const HUNTER_MS = 20000;         // avcının son atışı süresi
 const NIGHT_WALK_MS = 4000;      // gece başında herkesin evine yürüme süresi; gece sayacı bundan sonra başlar
 const NIGHT_SHOW_MS = 14000;     // gecenin gösterim aşaması: çözülen gece herkese kendi gözünden oynatılır
 const NIGHT_RESULT_MS = 9000;    // gösterim başladıktan bu kadar sonra özel sonuç duyuruları gider
+const DECOY_OPPOSITE_SHARE = 1 / 2; // kahinin şaşırtmacası bu olasılıkla karşı taraftan (§16.4)
 const PICK_GRACE_MS = 1500;      // herkes seçtiyse/beklediyse seçim aşaması bu kadar sonra biter
 const RANDOM_VILLAGER_SHARE = 0.2; // rastgele dağıtımda sade köylü payı
-const RANDOM_FRAMER_CHANCE = 60;   // rastgele dağıtımda iftiracının çıkma olasılığı (%)
+const RANDOM_SECOND_HELPER_CHANCE = 50; // rastgele dağıtımda ikinci yardımcının çıkma olasılığı (%)
 const TRIAL_TURN_MS = 15000;     // mahkemede her sanığın savunma süresi
 const TRIAL_VOTE_MS = 20000;     // mahkemede iki sanık arasındaki yeniden oylama süresi
 const TRIAL_ALL_VOTED_MS = 3000; // herkes oy verince mahkeme oylaması bu kadar sonra sonuçlanır
@@ -122,13 +129,14 @@ const DEFAULT_ROLES = {
   [ROLE.MAD]: false,
   [ROLE.THIEF]: false,
   [ROLE.FRAMER]: false,
+  [ROLE.CLEANER]: false,
 };
 const EVENT_MODES = ['off', 'some', 'often'];
 const ROLE_MODES = ['random', 'all'];
 const DEFAULT_SETTINGS = { nightSec: 20, daySec: 120, revealRoles: true, events: 'off', roleMode: 'random', roles: DEFAULT_ROLES };
 
 // Gece seçimi olan roller ve tipide evden çıkamayan köy rolleri.
-const NIGHT_ACTION_ROLES = new Set([ROLE.VAMPIRE, ROLE.FRAMER, ROLE.DOCTOR, ROLE.SEER, ROLE.WATCHER, ROLE.WITCH, ROLE.THIEF]);
+const NIGHT_ACTION_ROLES = new Set([ROLE.VAMPIRE, ROLE.FRAMER, ROLE.CLEANER, ROLE.DOCTOR, ROLE.SEER, ROLE.WATCHER, ROLE.WITCH, ROLE.THIEF]);
 const FINAL_ERROR = 'Seçimini yaptın; gece seçimleri kesindir.';
 const SHOW_ERROR = 'Seçim süresi doldu; gece oynanıyor.';
 const PASSED_ERROR = 'Bu gece beklemeye karar verdin; seçim kesindir.';
@@ -189,7 +197,7 @@ function enabledSpecials(settings) {
 }
 
 function teamOf(role) {
-  if (role === ROLE.VAMPIRE || role === ROLE.FRAMER) return ROLE.VAMPIRE;
+  if (role === ROLE.VAMPIRE || HELPER_ROLES.includes(role)) return ROLE.VAMPIRE;
   if (role === ROLE.JESTER) return ROLE.JESTER;
   // Hırsız çalana kadar tarafsızdır (eşitlikte köy tarafı sayılmaz ama kazanamaz da).
   if (role === ROLE.THIEF) return ROLE.THIEF;
@@ -209,16 +217,21 @@ function vampireCount(playerCount) {
 
 const RESERVED_VILLAGER_BELOW = 8;   // bu sayının altında en az bir sade köylü ayrılır
 
-// Dağıtım planı: sabit roller ve rastgele kısmı. Özel roller sığıyorsa hepsi sabittir; sığmıyorsa
-// hangilerinin çıkacağı oyun başına rastgele seçilir (pool = { pick, from }).
+// Odada açık ve bu oyuncu sayısında dağıtılabilecek yardımcılar (iftiracı, temizlikçi; 7+), dönüşme sırasıyla.
+function enabledHelpers(count, specials) {
+  return HELPER_ROLES.filter((r) => specials.includes(r)
+    && count >= (r === ROLE.FRAMER ? FRAMER_MIN_PLAYERS : CLEANER_MIN_PLAYERS));
+}
+
+// Dağıtım planı ('all'): sabit roller ve rastgele kısmı. Açık yardımcıların hepsi verilir. Özel roller
+// sığıyorsa hepsi sabittir; sığmıyorsa hangilerinin çıkacağı oyun başına rastgele seçilir (pool = { pick, from }).
 function rolePlan(count, specials = [ROLE.DOCTOR]) {
   const vampires = vampireCount(count);
-  const framer = specials.includes(ROLE.FRAMER) && count >= FRAMER_MIN_PLAYERS ? 1 : 0;
+  const helpers = enabledHelpers(count, specials);
   const village = SPECIAL_ROLES.filter((r) => specials.includes(r)
     && !(r === ROLE.THIEF && count < THIEF_MIN_PLAYERS));
-  const slots = Math.max(0, count - vampires - framer - (count < RESERVED_VILLAGER_BELOW ? 1 : 0));
-  const base = Array(vampires).fill(ROLE.VAMPIRE);
-  if (framer) base.push(ROLE.FRAMER);
+  const slots = Math.max(0, count - vampires - helpers.length - (count < RESERVED_VILLAGER_BELOW ? 1 : 0));
+  const base = [...Array(vampires).fill(ROLE.VAMPIRE), ...helpers];
   if (village.length <= slots) return { base, fixed: village, pool: null, slots };
   return { base, fixed: [], pool: slots > 0 ? { pick: slots, from: village } : null, slots };
 }
@@ -240,29 +253,34 @@ function drawSpecials(village, slots, rng) {
   return SPECIAL_ROLES.filter((r) => picked.includes(r));
 }
 
-// Rastgele dağıtım ('random') planı: vampirler oyuncu sayısına göre, iftiracı (açık ve 7+) %60,
-// sade köylü = max(1, round(oyuncu × 0.2)), kalan yerler açık köy özel rollerinden rastgele.
+// Rastgele dağıtım ('random') planı: vampirler oyuncu sayısına göre; 7+ oyuncuda açık yardımcılardan
+// tam bir tanesi (rastgele), 13+ oyuncuda ikisi de açıksa ikincisi %50; sade köylü =
+// max(1, round(oyuncu × 0.2)); kalan yerler açık köy özel rollerinden rastgele.
 function randomPlan(count, specials) {
   const vampires = vampireCount(count);
-  const framerPossible = specials.includes(ROLE.FRAMER) && count >= FRAMER_MIN_PLAYERS;
+  const helpers = enabledHelpers(count, specials);
+  const minHelpers = helpers.length ? 1 : 0;
+  const maxHelpers = helpers.length >= 2 && count >= SECOND_HELPER_MIN_PLAYERS ? 2 : minHelpers;
   const villagers = Math.max(1, Math.round(count * RANDOM_VILLAGER_SHARE));
   const village = SPECIAL_ROLES.filter((r) => specials.includes(r)
     && !(r === ROLE.THIEF && count < THIEF_MIN_PLAYERS));
-  const slotsNoF = Math.max(0, count - vampires - villagers);
-  return { vampires, framerPossible, villagers, village, slotsNoF, slotsWithF: Math.max(0, slotsNoF - 1) };
+  const slotsFor = (h) => Math.max(0, count - vampires - villagers - h);
+  return { vampires, helpers, minHelpers, maxHelpers, villagers, village, slotsFor };
 }
 
 // Oyuncu sayısına göre dağıtılacak roller.
-// 'all': iftiracı açıksa ve en az 7 kişi varsa vampirlere ek olarak bir iftiracı verilir; 8'den az
-// kişide bir sade köylü ayrılır; özel roller sığmazsa rastgele seçilir (kahin/gözcüden biri kesin).
-// 'random': bkz. randomPlan.
+// 'all': açık yardımcıların hepsi (7+) vampirlere ek olarak verilir; 8'den az kişide bir sade köylü
+// ayrılır; özel roller sığmazsa rastgele seçilir (kahin/gözcüden biri kesin). 'random': bkz. randomPlan.
 function rolesFor(count, specials = [ROLE.DOCTOR], rng = crypto.randomInt, mode = 'all') {
   if (mode === 'random') {
     const plan = randomPlan(count, specials);
-    const framer = plan.framerPossible && rng(100) < RANDOM_FRAMER_CHANCE;
+    const pool = [...plan.helpers];
+    const helpers = [];
+    if (plan.minHelpers) helpers.push(pool.splice(rng(pool.length), 1)[0]);
+    if (plan.maxHelpers > helpers.length && pool.length && rng(100) < RANDOM_SECOND_HELPER_CHANCE) helpers.push(pool[0]);
     const list = Array(plan.vampires).fill(ROLE.VAMPIRE);
-    if (framer) list.push(ROLE.FRAMER);
-    list.push(...drawSpecials(plan.village, framer ? plan.slotsWithF : plan.slotsNoF, rng));
+    list.push(...HELPER_ROLES.filter((r) => helpers.includes(r)));
+    list.push(...drawSpecials(plan.village, plan.slotsFor(helpers.length), rng));
     while (list.length < count) list.push(ROLE.VILLAGER);
     return list.slice(0, count);
   }
@@ -274,33 +292,41 @@ function rolesFor(count, specials = [ROLE.DOCTOR], rng = crypto.randomInt, mode 
 }
 
 // Lobi önizlemesi: deterministik, oyunun gerçek çekilişini asla göstermez.
-// distribution = her çekilişte kesin dağıtılan roller; rolePool = geri kalan `pick` yer için adaylar
-// (`from`: çıkabilecek özel roller, `maybe`: belki çıkacak iftiracı; dolmayan yer köylü olur).
+// distribution = her çekilişte kesin dağıtılan roller; rolePool = geri kalan `pick` yer:
+// `helpers` yer kesin yardımcı (hangisi olduğu `maybe` adaylarından rastgele), `helpersMax − helpers`
+// yer belki yardımcı (%50), `from`'dan çıkabilecek özel roller; dolmayan yer köylü olur.
 function distributionFor(count, specials = [ROLE.DOCTOR], mode = 'all') {
   if (mode === 'random') {
-    const { vampires, framerPossible, villagers, village, slotsNoF, slotsWithF } = randomPlan(count, specials);
-    const minSlots = framerPossible ? slotsWithF : slotsNoF;
+    const { vampires, helpers, minHelpers, maxHelpers, villagers, village, slotsFor } = randomPlan(count, specials);
+    const minSlots = slotsFor(maxHelpers);
     let sure;
     if (village.length <= minSlots) sure = village;
     else {
       const must = village.filter((r) => r === ROLE.SEER || r === ROLE.WATCHER);
       sure = must.length === 1 && minSlots >= 1 ? must : [];
     }
+    // Tek aday ve hep çıkıyorsa yardımcı kesindir.
+    const sureHelpers = helpers.length === 1 && minHelpers === 1 ? helpers : [];
     const koylu = villagers + (village.length <= minSlots ? minSlots - village.length : 0);
-    const list = [...Array(vampires).fill(ROLE.VAMPIRE), ...sure, ...Array(koylu).fill(ROLE.VILLAGER)].slice(0, count);
+    const list = [...Array(vampires).fill(ROLE.VAMPIRE), ...sureHelpers, ...sure, ...Array(koylu).fill(ROLE.VILLAGER)].slice(0, count);
     const open = count - list.length;
+    const openHelpers = sureHelpers.length ? [] : helpers;
     return {
       distribution: list,
-      rolePool: open > 0
-        ? { pick: open, from: village.filter((r) => !sure.includes(r)), maybe: framerPossible ? [ROLE.FRAMER] : [] }
-        : null,
+      rolePool: open > 0 ? {
+        pick: open,
+        from: village.filter((r) => !sure.includes(r)),
+        maybe: openHelpers,
+        helpers: openHelpers.length ? minHelpers : 0,
+        helpersMax: openHelpers.length ? maxHelpers : 0,
+      } : null,
     };
   }
   const { base, fixed, pool } = rolePlan(count, specials);
   const list = [...base, ...fixed];
   const target = count - (pool ? pool.pick : 0);
   while (list.length < target) list.push(ROLE.VILLAGER);
-  return { distribution: list, rolePool: pool ? { ...pool, maybe: [] } : null };
+  return { distribution: list, rolePool: pool ? { ...pool, maybe: [], helpers: 0, helpersMax: 0 } : null };
 }
 
 // Kahinin şaşırtmaca rolü için: bu oyunda bulunabilecek roller (köylü ve vampir dahil, deli hariç –
@@ -309,7 +335,8 @@ function possibleRoles(count, settings) {
   const out = [ROLE.VAMPIRE, ROLE.VILLAGER];
   for (const r of OPTIONAL_ROLES) {
     if (!settings.roles[r] || r === ROLE.MAD) continue;
-    if ((r === ROLE.FRAMER && count < FRAMER_MIN_PLAYERS) || (r === ROLE.THIEF && count < THIEF_MIN_PLAYERS)) continue;
+    if ((r === ROLE.FRAMER && count < FRAMER_MIN_PLAYERS) || (r === ROLE.CLEANER && count < CLEANER_MIN_PLAYERS)
+      || (r === ROLE.THIEF && count < THIEF_MIN_PLAYERS)) continue;
     out.push(r);
   }
   return out;
@@ -382,7 +409,7 @@ function describeRoles(list) {
   const counts = {};
   for (const r of list) counts[r] = (counts[r] || 0) + 1;
   const parts = [];
-  for (const r of [ROLE.VAMPIRE, ROLE.FRAMER, ...SPECIAL_ROLES, ROLE.VILLAGER]) {
+  for (const r of [ROLE.VAMPIRE, ...HELPER_ROLES, ...SPECIAL_ROLES, ROLE.VILLAGER]) {
     if (!counts[r]) continue;
     parts.push(counts[r] > 1 || r === ROLE.VAMPIRE || r === ROLE.VILLAGER
       ? `${counts[r]} ${ROLE_LABEL[r].toLocaleLowerCase('tr')}`
@@ -422,6 +449,7 @@ class Room {
   }
 
   resetGame() {
+    this.frameMark = null;       // { targetId, round }: gece N iftirası (gün N sonuna kadar)
     this.round = 0;
     this.deadline = null;
     this.timerFrom = null;
@@ -460,7 +488,10 @@ class Room {
       p.job = null;
       p.fakeRole = null;
       p.stolen = null;
-      p.roleHidden = false;
+      p.roleHidden = false;   // false | 'hirsiz' (soyuldu) | 'temizlikci' (izler silindi): oyun sonuna kadar gizli
+      p.shownRole = null;     // iftira tuttuysa herkese görünen sahte rol ('vampir'); oyun sonunda gerçek açılır
+      p.framedReveal = false;
+      p.cleaned = false;
       if (p.ghostPos) p.pos = p.ghostPos;
       p.ghostPos = null;
     }
@@ -526,7 +557,31 @@ class Room {
 
   // Rol sadece oda rolleri açıklıyorsa motora verilir.
   roleIfPublic(p) {
-    return p && this.settings.revealRoles && !p.roleHidden ? p.role : null;
+    return p && this.settings.revealRoles && !p.roleHidden ? this.publicRoleOf(p) : null;
+  }
+
+  // Herkese açıklanan rol: iftira tuttuysa 'vampir', yoksa gerçek rol. Kurallar hep gerçek rolü kullanır.
+  publicRoleOf(p) {
+    return p.shownRole || p.role;
+  }
+
+  // İftira (§16.1): gece N'nin iftirası, o gece (her sebeple) ölen ya da gün N'de oyla elenen kişiyi
+  // herkese 'vampir' gösterir (oda rolleri açıklıyorsa). İstisnalar: avcı (son atışı gerçeği söyler),
+  // asılan soytarı, rolü gizli kalan (soyulan/temizlenen) ölü.
+  applySlander(p) {
+    const f = this.frameMark;
+    if (!this.settings.revealRoles || !f || f.targetId !== p.id || f.round !== this.round) return;
+    if (p.roleHidden || [ROLE.HUNTER, ROLE.JESTER, ROLE.VAMPIRE].includes(p.role)) return;
+    p.shownRole = ROLE.VAMPIRE;
+    p.framedReveal = true;
+  }
+
+  // Ölünün rol eki (' Rolü: X.' / gizli metinler / '').
+  deathRoleText(p) {
+    if (!this.settings.revealRoles) return '';
+    if (p.roleHidden === 'temizlikci') return ' Rolü bilinmiyor; izler silinmiş.';
+    if (p.roleHidden) return ' Rolü bilinmiyor; çalındı.';
+    return ` Rolü: ${ROLE_LABEL[this.publicRoleOf(p)]}.`;
   }
 
   get inGame() {
@@ -859,6 +914,7 @@ class Room {
     this.nightSeer = null;
     this.nightWatch = null;
     this.nightFrame = null;
+    this.nightClean = null;      // temizlikçinin bu geceki hedefi
     this.nightWitch = { heal: null, poison: null };
     this.nightLock = null;       // bu gece kilitli kapı { targetId, by }
     this.nightSteal = null;      // hırsızın bu geceki hedefi { by, targetId }
@@ -995,6 +1051,7 @@ class Room {
   startNight() {
     this.round += 1;
     this.resetNight();
+    this.frameMark = null;       // gece N'nin iftirası gün N'nin sonuna kadar geçerlidir
     this.trial = null;
 
     // Gardiyanın gündüz seçtiği kilit gece başında uygulanır (gardiyan o an hayattaysa).
@@ -1078,6 +1135,7 @@ class Room {
     switch (role) {
       case ROLE.VAMPIRE: return !this.teamTargetActive();
       case ROLE.FRAMER: return !this.nightFrame;
+      case ROLE.CLEANER: return !this.nightClean;
       case ROLE.DOCTOR:
       case ROLE.SEER:
       case ROLE.WATCHER: return !this.pickOf(p, role);
@@ -1110,6 +1168,7 @@ class Room {
         if (targetId === byId) return 'Vampir kendini seçemez.';
         if (target.role === ROLE.VAMPIRE) return 'Diğer vampirleri seçemezsin.';
         if (target.role === ROLE.FRAMER) return 'İftiracı sizin takımınızda, onu seçemezsin.';
+        if (target.role === ROLE.CLEANER) return 'Temizlikçi sizin takımınızda, onu seçemezsin.';
         if (this.teamTargetActive()) {
           const t = this.players.get(this.teamTarget.targetId);
           return `Takımın hedefi zaten belli: ${t ? t.name : 'seçildi'}. Gece seçimleri kesindir.`;
@@ -1127,6 +1186,14 @@ class Room {
         if (this.nightFrame) return FINAL_ERROR;
         this.nightFrame = targetId;
         this.addTrip(byId, targetId, 'frame');
+        break;
+      // Temizlikçi: yaşayan, kötü takımdan olmayan birinin evine gider; o kişi bu gece ölürse rolü gizli kalır.
+      case ROLE.CLEANER:
+        if (targetId === byId) return 'Kendi izini silemezsin.';
+        if (isEvil(target.role)) return 'Takım arkadaşının izini silemezsin.';
+        if (this.nightClean) return FINAL_ERROR;
+        this.nightClean = targetId;
+        this.addTrip(byId, targetId, 'clean');
         break;
       case ROLE.DOCTOR:
         if (this.pickOf(p, role)) return FINAL_ERROR;
@@ -1411,6 +1478,9 @@ class Room {
         case 'frame':
           if (a.role !== ROLE.FRAMER || this.nightFrame !== t.to || dying(a.id)) continue;
           break;
+        case 'clean':
+          if (a.role !== ROLE.CLEANER || this.nightClean !== t.to || dying(a.id)) continue;
+          break;
         default:   // inspect, watch (gerçek ya da deli)
           if (dying(a.id)) continue;
       }
@@ -1461,7 +1531,11 @@ class Room {
 
     this.nightRes = {
       dark, dies, home, saved, trips, steal, seer: seerRes, watch: watchRes, lock: lockRes, rattled, mad, sent: false,
+      // İftira (bu gece ve ertesi gün geçerli; §16.1) ve temizlik (bu gece ölürse rol gizli; §16.2).
+      framedId: frame ? frame.to : null,
+      cleanedId: (trips.find((t) => t.kind === 'clean' && t.outcome === 'done') || {}).to || null,
     };
+    this.frameMark = frame ? { targetId: frame.to, round: this.round } : null;
   }
 
   // Gösterimin 9. saniyesinde: özel sonuç duyuruları (ve notlar). Bu gece ölenler yalnızca 'killed' alır.
@@ -1575,9 +1649,12 @@ class Room {
       const victim = this.players.get(id);
       victim.alive = false;
       // Soyulup öldürülenin rolü hırsızdadır; oyun bitene kadar kimseye açıklanmaz.
-      if (cause === 'hirsiz') victim.roleHidden = true;
-      const role = !this.settings.revealRoles ? ''
-        : (victim.roleHidden ? ' Rolü bilinmiyor; çalındı.' : ` Rolü: ${ROLE_LABEL[victim.role]}.`);
+      // Temizlikçinin gittiği ev: ölen kim olursa olsun rolü oyun sonuna kadar gizli (izler silinmiş).
+      if (cause === 'hirsiz') victim.roleHidden = 'hirsiz';
+      else if (res.cleanedId === id) victim.roleHidden = 'temizlikci';
+      if (res.cleanedId === id) victim.cleaned = true;
+      this.applySlander(victim);
+      const role = this.deathRoleText(victim);
       this.addLog(`${this.round}. gece ${victim.name} ${HOW[cause]}.${role}`, 'death');
       return `${victim.name} bu gece ${HOW[cause]}!${role}`;
     });
@@ -1585,7 +1662,8 @@ class Room {
     const dawn = this.narrate('dawn', {
       round: this.round,
       deaths: deaths.map(({ id, cause }) => ({ id, cause, role: this.roleIfPublic(this.players.get(id)),
-        hidden: this.settings.revealRoles && Boolean(this.players.get(id).roleHidden) })),
+        hidden: this.settings.revealRoles && this.players.get(id).roleHidden
+          ? (this.players.get(id).roleHidden === 'temizlikci' ? 'temizlikci' : true) : false })),
     }, deaths.length ? { title: 'Sabah oldu', text: texts.join(' ') } : { title: 'Sabah oldu', text: 'Bu gece kimse ölmedi.' });
     if (deaths.length) {
       const sceneOf = Array.isArray(dawn.targets) ? dawn.targets : [];
@@ -1630,7 +1708,7 @@ class Room {
       if (mine.length > 1) out.trips = mine.map(fmt);
     }
     if (isEvil(me.role)) {
-      const team = res.trips.filter((t) => t.actorId !== me.id && (t.kind === 'kill' || t.kind === 'frame')
+      const team = res.trips.filter((t) => t.actorId !== me.id && ['kill', 'frame', 'clean'].includes(t.kind)
         && isEvil(this.players.get(t.actorId).role)).map((t) => ({ id: t.actorId, to: t.to, kind: t.kind, outcome: t.outcome }));
       if (team.length) out.team = team;
     }
@@ -1686,7 +1764,7 @@ class Room {
     const opposite = pool.filter((r) => isEvil(r) !== isEvil(real));
     const same = pool.filter((r) => isEvil(r) === isEvil(real));
     const rng = this.seerRng;
-    let from = rng() < 2 / 3 ? opposite : same;
+    let from = rng() < DECOY_OPPOSITE_SHARE ? opposite : same;
     if (!from.length) from = from === opposite ? same : opposite;
     if (!from.length) return real === ROLE.VILLAGER ? ROLE.VAMPIRE : ROLE.VILLAGER;
     return from[Math.min(from.length - 1, Math.floor(rng() * from.length))];
@@ -1775,7 +1853,7 @@ class Room {
   textHasRoles(text, ids) {
     if (!this.settings.revealRoles) return true;
     return ids.every((id) => this.players.get(id).roleHidden
-      || text.includes(`Rolü: ${ROLE_LABEL[this.players.get(id).role]}.`));
+      || text.includes(`Rolü: ${ROLE_LABEL[this.publicRoleOf(this.players.get(id))]}.`));
   }
 
   // Hiç vampir kalmadıysa yaşayan iftiracı hemen vampire dönüşür; oyun iki yönde de bitebilsin.
@@ -1783,24 +1861,26 @@ class Room {
     if (!this.inGame) return false;
     const alive = [...this.players.values()].filter((p) => p.alive);
     if (alive.some((p) => p.role === ROLE.VAMPIRE)) return false;
-    const framers = alive.filter((p) => p.role === ROLE.FRAMER);
-    for (const f of framers) {
-      f.role = ROLE.VAMPIRE;
-      f.promoted = true;
-      this.nightFrame = null;
-      const text = 'Son vampir de düştü. Artık sen bir vampirsin: geceleri kurbanını sen seçeceksin!';
-      f.notes.push({ text: `🧛 ${this.round}. tur: Vampire dönüştün.`, ts: Date.now() });
-      this.announce('promote', 'Vampire dönüştün!', text, { targets: [{ id: f.id }] }, [f.id]);
-    }
-    if (framers.length) this.changed();
-    return framers.length > 0;
+    // Yaşayan yardımcılardan biri vampire dönüşür (önce iftiracı, sonra temizlikçi); diğeri yardımcı kalır.
+    let f = null;
+    for (const r of HELPER_ROLES) f = f || alive.find((p) => p.role === r) || null;
+    if (!f) return false;
+    if (f.role === ROLE.FRAMER) this.nightFrame = null;
+    else this.nightClean = null;
+    f.role = ROLE.VAMPIRE;
+    f.promoted = true;
+    const text = 'Son vampir de düştü. Artık sen bir vampirsin: geceleri kurbanını sen seçeceksin!';
+    f.notes.push({ text: `🧛 ${this.round}. tur: Vampire dönüştün.`, ts: Date.now() });
+    this.announce('promote', 'Vampire dönüştün!', text, { targets: [{ id: f.id }] }, [f.id]);
+    this.changed();
+    return true;
   }
 
   // Ölenler arasında avcı varsa önce son atışını yapar, sonra kazanan kontrol edilir.
   afterDeaths(deadIds, next) {
     this.promoteFramer();
     const hunter = deadIds.map((id) => this.players.get(id))
-      .find((p) => p && p.role === ROLE.HUNTER && !p.left && !p.roleHidden);
+      .find((p) => p && p.role === ROLE.HUNTER && !p.left && p.roleHidden !== 'hirsiz');
     const winner = winnerOf([...this.players.values()]);
     if (hunter && winner !== ROLE.VILLAGER) {
       this.startHunter(hunter, next);
@@ -1812,6 +1892,8 @@ class Room {
   startHunter(hunter, next) {
     this.hunterId = hunter.id;
     this.hunterNext = next;
+    // Temizlenen avcı: son atışı yine olur ve avcı olduğu açıklanır.
+    if (hunter.roleHidden === 'temizlikci') hunter.roleHidden = false;
     this.setPhase('hunter', HUNTER_MS, () => this.resolveHunter(null));
     this.addLog(`${hunter.name} bir avcıydı! Son atışını yapıyor.`, 'info');
     const n = this.narrate('hunter', { id: hunter.id },
@@ -2107,11 +2189,12 @@ class Room {
   hang(hanged, max, ballots, flags = {}) {
     hanged.alive = false;
     hanged.hanged = true;   // iç bilgi: meydan kararıyla elendi (asılan soytarının rolü herkese açıktır)
+    this.applySlander(hanged);
     const isPublic = this.settings.revealRoles || hanged.role === ROLE.JESTER;
-    const role = isPublic ? ` Rolü: ${ROLE_LABEL[hanged.role]}.` : '';
+    const role = isPublic ? ` Rolü: ${ROLE_LABEL[this.publicRoleOf(hanged)]}.` : '';
     // Sahne (darağacı / sürgün / mahzen) motordan gelir; metin ve günlük satırı sahneye uyar.
     const n = this.narrate('hanged', {
-      round: this.round, id: hanged.id, votes: max, role: isPublic ? hanged.role : null, ballots, ...flags,
+      round: this.round, id: hanged.id, votes: max, role: isPublic ? this.publicRoleOf(hanged) : null, ballots, ...flags,
     }, { title: 'Köy kararını verdi', text: `${hanged.name} ${max} oyla asıldı!${role}`, scene: 'gallows' });
     const scene = pickScene(n.scene, SCENES.hanged, 'gallows');
     const okText = n.scene === scene && (!isPublic || n.text.includes(role.trim()));
@@ -2343,12 +2426,15 @@ class Room {
       if (ended) role = p.role;
       else if (p.id === viewerId) role = p.role === ROLE.MAD && !this.madRevealed(p) ? p.fakeRole : p.role;
       else if (iAmEvil && isEvil(p.role)) role = p.role;
-      else if (!p.alive && this.settings.revealRoles && !p.roleHidden) role = p.role;
+      else if (!p.alive && this.settings.revealRoles && !p.roleHidden) role = this.publicRoleOf(p);
       return {
         id: p.id, name: p.name, seat: p.seat, job: p.job || null, alive: p.alive, connected: p.connected,
         left: p.left, isHost: p.id === this.hostId, bot: Boolean(p.bot), role,
         // Delinin kendini sandığı rol: sadece gerçek rolü (deli) bu izleyiciye açıkken gönderilir.
         fakeRole: role === ROLE.MAD ? p.fakeRole : null,
+        // Oyun sonunda: iftira yüzünden 'vampir' açıklanmıştı / izleri silinmişti (sadece 'ended').
+        framed: ended && Boolean(p.framedReveal),
+        cleaned: ended && Boolean(p.cleaned),
         // Hayaletin konumu sadece ölülere (oyun sonunda zaten pos'a yazılır).
         look: p.look, pos: p.ghostPos && viewerDead ? p.ghostPos : p.pos,
       };
@@ -2431,7 +2517,7 @@ class Room {
   nightViewFor(me) {
     const show = this.showFor(me);
     const base = {
-      mySelection: null, team: [], framer: null, teamTarget: null,
+      mySelection: null, team: [], framer: null, cleaner: null, teamTarget: null,
       locked: this.isLockedIn(me.id),
       canAct: this.canActAtNight(me.id),
       passed: this.nightPassed.has(me.id),
@@ -2442,19 +2528,21 @@ class Room {
     const mad = me.role === ROLE.MAD;
     switch (role) {
       case ROLE.VAMPIRE:
-      case ROLE.FRAMER: {
+      case ROLE.FRAMER:
+      case ROLE.CLEANER: {
         const active = this.teamTargetActive();
         const target = active ? this.teamTarget.targetId : null;
         const went = new Set(this.trips.filter((t) => t.kind === 'kill').map((t) => t.actorId));
         const setter = active ? this.players.get(this.teamTarget.by) : null;
         return {
           ...base,
-          mySelection: me.role === ROLE.VAMPIRE ? target : this.nightFrame,
+          mySelection: { [ROLE.VAMPIRE]: target, [ROLE.FRAMER]: this.nightFrame, [ROLE.CLEANER]: this.nightClean }[me.role] || null,
           team: [...this.players.values()].filter((p) => p.alive && p.role === ROLE.VAMPIRE).map((p) => ({
             vampId: p.id, name: p.name, targetId: went.has(p.id) ? target : null,
           })),
           teamTarget: active ? { targetId: target, by: setter.id, byName: setter.name } : null,
           framer: this.nightFrame,
+          cleaner: this.nightClean,
         };
       }
       case ROLE.DOCTOR:
@@ -2489,6 +2577,6 @@ module.exports = {
   HOST_GRACE_MS, REVEAL_MS, ALL_VOTED_MS, HUNTER_MS, NIGHT_WALK_MS, NIGHT_SHOW_MS, NIGHT_RESULT_MS, PICK_GRACE_MS, ROLE_MODES, TRIAL_TURN_MS, TRIAL_VOTE_MS, TRIAL_ALL_VOTED_MS,
   EVENTS, EVENT_MODES, EVENT_GAP, EVENT_CHANCE, chooseEvent, LOBBY_GRACE_MS, EMPTY_ROOM_MS,
   LOG_MAX, SCENES,
-  THIEF_MIN_PLAYERS, MAD_FAKE_ROLES,
+  THIEF_MIN_PLAYERS, MAD_FAKE_ROLES, HELPER_ROLES, CLEANER_MIN_PLAYERS, SECOND_HELPER_MIN_PLAYERS, DECOY_OPPOSITE_SHARE,
   vampireCount, assignRoles, rolesFor, rolePlan, distributionFor, possibleRoles, winnerOf, tally, normalizeSettings, teamOf, isEvil, clampToPlaza,
 };

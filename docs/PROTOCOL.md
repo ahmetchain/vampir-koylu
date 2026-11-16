@@ -35,7 +35,8 @@ connection · 7 Client → server events · 8 Server → client events · 9 The 
 |---|---|---|
 | `MIN_PLAYERS` | 5 | connected players needed for `game:start` |
 | `MAX_PLAYERS` | 20 | seats per room |
-| `FRAMER_MIN_PLAYERS` | 7 | İftiracı is only dealt with at least this many players |
+| `FRAMER_MIN_PLAYERS`, `CLEANER_MIN_PLAYERS` | 7, 7 | the helpers İftiracı and Temizlikçi are only dealt with at least this many players |
+| `SECOND_HELPER_MIN_PLAYERS` | 13 | random dealing: with both helpers enabled and this many players the second helper is dealt with 50 % chance |
 | `THIEF_MIN_PLAYERS` | 7 | Hırsız is only dealt with at least this many players |
 | vampire count | 1 for 5–9 players, 2 for 10–14, 3 for 15–20 | (`room.vampireCount`) |
 | `REVEAL_MS` | 8000 | role-card phase before night 1 |
@@ -74,7 +75,8 @@ connection · 7 Client → server events · 8 Server → client events · 9 The 
 | id | label (`ROLE_LABEL`) | team (`teamOf`) | night action | dealt when |
 |---|---|---|---|---|
 | `vampir` | Vampir | `vampir` | the team's **one** kill target: the first vampire to confirm sets it, every vampire goes there (not self, not another vampire, not İftiracı) | always (1–3, see §2) |
-| `iftiraci` | İftiracı | `vampir` | frame a living non-evil player (not self) | setting on **and** ≥ 7 players; exactly 1, in addition to the vampires |
+| `iftiraci` | İftiracı | `vampir` (helper) | frame a living non-evil player (not self): the Kahin sees `vampir` in the pair that night, and if the framed player dies that night or is voted out the next day they are publicly revealed as `vampir` (§12.12) | setting on **and** ≥ 7 players (§3 dealing) |
+| `temizlikci` | Temizlikçi | `vampir` (helper) | visit a living non-evil player (not self): if that player dies this night (any cause) their role stays hidden until the game ends (§12.13) | setting on **and** ≥ 7 players (§3 dealing) |
 | `doktor` | Doktor | `koylu` | protect any living player (self allowed) | setting (default on) |
 | `kahin` | Kahin | `koylu` | inspect a living player (not self); learns **two roles, one of them real** (detective, §12.11) | setting (default on) |
 | `gozcu` | Gözcü | `koylu` | watch any living player's house; sees arrivals in the show stage and the report (§12.6) | setting (default off) |
@@ -89,26 +91,26 @@ connection · 7 Client → server events · 8 Server → client events · 9 The 
 
 Every night choice is **final** once accepted (no change, no clearing).
 
-"Evil" / vampire team = `vampir` + `iftiraci`.
+"Evil" / vampire team = `vampir` + the **helpers** `iftiraci` and `temizlikci` (they see each other's roles, share the vampire chat and the team target view, count as evil for parity).
 
-Dealing depends on `settings.roleMode` (§4). In both modes Hırsız and İftiracı need ≥ 7 players, and if kahin and/or
+Dealing depends on `settings.roleMode` (§4). In both modes Hırsız, İftiracı and Temizlikçi need ≥ 7 players, and if kahin and/or
 gözcü are enabled and specials are drawn at random, at least one of them is always dealt.
 
-- **`'random'` (default)**: vampires by player count (§2); İftiracı (if enabled, 7+ players) is dealt with **60 %** chance;
+- **`'random'` (default)**: vampires by player count (§2); with 7+ players **exactly one enabled helper** is dealt (chosen at random among the enabled ones); with 13+ players and both helpers enabled the second one is dealt with **50 %** chance;
   plain köylü = `max(1, round(players × 0.2))`; every remaining slot is filled by a random draw from the enabled village
   specials (doktor … hirsiz; all of them if they fit); slots still left are köylü.
-- **`'all'`** (the previous rule): `[vampires..., iftiraci?, specials..., koylu...]`; İftiracı always when enabled and 7+;
-  slots for village specials = players − vampires − iftiracı − (1 reserved plain `koylu` if players < 8); if the enabled
+- **`'all'`** (the previous rule): `[vampires..., helpers..., specials..., koylu...]`; every enabled helper when 7+;
+  slots for village specials = players − vampires − helpers − (1 reserved plain `koylu` if players < 8); if the enabled
   specials fit, all are dealt, otherwise the dealt ones are chosen at random per game.
 
 Lobby preview (`room.distribution` + `room.rolePool`, §9) is deterministic and never reveals a game's draw: `distribution`
-lists the roles that are dealt in **every** draw; the remaining `rolePool.pick` slots are filled from `rolePool.from`
-(specials that may or may not be dealt), `rolePool.maybe` (İftiracı in random mode: 60 %) and köylü.
+lists the roles that are dealt in **every** draw (a helper is listed there only when it is the single enabled helper); the remaining `rolePool.pick` slots are:
+`rolePool.helpers` slots that are certainly a helper, one of `rolePool.maybe` (lobby text: "1 yardımcı: İftiracı ya da Temizlikçi"), up to `rolePool.helpersMax − rolePool.helpers` more helpers that may be dealt (50 %, the other candidate), specials from `rolePool.from` (may or may not be dealt), and köylü for the rest. `maybe` is `[]` and `helpers`/`helpersMax` are 0 when no helper is uncertain.
 In random mode the start log line does not list the roles ("Oyun başladı: 7 oyuncu. Roller rastgele dağıtıldı."); in
 `'all'` mode it does ("Oyun başladı: 7 oyuncu (1 vampir, İftiracı, Doktor, Kahin, Gözcü, 2 köylü).").
-Examples (random): 7 players with doktor, kahin, gözcü, iftiracı on → `distribution: [vampir, doktor, kahin, gozcu, koylu, koylu]`,
-`rolePool: { pick: 1, from: [], maybe: ['iftiraci'] }` (that slot is İftiracı or köylü); 7 players with 10 specials on →
-`distribution: [vampir, koylu]`, `rolePool: { pick: 5, from: [10 specials], maybe: ['iftiraci'] }` if iftiracı is on.
+Examples (random): 7 players with doktor, kahin, gözcü, iftiracı on → `distribution: [vampir, iftiraci, doktor, kahin, gozcu, koylu, koylu]`, `rolePool: null`;
+7 players with doktor, kahin, iftiracı, temizlikçi on → `distribution: [vampir, doktor, kahin, koylu, koylu, koylu]`, `rolePool: { pick: 1, from: [], maybe: ['iftiraci', 'temizlikci'], helpers: 1, helpersMax: 1 }`; 13 players with both helpers → `helpers: 1, helpersMax: 2`; 7 players with 10 specials on →
+`distribution: [vampir, koylu]`, `rolePool: { pick: 5, from: [10 specials], maybe: [], helpers: 0, helpersMax: 0 }` (with iftiracı also on: `distribution: [vampir, iftiraci, koylu]`, `pick: 4`).
 `'all'`: 7 players with doktor, kahin, gözcü, iftiracı on → `vampir, iftiraci, doktor, kahin, gozcu, koylu, koylu`, `rolePool: null`.
 
 ## 4. Room settings
@@ -120,9 +122,9 @@ settings = {
   revealRoles: true,     // reveal the role of players who die / leave
   events: 'off',         // village events: 'off' | 'some' | 'often' (built, OFF by default and hidden in the UI; §12.10)
   roleMode: 'random',    // 'random' | 'all' – how roles are dealt (§3); anything else → 'random'
-  roles: {               // all 11 keys always present, booleans
+  roles: {               // all 12 keys always present, booleans
     doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false,
-    avci: false, muhtar: false, soytari: false, deli: false, hirsiz: false, iftiraci: false,
+    avci: false, muhtar: false, soytari: false, deli: false, hirsiz: false, iftiraci: false, temizlikci: false,
   },
 }
 ```
@@ -317,9 +319,10 @@ Nothing moves in the village until the show stage; a locked door is discovered o
   "Bu oyuncu seçilemez." (target missing or dead),
   "Kapın dışarıdan kilitlendi, bu gece evinden çıkamazsın." (own door locked),
   "Bu gece beklemeye karar verdin; seçim kesindir." (passed tonight), "Seçimini yaptın; gece seçimleri kesindir." (already chosen)
-- vampir: "Vampir kendini seçemez.", "Diğer vampirleri seçemezsin.", "İftiracı sizin takımınızda, onu seçemezsin.",
+- vampir: "Vampir kendini seçemez.", "Diğer vampirleri seçemezsin.", "İftiracı sizin takımınızda, onu seçemezsin.", "Temizlikçi sizin takımınızda, onu seçemezsin.",
   "Takımın hedefi zaten belli: `<name>`. Gece seçimleri kesindir." (another vampire already set the team target)
 - iftiraci: "Kendine iftira atamazsın.", "Takım arkadaşına iftira atamazsın."
+- temizlikci: "Kendi izini silemezsin.", "Takım arkadaşının izini silemezsin."
 - kahin: "Kendi geleceğine bakamazsın."
 - hirsiz: "Kendinden çalamazsın."
 - cadi: "Hayat iksirini zaten kullandın.", "Zehri zaten kullandın." (earlier nights), "Hayat iksirini bu gece zaten verdin; seçim kesindir.",
@@ -407,7 +410,9 @@ Sent per viewer. Full shape:
       isHost: true,
       bot: false,                      // true for server-controlled bots (§17); same for every viewer
       role: null | "<role id>",        // visibility rules below
-      fakeRole: null | "<role id>",    // only when this entry's role is visible as "deli" (game end, or death with revealRoles): the role the Deli believed
+      framed: false,                   // true only in 'ended' for a player whose public reveal was a fake `vampir` (§12.12)
+    cleaned: false,                  // true only in 'ended' for a player whose role was hidden by the Temizlikçi (§12.13)
+    fakeRole: null | "<role id>",    // only when this entry's role is visible as "deli" (game end, or death with revealRoles): the role the Deli believed
       look: { color: 0..19, hat: 0..8, skin: 0..11 },
       pos: { x: 0..1, y: 0..1 },       // normalized plaza coordinates, see §12.1. A dead player who moved as a
                                        // ghost: dead viewers get the ghost position, living viewers the position at
@@ -428,9 +433,9 @@ Sent per viewer. Full shape:
 **Role visibility** (`players[i].role`), first matching rule wins:
 1. own seat → own role (a Deli sees their believed role until it becomes public, i.e. death with `revealRoles` or game end);
 2. phase `ended` → everyone's role;
-3. viewer is evil (vampir/iftiraci) and the player is evil → their role (vampires and İftiracı see
+3. viewer is evil (vampir/iftiraci/temizlikci) and the player is evil → their role (the evil team sees each other,
    each other, both ways);
-4. player is dead (or left) and `settings.revealRoles` → their role;
+4. player is dead (or left), `settings.revealRoles`, and the role is not hidden (robbed §12.9 / cleaned §12.13) → their **public** role: `vampir` if a frame stuck (§12.12), else the real role (the same for every viewer, evil ones included);
 5. otherwise `null`.
 
 Note: when İftiracı is promoted, their role becomes `vampir` everywhere (also in the end-of-game reveal).
@@ -450,7 +455,7 @@ happens in their own house); otherwise `null`. Every `night` object has these co
   passed: bool,             // the viewer sent night:pass tonight
   locked: bool,             // own door locked by the Gardiyan tonight
   bounced: bool,            // show stage only: one of this viewer's trips was turned back by a locked door (false before)
-  team: [], framer: null, teamTarget: null,   // filled only for the evil team
+  team: [], framer: null, cleaner: null, teamTarget: null,   // filled only for the evil team
   show: null | { ... },     // show stage only: this viewer's playback (below); null in walk/pick
 }
 ```
@@ -461,14 +466,14 @@ anything the viewer may not know (covered by the leak audit in `test/narration.t
 ```js
 show: {
   trip:  { to, kind, outcome, interior },   // my own walk (the first one, see trips)
-         // kind: 'kill' | 'steal' | 'protect' | 'heal' | 'poison' | 'inspect' | 'frame' | 'watch'
+         // kind: 'kill' | 'steal' | 'protect' | 'heal' | 'poison' | 'inspect' | 'frame' | 'clean' | 'watch'
          // outcome: 'done'    – happened (kill/steal/poison: the victim dies or was already dead; others: done)
          //          'bounced' – turned back at a locked door (any kind except watch)
          //          'saved'   – kill/poison: the victim was saved; protect/heal: MY protection stopped an attack
          //          'foiled'  – steal: the doktor's protection stopped the theft (ability kept)
          // interior: true only for kill/steal/poison that got inside (outcome != 'bounced')
   trips: [trip, trip],      // only when I walked twice (Cadı: heal and poison the same night), in order
-  team:  [{ id, to, kind, outcome }],     // evil viewers only: the other evil players' trips (kind 'kill' or 'frame')
+  team:  [{ id, to, kind, outcome }],     // evil viewers only: the other evil players' trips (kind 'kill', 'frame' or 'clean')
   home:  [{ kind, result }],              // what happened in MY house, in order; visitors are anonymous
          // kind: 'attack' (vampires) | 'steal' (Hırsız) | 'poison' (Cadı) | 'protect' (a protector who saved me;
          //       listed right after the attempt it stopped; absent when I protected/healed myself)
@@ -484,7 +489,7 @@ show: {
 | viewer role | extra / meaning |
 |---|---|
 | vampir | `mySelection` = team target; `team: [{ vampId, name, targetId }]` all living vampires (`targetId` = team target if that vampire went, else null); `teamTarget: { targetId, by, byName } \| null` (who set it); `framer` = İftiracı's frame target |
-| iftiraci | `mySelection` = frame target; `team`, `teamTarget` as above (read-only); `framer` = own target |
+| iftiraci / temizlikci | `mySelection` = own frame / clean target; `team`, `teamTarget` as above (read-only); `framer` = frame target, `cleaner` = clean target (both visible to the whole evil team) |
 | doktor / kahin / hirsiz | `mySelection` = protected / inspected / steal target |
 | gozcu | `mySelection` = watched house. **No live panel any more** (the old `night.watch` field is gone): arrivals come in `show.watch` and the 9 s `watch` report |
 | gardiyan | `mySelection` = the door locked tonight (chosen yesterday), `canAct: false` |
@@ -530,7 +535,7 @@ lines and `scene` is its default – always be able to show just `text`. Private
 |---|---|---|---|---|
 | `start` | all, narrated | "Roller dağıtıldı" | "Kartına bak ve rolünü kimseye gösterme!" | `story` (= scenario intro), `scenario: { id, name, intro } \| null` |
 | `night` | all, narrated | "`<round>`. Gece" | "Köy uyuyor... Gece rolleri seçimini yapsın." | `story` |
-| `death` | all, narrated | "Sabah oldu" | per death "`<name>` bu gece vampir tarafından öldürüldü!`{role}`", "… zehirlenerek öldü!`{role}`" or "… soyulup öldürüldü!`{role}`" (Hırsız), joined with a space | `targets: [{ id, cause: 'vampir' \| 'zehir' \| 'hirsiz', scene }]` (1–3 entries; `bite`\|`bats`\|`vanish` for `vampir`, `poison` for `zehir`, always `vanish` for `hirsiz`), `scene` = `targets[0].scene`, `story` |
+| `death` | all, narrated | "Sabah oldu" | per death "`<name>` bu gece vampir tarafından öldürüldü!`{role}`", "… zehirlenerek öldü!`{role}`" or "… soyulup öldürüldü!`{role}`" (Hırsız), joined with a space. `{role}` is " Rolü: `<public label>`." (Vampir after a stuck frame), " Rolü bilinmiyor; çalındı." (robbed) or " Rolü bilinmiyor; izler silinmiş." (cleaned) | `targets: [{ id, cause: 'vampir' \| 'zehir' \| 'hirsiz', scene }]` (1–3 entries; `bite`\|`bats`\|`vanish` for `vampir`, `poison` for `zehir`, always `vanish` for `hirsiz`), `scene` = `targets[0].scene`, `story` |
 | `safe` | all, narrated | "Sabah oldu" | "Bu gece kimse ölmedi." | `story` (also when someone was saved; who was saved is never revealed) |
 | `seer` | **kahin only** (9 s into show) | "Kristal küre konuştu" | "`<name>` şu ikisinden biri: `<A>` ya da `<B>`." (role labels, e.g. "Oyuncu3 şu ikisinden biri: Köylü ya da Vampir.") | `targets: [{ id }]`, `roles: [a, b]` (role ids in the text's order; one is the real role, §12.11) |
 | `saved` | **the doktor / cadı** whose protection stopped an attack (9 s into show) | doktor: "Koruman işe yaradı"; cadı: "Hayat iksiri işe yaradı" | doktor: "`<X>` bu gece saldırıya uğradı; senin koruman sayesinde kurtuldu." / self: "Bu gece evine saldırı oldu; kendini korudun ve kurtuldun."; cadı: "`<X>` bu gece vampirlerin saldırısına uğradı; hayat iksirin onu kurtardı." / self: "Vampirler bu gece evine geldi; hayat iksirin seni kurtardı." | `targets: [{ id: savedId }]` |
@@ -545,7 +550,7 @@ lines and `scene` is its default – always be able to show just `text`. Private
 | `steal` | **the Hırsız only** | "Rolü çaldın!" | "`<X>'in` evinden rolünü çaldın. Artık rolün: `<Label>`." | `targets: [{ id: victimId }]`, `role` (new role id; for a stolen Deli the believed role) |
 | `event` | all, narrated (events only) | event name / town crier title | event description | `event: { id, name, desc, phase }`, `story` |
 | `trial` | all, narrated (events only) | "Mahkeme kuruldu" / "Savunma" / "Mahkeme oylaması" | … | `step: 'start' \| 'defense' \| 'vote'`, `targets` (the two accused; for `defense` the speaker), `story` |
-| `promote` | **the promoted İftiracı only** | "Vampire dönüştün!" | "Son vampir de düştü. Artık sen bir vampirsin: geceleri kurbanını sen seçeceksin!" | `targets: [{ id: ownId }]` |
+| `promote` | **the promoted helper only** | "Vampire dönüştün!" | "Son vampir de düştü. Artık sen bir vampirsin: geceleri kurbanını sen seçeceksin!" | `targets: [{ id: ownId }]` |
 | `hunter` | all, narrated | "Avcı düştü!" | "`<name>` bir avcıydı. Son nefesinde birini vurabilir…" | `targets: [{ id: hunterId }]`, `story` |
 | `shot` | all, narrated | "Avcının son atışı" | "`<name>` vuruldu!`{role}`" | `targets: [{ id }]`, `actorId: hunterId`, `scene: 'arrow'`, `story` |
 | `nohunt` | all, narrated | "Avcı ıskaladı" | "Avcı kimseyi vurmadan gözlerini kapadı." | `story` |
@@ -583,7 +588,7 @@ use the verb of the chosen `scene`; the jester's `win` log line is "Soytarı <ve
 |---|---|---|
 | lobby, reveal, ended | `genel` | everyone in the room (not left) |
 | day, trial, hunter – alive sender | `genel` | everyone (not left), dead players included |
-| night – alive vampir or iftiraci | `vampir` | alive vampires and İftiracı |
+| night – alive vampir, iftiraci or temizlikci | `vampir` | alive evil team |
 | night – other alive roles | – | refused: "Gece köy uyur, konuşamazsın." |
 | night/day/trial/hunter – dead sender | `olu` | dead players only (not left) |
 
@@ -656,7 +661,7 @@ does nothing. Order:
    (a doktor or cadı killed later by the Hırsız still protected). Protection stops any kill (attack, theft,
    poison); the heal stops the vampire attack only. Self-protection / self-heal saves from the vampires.
 4. **Anyone killed this night never left home**: their own non-kill action is cancelled – no trip, no
-   result: inspect (kahin), watch (gözcü), frame (İftiracı: the kahin then sees the real roles), the
+   result: inspect (kahin), watch (gözcü), frame (İftiracı: the kahin then sees the real roles, and no public `vampir` reveal), clean (Temizlikçi: the victim's role is revealed normally), the
    Gardiyan's lock report, every fake action of a Deli; protect/heal per rule 3. Kill actions stay: a
    vampire killed by the Hırsız after attacking still attacked; a Hırsız poisoned after stealing still
    killed the target (but gets no role, see §12.9).
@@ -668,9 +673,9 @@ Private results at 9 s go only to players who survive the night: `seer` (§12.11
 (and the Deli's fabricated versions, §12.8), the Hırsız's `steal`/`stealfail` (the takeover happens at
 that moment), `saved`, `attacked`. At dawn: promotion check (§12.3), then hunter / win check, then `day`.
 
-### 12.3 İftiracı promotion
+### 12.3 Helper promotion
 
-Whenever no vampire is alive but the İftiracı is, the İftiracı immediately becomes a `vampir`
+Whenever no vampire is alive but a helper is, **one** helper immediately becomes a `vampir` (the İftiracı first, otherwise the Temizlikçi; the other helper stays a helper and may be promoted later)
 (private `promote` announce + note). This is checked after night deaths (at dawn), after a hanging, after
 the hunter's shot and when a player leaves (any phase of a running game, e.g. the last vampire leaving in
 the pick stage: the new vampire can still pick a victim that same night; their frame for that night is
@@ -679,7 +684,7 @@ this happens.
 
 ### 12.4 Win conditions (checked after every death)
 
-- Village (`koylu`) wins when no evil player (vampir or iftiraci) is alive.
+- Village (`koylu`) wins when no evil player (vampir, iftiraci, temizlikci) is alive.
 - Vampire team (`vampir`) wins when alive evil ≥ alive others.
 - Soytarı (`soytari`) wins alone when hanged (game ends immediately).
 - If a hunter dies and the village has not already won, the hunter shoots first, then the win check runs.
@@ -782,20 +787,48 @@ target holds (an un-stolen Hırsız shows as `hirsiz`, the İftiracı as `iftira
   (a new decoy is drawn only if the target's role has changed to the old decoy);
 - is never the real role and never `kahin`, and never `deli`;
 - comes from the roles that can be in this game (`vampir`, `koylu` and every enabled role that can be
-  dealt with this player count): with probability **2/3 from the opposite alignment** (innocent target →
-  `vampir` or `iftiraci` if it can be in the game; evil target → an innocent role), otherwise from the
-  same alignment (if one side has no candidate, the other is used). "Evil" = vampir, iftiraci; everything
+  dealt with this player count): with probability **1/2 from the opposite alignment** (innocent target →
+  `vampir`, or `iftiraci`/`temizlikci` if they can be in the game; evil target → an innocent role), otherwise from the
+  same alignment (if one side has no candidate, the other is used). "Evil" = vampir, iftiraci, temizlikci; everything
   else is innocent;
 - **an İftiracı's frame** (İftiracı alive through the night and reached the house, §12.2) replaces the decoy
   with `vampir` for that night only.
 A Deli who believes they are kahin gets two random roles in the same shape and mix (a random role and its
 decoy, fixed per (Deli, target)).
 
+### 12.12 İftiracı: the slander sticks
+
+Besides the Kahin effect, a frame that really happened on night N (İftiracı alive through the night,
+reached the house) makes the framed player publicly **`vampir`** if they **die that same night** (any cause)
+or are **voted out on day N** (incl. a mahkeme re-vote); it expires when night N+1 starts. "Publicly" =
+wherever the room reveals roles (`revealRoles` on): `players[i].role` for every viewer (evil team and dead
+viewers included; only the player's own seat shows the truth), the `death`/`hanged` text ("Rolü: Vampir."),
+the log and the story engine's input. The lie holds until `ended`, where the real role is shown and that
+entry carries `framed: true`. Exceptions (truth as today): an Avcı (the `hunter` announce reveals it), a
+hanged Soytarı, and a victim whose role is hidden (robbed or cleaned stays hidden). With `revealRoles` off
+nothing is revealed and `framed` stays false. All rules (win checks, stats, the Hırsız taking the real role,
+the Deli, hunter, jester) use the real role. A framed Deli is shown as `vampir` to others; they themselves
+see `deli`.
+
+### 12.13 Temizlikçi (`temizlikci`, evil helper, 7+ players)
+
+Night: picks a living non-evil player (not self; final; `night:pass` allowed) and goes there – a real trip,
+`show.trip.kind: 'clean'` (walk in and out, `interior: false`; in `show.team` for the evil team), seen by a
+gözcü, bounced by a lock, cancelled if the Temizlikçi dies that night. If that player dies this night (any
+cause) their role is **not revealed** until the game ends: death text " Rolü bilinmiyor; izler silinmiş.",
+`players[i].role` `null` for everyone but themselves (and the evil team if the victim were evil), story input
+`hidden: 'temizlikci'`, no role in log or narration; at `ended` the real role and `cleaned: true`. A robbed
+victim keeps the Hırsız wording. A cleaned Avcı still gets the last shot, and the `hunter` announce reveals
+the Avcı (from then on `players[i].role` = `avci`). The Temizlikçi sees and is seen by the evil team (role,
+team target, `framer`/`cleaner` targets, vampire chat), counts as evil for parity, cannot be chosen by the
+vampires, and is shown to the Kahin as `temizlikci`. Bots: a Temizlikçi bot goes to the team's kill target
+when there is one (otherwise a random non-evil player), 5–7.5 s into the pick stage.
+
 ## 13. Stats
 
 When a game ends, every seat with a role gets `games + 1` and `teams[team].games + 1`;
 `wins + 1` and `teams[team].wins + 1` if it is in `room.winners`. Team is `teamOf(final role)`
-(İftiracı and promoted İftiracı → `vampir`, Soytarı → `soytari`, Deli → `koylu`, Hırsız → the team of the
+(İftiracı, Temizlikçi and promoted helpers → `vampir`, Soytarı → `soytari`, Deli → `koylu`, Hırsız → the team of the
 stolen role; a Hırsız who never stole counts only in the totals, no team bucket; all others → `koylu`). Players who
 left mid-game count as a loss. Recording happens in the background; a storage failure is logged and
 never blocks the room. `/api/me` shows the new numbers a moment after the `win` announce.

@@ -200,7 +200,7 @@ export function renderChatState(state) {
   const inGame = ['night', 'day', 'trial', 'hunter', 'reveal'].includes(room.phase);
   let mode = ['chat', 'Herkese açık']; let disabled = false; let ph = 'Mesaj yaz…';
   if (inGame && !me.alive) { mode = ['ghost', 'Sadece ölüler görür']; ph = 'Ölülere yaz…'; }
-  else if (room.phase === 'night' && (me.role === 'vampir' || me.role === 'iftiraci')) { mode = ['moon', 'Sadece vampir takımı görür']; ph = 'Vampirlere fısılda…'; }
+  else if (room.phase === 'night' && (me.role === 'vampir' || me.role === 'iftiraci' || me.role === 'temizlikci')) { mode = ['moon', 'Sadece vampir takımı görür']; ph = 'Vampirlere fısılda…'; }
   else if (room.phase === 'night') { mode = ['moon', 'Gece köy uyur, konuşamazsın']; disabled = true; ph = 'Gece köy uyur, konuşamazsın'; }
   el.mode.innerHTML = `${icon(mode[0])}${mode[1]}`;
   el.input.disabled = disabled;

@@ -66,6 +66,7 @@ const P = {
 const R = {
   vampir: '<path d="M3.5 6.5c2.5 1 4 1 5.5 0 1 1.3 2 2 3 2s2-.7 3-2c1.5 1 3 1 5.5 0-.6 5.8-3.2 9.8-8.5 12.5C6.7 16.3 4.1 12.3 3.5 6.5z"/><path d="M9.5 11.5l1 3 1-3M12.5 11.5l1 3 1-3"/>',
   iftiraci: '<path d="M3.5 8c3-1.5 5.5-1.5 8.5 0 3-1.5 5.5-1.5 8.5 0-.3 4.5-2.6 7-5.2 7-1.6 0-2.6-.9-3.3-2.2-.7 1.3-1.7 2.2-3.3 2.2C6.1 15 3.8 12.5 3.5 8z"/><path d="M6.8 10.2c.8-.6 1.8-.6 2.6 0M14.6 10.2c.8-.6 1.8-.6 2.6 0"/><path d="M17.5 15.5l1.5 5M19 20.5l-2.5-.5"/>',
+  temizlikci: '<path d="M16.5 3.5L11 11"/><path d="M9 10.5l4.5 4.5-3.3 5.5c-2.6.3-5-1.2-6.2-3.7 2.6-.2 3.9-1.3 5-6.3z"/><path d="M8.2 14.3l2.6 3.2M6 16l2 2.2"/>',
   doktor: '<path d="M12 3.5l7 2.5v5.5c0 4.4-2.9 7.6-7 9-4.1-1.4-7-4.6-7-9V6z"/><path d="M12 8.5v7M8.5 12h7"/>',
   kahin: '<circle cx="12" cy="10.5" r="6.5"/><path d="M8 20.5h8l-1.5-3h-5z"/><path d="M9.5 8.5a3 3 0 0 1 2.5-1.5"/><path d="M14.5 12.5l.4 1 1 .4-1 .4-.4 1-.4-1-1-.4 1-.4z"/>',
   gozcu: '<path d="M2.5 12.5S6 6.5 12 6.5s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12.5" r="3.2"/><circle cx="12" cy="12.5" r="1" fill="currentColor"/><path d="M12 2.5v2M5.5 4.5l1.2 1.6M18.5 4.5l-1.2 1.6"/>',
@@ -113,7 +114,7 @@ export function hatIcon(i, cls = '') {
 }
 
 const ROLE_COLORS = {
-  vampir: '#d7263d', iftiraci: '#b0408a', doktor: '#3fb58a', kahin: '#8f7cff', gozcu: '#e8a33a', gardiyan: '#7f9cc4',
+  vampir: '#d7263d', iftiraci: '#b0408a', temizlikci: '#7d4fb0', doktor: '#3fb58a', kahin: '#8f7cff', gozcu: '#e8a33a', gardiyan: '#7f9cc4',
   cadi: '#6cc04a', avci: '#c9772b', muhtar: '#f2c12e', soytari: '#ff6fae', deli: '#9aa3c7', hirsiz: '#3fa7b5', koylu: '#c9a96e',
 };
 

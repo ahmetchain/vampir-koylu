@@ -13,8 +13,8 @@ import { renderChatState, isDocked } from './chat.js';
 import { isAnnouncing } from './announce.js';
 import { openChronicle } from './chronicle.js';
 
-const SEL_COLOR = { vampir: '#ff4b5f', iftiraci: '#e070c0', doktor: '#4fe0a8', kahin: '#a898ff', gozcu: '#ffc062', hirsiz: '#5fd0de' };
-const SEL_LABEL = { vampir: 'Hedef', iftiraci: 'İftira', doktor: 'Koruma', kahin: 'Bakılacak', gozcu: 'Gözetle', hirsiz: 'Soyulacak' };
+const SEL_COLOR = { vampir: '#ff4b5f', iftiraci: '#e070c0', temizlikci: '#b08af0', doktor: '#4fe0a8', kahin: '#a898ff', gozcu: '#ffc062', hirsiz: '#5fd0de' };
+const SEL_LABEL = { vampir: 'Hedef', iftiraci: 'İftira', temizlikci: 'Temizlik', doktor: 'Koruma', kahin: 'Bakılacak', gozcu: 'Gözetle', hirsiz: 'Soyulacak' };
 
 let phaseKey = '';
 let lastTick = -1;
@@ -94,6 +94,7 @@ let confirmSheet = null;
 const NIGHT_VERB = {
   vampir: (n) => `<b>${n}</b> takımın hedefi olsun mu?`,
   iftiraci: (n) => `<b>${n}</b> kişisine iftira atılsın mı?`,
+  temizlikci: (n) => `Bu gece <b>${n}</b> evine gidilsin mi?`,
   doktor: (n) => `Bu gece <b>${n}</b> korunsun mu?`,
   kahin: (n) => `Kristal küre <b>${n}</b> için çalışsın mı?`,
   gozcu: (n) => `Bu gece <b>${n}</b> evini gözetleyecek misin?`,
@@ -508,6 +509,13 @@ function promptFor(s) {
         out.html += teamLine();
         if (sel) out.short = `İftira: ${name(sel)} ${st}`;
         break;
+      case 'temizlikci':
+        out.tone = 'vampir';
+        if (n.teamTarget && n.teamTarget.targetId) out.html = `<span class="muted">Vampirlerin hedefi: ${name(n.teamTarget.targetId)}</span><br>`;
+        out.html += sel ? `Gideceğin ev: ${name(sel)} ${st}` : '<b>Bir eve git:</b> o kişi bu gece ölürse rolü köyden gizlenir.';
+        out.html += teamLine();
+        if (sel) out.short = `Temizlik: ${name(sel)} ${st}`;
+        break;
       case 'doktor':
         out.tone = 'good';
         out.html = sel ? `Koruman: ${name(sel)} ${st}` : '<b>Bu gece kimi koruyacaksın?</b> Kendini de seçebilirsin. Seçim kesindir.';
@@ -722,6 +730,7 @@ function lobbySheetHTML(s) {
   else if (connected < total) notes.push('Bağlantısı kopan oyuncular başlarken odadan çıkarılır.');
   if (!host) notes.push(`${esc(hostP ? hostP.name : 'Oda sahibi')} oyunu başlatınca roller dağıtılacak.`);
   if (room.settings.roles.iftiraci && total < 7) notes.push('İftiracı 7 oyuncudan az olduğu için dağıtılmayacak.');
+  if (room.settings.roles.temizlikci && total < 7) notes.push('Temizlikçi 7 oyuncudan az olduğu için dağıtılmayacak.');
   if (room.settings.roles.hirsiz && total < 7) notes.push('Hırsız 7 oyuncudan az olduğu için dağıtılmayacak.');
   notes.push(bots ? `Odada ${bots} bot var. Botlu oyunlar istatistiğe sayılmaz.` : host ? 'Tek başına denemek için bot ekleyebilirsin. Botlu oyunlar istatistiğe sayılmaz.' : '');
   return `<div class="lobby-sheet">
@@ -928,7 +937,7 @@ function endHTML(s) {
       <span class="pchip-av" style="width:34px;height:34px;font-size:14px;background:${c};color:${inkOn(c)}">${esc(initial(p.name))}</span>
       <span class="end-name">${esc(p.name)}${p.id === me.id ? ' <small>(sen)</small>' : ''}${p.bot ? ` <span class="bot-mark">${icon('bot')}bot</span>` : ''}
         <span class="sub">${p.job && p.job.label ? `${esc(p.job.label)} · ` : ''}${p.left ? 'ayrıldı' : p.alive ? 'hayatta' : 'öldü'}${winners.has(p.id) ? ' · kazandı' : ''}</span></span>
-      <span class="chip">${r ? `${emblem(p.role, 's')}${r.name}${madAs(p)}` : '?'}</span>
+      <span class="chip">${r ? `${emblem(p.role, 's')}${r.name}${madAs(p)}${p.framed ? ' <small>(iftiraya uğradı)</small>' : ''}${p.cleaned ? ' <small>(izleri silinmişti)</small>' : ''}` : `?${p.cleaned ? ' <small>(izleri silinmişti)</small>' : ''}`}</span>
     </div>`;
   }).join('');
   // Hikâye: sunucunun kapanış metni (room.epilogue); yoksa story satırları; o da yoksa önemli olaylar.

@@ -288,10 +288,10 @@ export function openHowto() {
     wide: true,
     body: `<div class="stack">
       <div><div class="section-title">Amaç</div>
-        <p class="muted">Köyün içine vampirler sızmış. <b>Köylüler</b> gündüz tartışıp oy vererek vampirleri asmaya çalışır. <b>Vampirler</b> ve gizli yardımcıları <b>İftiracı</b> ise her gece birini ortadan kaldırarak köyü ele geçirmeye çalışır.</p></div>
+        <p class="muted">Köyün içine vampirler sızmış. <b>Köylüler</b> gündüz tartışıp oy vererek vampirleri asmaya çalışır. <b>Vampirler</b> ve gizli yardımcıları <b>İftiracı</b> ve <b>Temizlikçi</b> ise her gece birini ortadan kaldırarak köyü ele geçirmeye çalışır.</p></div>
       <div><div class="section-title">Oyun akışı</div>
       <ol class="steps">
-        <li><strong>Roller dağıtılır.</strong> Herkes sadece kendi kartını görür. Rolünü kimseye söyleme! Vampirler ve İftiracı birbirini tanır.</li>
+        <li><strong>Roller dağıtılır.</strong> Herkes sadece kendi kartını görür. Rolünü kimseye söyleme! Vampirler ve yardımcıları (İftiracı, Temizlikçi) birbirini tanır.</li>
         <li><strong>Gece: seçim.</strong> Herkes evine çekilir, köylüler konuşamaz. Sayaç işlerken gece görevi olanlar birini seçer ve onaylar; <b>onaylanan seçim kesindir</b>. İstemeyen "Bu gece bekle" der. Bu sırada köyde kimse kıpırdamaz. Vampirlerin tek ortak hedefi vardır: ilk onaylayan vampir belirler.</li>
         <li><strong>Gece: yaşanış.</strong> Seçimler bitince gece oynanır: herkes kendi yolunu yürür, kapıya varır, döner. Sıra şöyledir: önce Gardiyanın kilidi (kilitli eve kimse giremez, sahibi de çıkamaz), sonra vampirlerin saldırısı, sonra Hırsız, sonra Cadının zehri. Bu gece ölen kişi evinden hiç çıkmamış sayılır: onun bakışı, koruması ya da iftirası olmaz. Kahin, Gözcü ve diğerlerinin özel sonuçları bu sırada sadece kendilerine gelir.</li>
         <li><strong>Sabah.</strong> Gece kimin öldüğü herkese duyurulur. Ölen kişi Avcıysa son atışını yapar.</li>
@@ -306,10 +306,10 @@ export function openHowto() {
         <ul class="bullets">${Object.values(EVENTS).map((e) => `<li><b>${e.name}</b> (${e.phase === 'night' ? 'gece' : 'gündüz'}): ${e.desc}</li>`).join('')}</ul></div>` : ''}
       <div><div class="section-title">Kim kazanır?</div>
         <ul class="bullets">
-          <li><b>Köylüler</b>, son vampir ve İftiracı da öldüğünde kazanır.</li>
-          <li><b>Vampirler</b> (İftiracı dahil), sayıları yaşayan diğer oyunculara eşit olduğunda kazanır.</li>
+          <li><b>Köylüler</b>, son vampir ve yardımcıları da öldüğünde kazanır.</li>
+          <li><b>Vampirler</b> (yardımcıları dahil), sayıları yaşayan diğer oyunculara eşit olduğunda kazanır.</li>
           <li><b>Soytarı</b>, köy onu gündüz asarsa tek başına kazanır ve oyun biter.</li>
-          <li>Son vampir ölür ama İftiracı yaşıyorsa, İftiracı hemen vampire dönüşür ve oyun sürer.</li>
+          <li>Son vampir ölür ama bir yardımcı yaşıyorsa, o hemen vampire dönüşür ve oyun sürer.</li>
         </ul></div>
       <div><div class="section-title">Ölüler ve kurallar</div>
         <ul class="bullets">
