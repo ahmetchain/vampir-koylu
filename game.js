@@ -381,6 +381,7 @@ class Room {
       p.job = null;
       p.fakeRole = null;
       p.stolen = null;
+      p.roleHidden = false;
     }
   }
 
@@ -444,7 +445,7 @@ class Room {
 
   // Rol sadece oda rolleri açıklıyorsa motora verilir.
   roleIfPublic(p) {
-    return p && this.settings.revealRoles ? p.role : null;
+    return p && this.settings.revealRoles && !p.roleHidden ? p.role : null;
   }
 
   get inGame() {
@@ -763,7 +764,7 @@ class Room {
 
   // Delinin gerçek rolü açık mı (öldü ve roller açıklanıyor, ya da oyun bitti)?
   madRevealed(p) {
-    return this.phase === 'ended' || (!p.alive && this.settings.revealRoles);
+    return this.phase === 'ended' || (!p.alive && this.settings.revealRoles && !p.roleHidden);
   }
 
   // Sahte role göre gece seçimi (doktor/kahin/gözcü) – delide ayrı depodan.
@@ -1151,14 +1152,18 @@ class Room {
     const texts = deaths.map(({ id, cause }) => {
       const victim = this.players.get(id);
       victim.alive = false;
-      const role = this.settings.revealRoles ? ` Rolü: ${ROLE_LABEL[victim.role]}.` : '';
+      // Soyulup öldürülenin rolü hırsızdadır; oyun bitene kadar kimseye açıklanmaz.
+      if (cause === 'hirsiz') victim.roleHidden = true;
+      const role = !this.settings.revealRoles ? ''
+        : (victim.roleHidden ? ' Rolü bilinmiyor; çalındı.' : ` Rolü: ${ROLE_LABEL[victim.role]}.`);
       this.addLog(`${this.round}. gece ${victim.name} ${HOW[cause]}.${role}`, 'death');
       return `${victim.name} bu gece ${HOW[cause]}!${role}`;
     });
     // Motora sadece herkese açık olanlar gider: kim, nasıl (vampir/zehir/hırsız) ve oda açıklıyorsa rolü.
     const dawn = this.narrate('dawn', {
       round: this.round,
-      deaths: deaths.map(({ id, cause }) => ({ id, cause, role: this.roleIfPublic(this.players.get(id)) })),
+      deaths: deaths.map(({ id, cause }) => ({ id, cause, role: this.roleIfPublic(this.players.get(id)),
+        hidden: this.settings.revealRoles && Boolean(this.players.get(id).roleHidden) })),
     }, deaths.length ? { title: 'Sabah oldu', text: texts.join(' ') } : { title: 'Sabah oldu', text: 'Bu gece kimse ölmedi.' });
     if (deaths.length) {
       const sceneOf = Array.isArray(dawn.targets) ? dawn.targets : [];
@@ -1292,7 +1297,8 @@ class Room {
   // Oda rolleri açıklıyorsa metinde her ölünün rolü yazmalı (motor bir rolü tanımazsa düz metin kullanılır).
   textHasRoles(text, ids) {
     if (!this.settings.revealRoles) return true;
-    return ids.every((id) => text.includes(`Rolü: ${ROLE_LABEL[this.players.get(id).role]}.`));
+    return ids.every((id) => this.players.get(id).roleHidden
+      || text.includes(`Rolü: ${ROLE_LABEL[this.players.get(id).role]}.`));
   }
 
   // Hiç vampir kalmadıysa yaşayan iftiracı hemen vampire dönüşür; oyun iki yönde de bitebilsin.
@@ -1317,7 +1323,7 @@ class Room {
   afterDeaths(deadIds, next) {
     this.promoteFramer();
     const hunter = deadIds.map((id) => this.players.get(id))
-      .find((p) => p && p.role === ROLE.HUNTER && !p.left);
+      .find((p) => p && p.role === ROLE.HUNTER && !p.left && !p.roleHidden);
     const winner = winnerOf([...this.players.values()]);
     if (hunter && winner !== ROLE.VILLAGER) {
       this.startHunter(hunter, next);
@@ -1850,7 +1856,7 @@ class Room {
       if (ended) role = p.role;
       else if (p.id === viewerId) role = p.role === ROLE.MAD && !this.madRevealed(p) ? p.fakeRole : p.role;
       else if (iAmEvil && isEvil(p.role)) role = p.role;
-      else if (!p.alive && this.settings.revealRoles) role = p.role;
+      else if (!p.alive && this.settings.revealRoles && !p.roleHidden) role = p.role;
       return {
         id: p.id, name: p.name, seat: p.seat, job: p.job || null, alive: p.alive, connected: p.connected,
         left: p.left, isHost: p.id === this.hostId, bot: Boolean(p.bot), role,
