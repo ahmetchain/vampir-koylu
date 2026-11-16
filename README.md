@@ -70,6 +70,39 @@ için farklı tarayıcı profillerinde (ya da gizli pencerelerde) 5 ayrı hesap 
 Açık odalar ve süren oyunlar bellekte tutulur; sunucu yeniden başlarsa odalar kapanır, hesaplar ve
 istatistikler (JSON dosyası ya da veritabanı) kalır.
 
+## Akıllı botlar (isteğe bağlı, Claude Haiku)
+
+Sunucuda bir Anthropic API anahtarı varsa botlar rastgele değil, rollerine göre düşünerek oynar:
+konuşur, soru sorar, adıyla seslenilince cevap verir, iyi bir argümanla ikna olup oyunu değiştirir,
+kötü takımdaysa blöf yapar. Anahtar yoksa ya da API hata verir, gecikir veya bütçe biterse botlar
+sessizce eski rastgele davranışa döner; oyun hiçbir zaman API'yi beklemez. Oda sahibi "Akıllı botlar"
+ayarını kapatabilir. Açıkken o odanın sohbet mesajları ve oyuncu adları yapay zekâ hizmetine gönderilir
+(lobi ve ayarlar bunu yazar). İstemler ve sohbet içeriği loglanmaz.
+
+**Render'da açmak:** servis → **Environment** → `ANTHROPIC_API_KEY` = anahtarın (console.anthropic.com →
+API Keys) → kaydet; servis yeniden başlar. Açılış logunda "Akıllı botlar: açık" yazar, `/healthz`
+yanıtında `ai` alanı (yalnızca çağrı/token/maliyet sayıları) görünür.
+
+**Maliyet:** 10 kişilik bir oyun (1 insan + 9 bot) ≈ 70–120 çağrı, yaklaşık **1–3 sent** (Haiku 5.5,
+önbellekli sabit kurallar). Her oyunun sonunda logda gerçek token sayısı ve tahmini maliyet yazar.
+Sınırlar varsayılan olarak: günde en fazla 3000 çağrı (tüm odalar; ≈ 30 oyun, günde en fazla ~1 dolar),
+oyun başına 300, bot başına oyun başına 45 çağrı.
+
+| Değişken | Varsayılan | Ne işe yarar |
+| --- | --- | --- |
+| `ANTHROPIC_API_KEY` | – | Akıllı botları açar (yalnızca sunucuda; istemciye gitmez). |
+| `AI_BOTS` | – | `off` yazılırsa anahtar olsa da kapalı. |
+| `AI_BOT_MODEL` | `claude-haiku-5-5` | Kullanılan model. |
+| `AI_BOT_EFFORT` | `low` | `low`, `medium` ya da `high`. |
+| `AI_MAX_TOKENS` | `1024` | Çağrı başına en fazla çıktı (düşünme dahil). |
+| `AI_DAILY_CALL_LIMIT` | `3000` | Tüm sunucu için günlük (UTC) çağrı sınırı. |
+| `AI_GAME_CALL_LIMIT` | `300` | Bir oyundaki en fazla çağrı. |
+| `AI_BOT_CALL_LIMIT` | `45` | Bir botun bir oyundaki en fazla çağrısı. |
+| `AI_CONCURRENCY` | `6` | Aynı anda en fazla istek. |
+| `AI_TIMEOUT_MS` | `8000` | Gündüz turlarının zaman aşımı (gece kararları seçim süresine göre daha kısa). |
+
+Ayrıntılar: `docs/AI-BOTS.md`.
+
 ## İnternette yayınlama (farklı evlerden oynamak için)
 
 Oyun, sürekli açık duran bir Node.js sunucusu ister: roller gizli tutulur, gece/gündüz sayaçları ve oylar
