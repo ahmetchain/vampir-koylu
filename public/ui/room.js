@@ -313,6 +313,8 @@ export function renderAll(s) {
     const other = ctx.witchMode === 'poison' ? 'heal' : 'poison';
     if (!window.VKRules.witchBlocked(s, other)) ctx.witchMode = other;
   }
+  // Önceki oyundan kalan "bu gece öldürüldün" bilgisi yeni oyunun aynı numaralı gecesinde yanlış etiket çıkarmasın.
+  if (s.room.phase === 'lobby' || s.room.phase === 'reveal' || s.room.phase === 'ended') ctx.killedRound = null;
   renderTop(s);
   renderNightLabel(s);
   renderPrompt(s);
@@ -660,6 +662,8 @@ function killedTonight(s) {
   if (s.room.phase !== 'night') return false;
   // Ölüm, gösteride yaşandığı anda (ya da sonuç kartı gelince) belli olur. Gösteri başlar başlamaz
   // yazmak "koruyan yetişecek mi" merakını bozuyordu: saldırı sahnesi önce oynar.
+  // Etiket yalnızca hâlâ canlıyken (gece sürerken) gösterilir; ölüm bildirimi bu turda geldiyse ya da gösteride ölüm görüldüyse.
+  if (!s.me || !s.me.alive) return false;
   return ctx.killedRound === s.room.round || !!(n.show && n.show.dead && W.sawOwnDeath());
 }
 function passedTonight(s) {
