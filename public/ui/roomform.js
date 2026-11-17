@@ -5,7 +5,8 @@ import { esc, clamp, sfx, store } from './util.js';
 import { icon, emblem } from './icons.js';
 import { ROLES, TOGGLE_ROLES, DEFAULT_ROLES, distribution, distributionPlan, countRoles, FRAMER_MIN, THIEF_MIN, MIN_PLAYERS, MAX_PLAYERS, EVENTS, EVENT_FREQ, EVENTS_UI } from './data.js';
 
-const LAST_KEY = 'vk.lastSettings';
+// v2: eski kayıtlarda yalnızca Doktor+Kahin açıktı; yeni varsayılan (bütün roller açık) bir kez uygulansın.
+const LAST_KEY = 'vk.lastSettings.v2';
 const AI_KEY = 'vk.aiAvailable';
 
 export function distChips(list) {
