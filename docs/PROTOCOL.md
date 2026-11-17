@@ -861,7 +861,8 @@ accepted, the finished game is written to no account's stats and does not affect
   `CLIENT_ORIGIN`, `TRUST_PROXY`; smart bots: `ANTHROPIC_API_KEY`, `AI_BOTS`, `AI_BOT_MODEL`, `AI_BOT_EFFORT`,
   `AI_MAX_TOKENS`, `AI_DAILY_CALL_LIMIT`, `AI_GAME_CALL_LIMIT`, `AI_BOT_CALL_LIMIT`, `AI_CONCURRENCY`, `AI_TIMEOUT_MS`;
   post-game review: `AI_REVIEW`, `AI_REVIEW_MODEL`, `AI_REVIEW_DAILY_LIMIT`, `AI_REVIEW_EFFORT`, `ADMIN_TOKEN` (enables `GET /api/admin/ai-reviews[/:id]` and `GET /api/admin/game-logs[/:id]`, Bearer; see `docs/GAME-LOGS.md`);
-  `GAME_LOGS=off` stops saving game histories (defaults in `docs/AI-BOTS.md`).
+  `GAME_LOGS=off` stops saving game histories (defaults in `docs/AI-BOTS.md`);
+  game-log analysis on the server: `AI_ANALYZE`, `AI_ANALYZE_MODEL`, `AI_ANALYZE_DAILY_LIMIT`, `AI_ANALYZE_EFFORT` (`POST /api/admin/game-logs/:id/analyze`, `GET .../:id/analysis`; see `docs/GAME-LOGS.md`).
 
 ## 15. Client recipes
 

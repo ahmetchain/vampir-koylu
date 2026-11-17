@@ -648,6 +648,12 @@ Goal: keep every finished game's full history as text for later analysis (what h
   `vk_ai_reviews.game_log_id` is added to the live table at start-up.
 - The Sonnet review of smart-bot games is unchanged (same limits); its input is now `reviewView(log)` (v:1 shape, no human private info) and the review and the log are linked both ways.
 - `GET /api/admin/game-logs` (list) and `/:id` (decompressed record): same `ADMIN_TOKEN` auth and rate limit as the review endpoints. `GAME_LOGS=off` disables saving.
-- `scripts/game-logs.js`: downloads new logs into the git-ignored `ai-eval-out/game-logs/` as raw JSON and a readable Turkish markdown transcript; `--analyze [ids]` sends them to `claude-sonnet-5-5`
-  (existing client, network-error retry) for a Turkish analysis (`analysis-<id>.md`, cost printed). `scripts/ai-eval.js --selfplay` also writes `selfplay-gamelog.json` (`--local`).
+- `scripts/game-logs.js`: downloads new logs into the git-ignored `ai-eval-out/game-logs/` as raw JSON and a readable Turkish markdown transcript; `--analyze [ids]` has the server analyse them with `claude-sonnet-5-5`
+  (see below) and writes the Turkish analysis (`analysis-<id>.md`, cost printed). `scripts/ai-eval.js --selfplay` also writes `selfplay-gamelog.json` (`--local`).
+- **Analysis on the server** (owner request 2026-11-17; the developer PC has no valid API key): `lib/ai/analyze.js` holds the analysis prompt (moved out of `scripts/game-logs.js`) and an `Analyzer` that reuses the reviewer's transport
+  (`sdkTransport`, `classify`), model `AI_ANALYZE_MODEL` (default `claude-sonnet-5-5`), its own daily limit `AI_ANALYZE_DAILY_LIMIT` (default 20, counted in memory), `AI_ANALYZE_EFFORT`, `AI_ANALYZE=off`. `POST /api/admin/game-logs/:id/analyze[?force=1]`
+  (same `ADMIN_TOKEN` auth and rate limit) starts an **async job** and answers `202` (a 1-4 min request would hit Render's free-tier response timeout); `GET /api/admin/game-logs/:id/analysis` is the cheap poll; the result is stored with the log
+  (`vk_game_logs.analysis / analysis_cost / analysis_model / analyzed_at`, added to the live table with the `information_schema` + `ALTER TABLE` pattern; JSON store: same fields), `GET /api/admin/game-logs/:id` returns it and the list shows `analyzed`.
+  `scripts/game-logs.js --analyze [ids | --latest N] [--force]` now calls that endpoint (`ADMIN_TOKEN` + `REVIEW_URL`), polls, writes `analysis-<id>.md` and prints the cost; `--local-model` keeps the old local call.
+  One numbers-only log line per analysis (`[ai-analyze] ...`), `/healthz` -> `aiAnalyze`. Failures never touch the game or crash the server. Details: `docs/GAME-LOGS.md` "Analysis runs on the server".
 - Privacy: humans' chat is stored; the lobby sheet now says "Oyun içi sohbet mesajları ve oyun geçmişi, oyunu geliştirmek için saklanır (IP adresi, oturum anahtarı ya da parola saklanmaz)". No IPs, tokens, passwords or user ids are in a record.
