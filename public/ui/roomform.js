@@ -62,6 +62,11 @@ function formHTML(s, editable, withRoomFields, sampleN) {
     ${s.aiAvailable ? `<div class="set-row"><label for="rf-smart">Akıllı botlar</label>
       <span class="switch"><input type="checkbox" id="rf-smart" name="smartBots" ${s.smartBots !== false ? 'checked' : ''} ${dis}><i></i></span>
       <small>Botlar rolüne göre düşünür, konuşur, soru sorar, ikna edilebilir ve blöf yapar. Açıkken sohbet mesajları ve oyuncu adları bir yapay zekâ hizmetine gönderilir; biten oyunlar botları geliştirmek için bu hizmet tarafından incelenebilir.</small></div>` : ''}
+    ${s.aiAvailable && s.canChooseBotModel ? `<div class="set-row"><label>Bot zekâsı</label>
+      <div class="seg" role="radiogroup" aria-label="Bot zekâsı" data-bmseg>
+        <button type="button" role="radio" class="seg-btn${s.botModel !== 'sonnet' ? ' on' : ''}" data-bm="haiku" aria-checked="${s.botModel !== 'sonnet'}" ${dis}>Normal (Haiku)</button>
+        <button type="button" role="radio" class="seg-btn${s.botModel === 'sonnet' ? ' on' : ''}" data-bm="sonnet" aria-checked="${s.botModel === 'sonnet'}" ${dis}>Güçlü (Sonnet, pahalı)</button>
+      </div></div>` : ''}
     ${EVENTS_UI ? `<div class="section-title">Köy olayları</div>
     <div class="seg" role="radiogroup" aria-label="Köy olayları" data-evseg>
       ${EVENT_FREQ.map(([k, l]) => `<button type="button" role="radio" class="seg-btn${(s.events || 'some') === k ? ' on' : ''}" data-ev="${k}" aria-checked="${(s.events || 'some') === k}" ${dis}>${l}</button>`).join('')}
@@ -121,6 +126,14 @@ function bindForm(root, s, onChange) {
       onChange && onChange();
       return;
     }
+    const bm = e.target.closest('[data-bm]');
+    if (bm && !bm.disabled) {
+      s.botModel = bm.dataset.bm;
+      root.querySelectorAll('[data-bm]').forEach((b) => { b.classList.toggle('on', b === bm); b.setAttribute('aria-checked', String(b === bm)); });
+      sfx('click');
+      onChange && onChange();
+      return;
+    }
     const rt = e.target.closest('.rtoggle[data-role]');
     if (rt && !rt.disabled) {
       const r = rt.dataset.role;
@@ -149,6 +162,8 @@ export function openCreateRoom() {
     roles: { ...DEFAULT_ROLES, ...(last.roles || {}) },
     smartBots: last.smartBots !== false,
     aiAvailable: Boolean(store.get(AI_KEY, false)),   // son görülen oda durumundan (sunucuda anahtar var mı)
+    canChooseBotModel: Boolean(ctx.user && ctx.user.canChooseBotModel),   // yalnızca sahip hesap görür
+    botModel: 'haiku',
   };
   const sheet = openSheet({
     title: 'Oda Kur',
@@ -167,7 +182,8 @@ export function openCreateRoom() {
     err.textContent = '';
     const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, roles: s.roles, smartBots: s.smartBots };
     store.set(LAST_KEY, settings);
-    const res = await send('room:create', { roomName, password: form.password.value, settings }, { quiet: true });
+    // Bot zekâsı kayıtlı son ayarlara yazılmaz (pahalı seçenek her odada kendiliğinden açılmasın).
+    const res = await send('room:create', { roomName, password: form.password.value, settings: s.canChooseBotModel ? { ...settings, botModel: s.botModel } : settings }, { quiet: true });
     btn.disabled = false;
     if (!res.ok) { err.textContent = res.error || 'Oda kurulamadı.'; return; }
     ctx.roomId = res.roomId;
@@ -187,6 +203,7 @@ export function openRoomSettings() {
   const s = {
     nightSec: cur.nightSec, daySec: cur.daySec, revealRoles: cur.revealRoles, events: EVENTS_UI ? (cur.events || 'some') : 'off',
     roleMode: cur.roleMode || 'random', roles: { ...cur.roles }, smartBots: cur.smartBots !== false, aiAvailable: Boolean(st.room.aiAvailable),
+    canChooseBotModel: Boolean(st.me && st.me.canChooseBotModel), botModel: cur.botModel === 'sonnet' ? 'sonnet' : 'haiku',
   };
   store.set(AI_KEY, Boolean(st.room.aiAvailable));
   const n = Math.max(MIN_PLAYERS, st.players.filter((p) => !p.left).length);
@@ -202,7 +219,7 @@ export function openRoomSettings() {
   if (host) {
     sheet.foot.querySelector('[data-save]').addEventListener('click', async () => {
       const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, roles: s.roles, smartBots: s.smartBots };
-      const res = await send('room:settings', { settings });
+      const res = await send('room:settings', { settings: s.canChooseBotModel ? { ...settings, botModel: s.botModel } : settings });
       if (res.ok) {
         store.set(LAST_KEY, settings);
         sheet.close();

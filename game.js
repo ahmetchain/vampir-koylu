@@ -19,6 +19,7 @@ try {
 } catch (err) { /* düz isimle devam */ }
 
 const { BotBrain, botName } = require('./lib/bots');
+const { Banter, isOwnerName } = require('./lib/banter');   // lobi/oyun sonu muhabbeti (şablonlu, modelsiz)
 const { GameRecorder } = require('./lib/ai/gamerec');   // oyun geçmişi kaydı (docs/GAME-LOGS.md)
 
 const ROLE = {
@@ -136,7 +137,8 @@ const DEFAULT_ROLES = {
 };
 const EVENT_MODES = ['off', 'some', 'often'];
 const ROLE_MODES = ['random', 'all'];
-const DEFAULT_SETTINGS = { nightSec: 20, daySec: 120, revealRoles: true, events: 'off', roleMode: 'random', smartBots: true, roles: DEFAULT_ROLES };
+const DEFAULT_SETTINGS = { nightSec: 20, daySec: 120, revealRoles: true, events: 'off', roleMode: 'random', smartBots: true, botModel: 'haiku', roles: DEFAULT_ROLES };
+const BOT_MODELS = ['haiku', 'sonnet'];   // 'sonnet' yalnızca sahip hesap (lib/banter.js PEOPLE.owner) tarafından seçilebilir
 
 // Gece seçimi olan roller ve tipide evden çıkamayan köy rolleri.
 const NIGHT_ACTION_ROLES = new Set([ROLE.VAMPIRE, ROLE.FRAMER, ROLE.CLEANER, ROLE.DOCTOR, ROLE.SEER, ROLE.WATCHER, ROLE.WITCH, ROLE.THIEF]);
@@ -193,6 +195,7 @@ function normalizeSettings(raw = {}) {
     roleMode: ROLE_MODES.includes(raw.roleMode) ? raw.roleMode : DEFAULT_SETTINGS.roleMode,
     // Akıllı botlar (sunucuda API anahtarı varsa; V2-PLAN §17). Varsayılan açık; anahtar yoksa etkisiz.
     smartBots: raw.smartBots === undefined ? DEFAULT_SETTINGS.smartBots : Boolean(raw.smartBots),
+    botModel: BOT_MODELS.includes(raw.botModel) ? raw.botModel : DEFAULT_SETTINGS.botModel,
     roles,
   };
 }
@@ -431,7 +434,7 @@ class Room {
   // seerRng: testlerde kahinin şaşırtmaca rolünün tohumlu üreteci (Math.random gibi).
   constructor({
     id, name, password, settings, hooks, storySeed = null, botRng = Math.random, eventRng = Math.random,
-    dealRng = crypto.randomInt, seerRng = null, ai = null,
+    dealRng = crypto.randomInt, seerRng = null, ai = null, banterRng = Math.random, people = null,
   }) {
     this.dealRng = dealRng;
     this.seerRng = seerRng || (() => this.rand());
@@ -450,6 +453,8 @@ class Room {
     // ai: akıllı botların API istemcisi (lib/ai/client.js AiClient) ya da null (yalnızca rastgele botlar).
     this.ai = ai;
     this.bots = new BotBrain(this, { rng: botRng, ai });
+    // Lobi ve oyun sonu muhabbeti: olaylarla tetiklenen şablonlar; kendi rastgele üreteci vardır (oyunu etkilemez).
+    this.banter = new Banter(this, { rng: banterRng, people, minPlayers: MIN_PLAYERS });
     this.botRng = botRng;
     this.eventRng = eventRng;
     this.recorder = new GameRecorder(this);
@@ -636,6 +641,7 @@ class Room {
     if (!bot) this.clearEmptyTimer();
     this.addLog(`${name} odaya katıldı.`, 'info');
     this.changed();
+    if (!bot) this.banterDo((b) => b.playerJoined(id));
     return null;
   }
 
@@ -649,8 +655,24 @@ class Room {
     const name = botName([...this.players.values()].map((p) => p.name), this.botRng);
     const error = this.addPlayer(id, name, { bot: true });
     if (error) return { error };
-    try { this.bots.greet(id); } catch (err) { /* selam vermese de olur */ }
+    this.banterDo((b) => b.botJoined(id));
     return { id };
+  }
+
+  // Muhabbet hatası oyunu asla bozmaz.
+  banterDo(fn) {
+    try { fn(this.banter); } catch (err) { console.error(`[${this.id}] Muhabbet hatası:`, err && err.message ? err.message : err); }
+  }
+
+  // Sahip hesabın (lib/banter.js) odadaki koltuğu mu: güçlü bot zekâsı ayarını yalnızca o seçebilir.
+  isOwnerPlayer(id) {
+    const p = this.players.get(id);
+    return Boolean(p && !p.bot && p.userId && isOwnerName(p.name, this.banter.people));
+  }
+
+  // Akıllı bot çağrılarının kademesi (lib/ai/config.js): oda ayarı botModel.
+  botTier() {
+    return this.settings.botModel === 'sonnet' ? 'sonnet' : 'haiku';
   }
 
   // Botun sohbet mesajı: insanlarla aynı kanal/evre kuralları (chat), gönderimi sunucu yapar.
@@ -665,6 +687,7 @@ class Room {
   // Gönderilen her sohbet mesajı (insan ya da bot) alıcı koltuklardaki botlara da ulaşır (akıllı botlar).
   observeChat(recipients, message) {
     this.rec('chat', message);
+    this.banterDo((b) => b.onChat(message));
     try {
       this.bots.observeChat(recipients, message);
     } catch (err) {
@@ -745,6 +768,7 @@ class Room {
     this.clearEmptyTimer();
     this.ensureHost();
     this.changed();
+    this.banterDo((b) => b.playerConnected(id));
   }
 
   disconnect(id) {
@@ -864,6 +888,7 @@ class Room {
 
   destroy() {
     this.bots.close();
+    this.banter.close();
     clearTimeout(this.timer);
     this.clearNightTimers();
     clearTimeout(this.hostTimer);
@@ -875,6 +900,8 @@ class Room {
   updateSettings(byId, raw = {}) {
     if (byId !== this.hostId) return 'Ayarları sadece oda sahibi değiştirebilir.';
     if (this.phase !== 'lobby') return 'Ayarlar sadece lobide değiştirilebilir.';
+    // Güçlü bot zekâsı (pahalı) yalnızca sahip hesabın; başkası seçmeye çalışırsa tüm istek reddedilir.
+    if (raw.botModel === 'sonnet' && !this.isOwnerPlayer(byId)) return 'Bu ayarı değiştirme yetkin yok.';
     this.settings = normalizeSettings({ ...this.settings, ...raw, roles: { ...this.settings.roles, ...(raw.roles || {}) } });
     this.changed();
     return null;
@@ -2348,6 +2375,7 @@ class Room {
     }
     this.reportResults();
     this.changed();
+    this.banterDo((b) => b.gameEnded());
   }
 
   // Oyunun sonucunu istatistik için sunucuya bildirir; buradaki bir hata oyunu durdurmaz.
@@ -2384,6 +2412,7 @@ class Room {
     this.resetGame();
     this.addLog('Yeni oyun için lobiye dönüldü.', 'info');
     this.changed();
+    this.banterDo((b) => b.backToLobby());
     return null;
   }
 
@@ -2442,6 +2471,7 @@ class Room {
     if (kind !== 'move' && !this.closed) this.checkPickDone();
     this.hooks.update(this, kind);
     if (kind === 'move' || this.closed) return;
+    this.banterDo((b) => b.observe());
     try {
       this.bots.sync();
     } catch (err) {
@@ -2461,6 +2491,13 @@ class Room {
       hasPassword: Boolean(this.password),
       hostName: host ? host.name : '',
     };
+  }
+
+  // Ayarların oyuncuya giden hâli: botModel yalnızca sahip hesaba görünür (başkalarına sızmaz).
+  settingsFor(viewerId) {
+    if (this.isOwnerPlayer(viewerId)) return this.settings;
+    const { botModel, ...rest } = this.settings;
+    return rest;
   }
 
   // Her oyuncuya kendi görmesi gerekeni hazırlar; başkalarının rolleri sızmaz.
@@ -2494,7 +2531,7 @@ class Room {
       serverNow: Date.now(),
       room: {
         id: this.id, name: this.name, phase: this.phase, round: this.round,
-        deadline: this.deadline, timerFrom: this.timerFrom, hostId: this.hostId, settings: this.settings,
+        deadline: this.deadline, timerFrom: this.timerFrom, hostId: this.hostId, settings: this.settingsFor(viewerId),
         hasPassword: Boolean(this.password), winner: this.winner, winners: this.winners,
         // Akıllı bot seçeneği bu sunucuda var mı (API anahtarı); cevap yazan botlar (yalnızca herkese açık sohbet evrelerinde).
         aiAvailable: Boolean(this.ai && this.ai.available()),
@@ -2516,6 +2553,7 @@ class Room {
         id: me.id, userId: me.userId, name: me.name, seat: me.seat, job: me.job || null,
         role: me.role === ROLE.MAD && !this.madRevealed(me) ? me.fakeRole : me.role, alive: me.alive,
         look: me.look, notes: me.notes,
+        ...(this.isOwnerPlayer(viewerId) ? { canChooseBotModel: true } : {}),
       } : null,
       players,
       log: this.log,

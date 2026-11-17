@@ -124,6 +124,7 @@ settings = {
   events: 'off',         // village events: 'off' | 'some' | 'often' (built, OFF by default and hidden in the UI; §12.10)
   roleMode: 'random',    // 'random' | 'all' – how roles are dealt (§3); anything else → 'random'
   smartBots: true,       // bots driven by Claude when the server has an API key (§17); no effect without one
+  botModel: 'haiku',     // 'haiku' | 'sonnet'; only the owner account (lib/banter.js) may set 'sonnet' (others get an error; the field is hidden from their state); owner's `me.canChooseBotModel` is true
   roles: {               // all 12 keys always present, booleans
     doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false,
     avci: false, muhtar: false, soytari: false, deli: false, hirsiz: false, iftiraci: false, temizlikci: false,
@@ -340,6 +341,7 @@ Nothing moves in the village until the show stage; a locked door is discovered o
 | `state` | the viewer's view (§9) | after every change in the room, to every seated socket (each gets its own view) |
 | `announce` | `{ kind, title, text, ...extra }` (§10) | game events; some kinds only to one player |
 | `chat` | `{ channel, from, fromId, text, ts }` (§11) | chat message for this viewer |
+| `entrance` | `{ call }` | the owner account (lib/banter.js, default `ahmetchain`) connected to the room for the first time in its session while in the lobby (not on reconnects, not after a game). Every client plays `sfx('entrance')` and shows a small toast "🎺 {call} geldi!"; bots then cheer in the chat (2-4 lines, lobby only). |
 | `kicked` | string | the seat was taken over by another tab ("Bu oturum başka bir sekmede açıldı.") or the host kicked you ("Oda sahibi seni odadan çıkardı."). The socket is no longer bound to a seat. |
 | `rooms:update` | `[RoomInfo]` | to sockets that called `rooms:watch`, debounced 200 ms |
 
@@ -840,9 +842,10 @@ stolen role; a Hırsız who never stole counts only in the totals, no team bucke
 left mid-game count as a loss. Recording happens in the background; a storage failure is logged and
 never blocks the room. `/api/me` shows the new numbers a moment after the `win` announce.
 
-**Games with bots are not recorded.** If at least one bot held a seat when `game:start` was
-accepted, the finished game is written to no account's stats and does not affect the leaderboard
-(UI note: "Botlu oyunlar istatistiğe sayılmaz").
+**Games with bots are recorded too.** The human players of a game that had bots are written to
+their accounts' stats and the leaderboard like any other game (bots have no account, so they are
+never recorded). `hooks.finished` still reports `ranked: false` for such games, so a separate filter
+can be added at that one place in `server.js` if bot games should ever be counted apart.
 
 ## 14. Static files, health, caching
 
@@ -944,7 +947,7 @@ Bots let one person start and test a full game alone (`MIN_PLAYERS` counts bots)
     day length, sometimes (15 %) changes the vote late; may say one short canned line in the public
     channel. Bots do not move by day. The vote does **not** use what the bot learned at night.
   - hunter: a bot hunter shoots a random living player after a few seconds.
-  - lobby / ended: now and then a bot strolls; a newly added bot may greet once.
+  - lobby / ended: now and then a bot strolls. Lobby and end-screen chat is templated, never model-driven (`lib/banter.js`): a newly added bot says "Selamün aleyküm"; humans' greetings get one or two "Aleyküm selam"; the owner account (`ahmetchain`) is welcomed once per room session; the end screen gets 1-3 "gg"/"ezz" lines. Nothing of this runs during night/day/trial/hunter.
   - pace: while a human is alive and connected, delays scale with the room's timers; once no
     living, connected human remains, day and hunter delays shrink to 35 % so a watching (dead)
     player sees the game finish quickly. Night pace is not scaled (bots decide in 2–8 s anyway).

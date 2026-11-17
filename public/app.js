@@ -2,7 +2,7 @@
 // Açılış → oturum kontrolü → giriş ya da ana menü → oda (lobi + oyun). Sunucu protokolü: docs/PROTOCOL.md.
 import { ctx, emitLocal, on, send } from './ui/ctx.js';
 import { Api, auth, SERVER } from './ui/api.js';
-import { $, loadScript, session, store, audioScene } from './ui/util.js';
+import { $, loadScript, session, store, audioScene, sfx } from './ui/util.js';
 import { toast, closeAllSheets } from './ui/kit.js';
 import { initWorld, W, ready as worldReady } from './ui/world-host.js';
 import {
@@ -154,6 +154,11 @@ function connectSocket() {
     pushAnnounce(a);
   });
   socket.on('chat', (m) => { if (m) appendChat(m); });
+  // Sahip hesap odaya girdi: giriş fanfarı + küçük bildirim (büyük kart yok).
+  socket.on('entrance', (e) => {
+    sfx('entrance');
+    toast(`🎺 ${String((e && e.call) || 'Ahmet hocam').slice(0, 40)} geldi!`, 'info', 4000);
+  });
   socket.on('kicked', (message) => {
     exitRoom();
     toast(message || 'Odadan çıkarıldın.', 'error', 5000);

@@ -13,7 +13,7 @@ bir 3B dünya olarak açılır. Gündüz tartışıp oylarla vampirleri bulmaya,
 - **Ses:** müzik, ortam sesi ve efektler (`public/audio.js`). Giriş ekranında, menüde ve oyunun üst
   çubuğunda hoparlör düğmesi var: sessize alma ve Müzik / Efektler / Ortam sesi kaydırıcıları tek dokunuşla açılır.
 - **Botlar:** oda sahibi lobide "Bot ekle" ile bot oyuncu ekleyebilir; tek başına da tam bir oyun denenebilir.
-  Bot içeren oyunlar istatistiklere ve liderlik tablosuna sayılmaz. Botlar normal "çıkar" ile odadan atılır.
+  Bot içeren oyunlar da insan oyuncuların istatistiklerine ve liderlik tablosuna sayılır. Lobide ve oyun sonunda botlar şablonlu kısa muhabbet yapar (selam, karşılama, gg; `lib/banter.js`, model çağrısı yok). Botlar normal "çıkar" ile odadan atılır.
 - **Performans:** Ayarlar'da grafik kalitesi (açıklamalı kademeler) ve "FPS göster" seçeneği var; açılınca
   oyunda köşede kare hızı, kare süresi ve kalite kademesi görünür.
 
@@ -93,7 +93,8 @@ oyun başına 300, bot başına oyun başına 45 çağrı.
 | `ANTHROPIC_API_KEY` | – | Akıllı botları açar (yalnızca sunucuda; istemciye gitmez). |
 | `AI_BOTS` | – | `off` yazılırsa anahtar olsa da kapalı. |
 | `AI_BOT_MODEL` | `claude-haiku-5-5` | Kullanılan model. |
-| `AI_BOT_EFFORT` | `low` | `low`, `medium` ya da `high`. |
+| `AI_BOT_EFFORT` | `medium` | `low`, `medium` ya da `high`. |
+| `BANTER_PEOPLE` | – | Özel hesapların (sahip, takılınacak arkadaş) JSON ile değiştirilmesi (`lib/banter.js`). Sahip hesap oda ayarlarında "Bot zekâsı: Güçlü (Sonnet, pahalı)" seçebilir. |
 | `AI_MAX_TOKENS` | `1024` | Çağrı başına en fazla çıktı (düşünme dahil). |
 | `AI_DAILY_CALL_LIMIT` | `3000` | Tüm sunucu için günlük (UTC) çağrı sınırı. |
 | `AI_GAME_CALL_LIMIT` | `300` | Bir oyundaki en fazla çağrı. |

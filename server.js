@@ -184,6 +184,11 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
       rooms.delete(room.id);
       broadcastRoomList();
     },
+    // Sahip hesap odaya ilk kez girdi: herkesin tarayıcısı giriş fanfarını çalar (lib/banter.js playerConnected).
+    entrance(room, info) {
+      if (closing) return;
+      sendToPlayers(room, room.players.keys(), 'entrance', { call: info.call });
+    },
     // Botların sohbet mesajları (insan mesajlarıyla aynı alıcı kuralları).
     chat(room, recipients, message) {
       if (closing) return;
@@ -220,8 +225,8 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
       track(p, `Oyun geçmişi kaydedilemedi (${room.id})`);
     },
     finished(room, { results, ranked }) {
-      // Botlu oyunlar istatistiğe ve liderlik tablosuna yazılmaz.
-      if (ranked === false) return;
+      // Botlu oyunlar da insan oyuncuların istatistiğine ve liderlik tablosuna yazılır (botların hesabı yok: userId boş).
+      // `ranked` (oyun başında bot var mıydı) hâlâ bildirilir; ileride botlu oyunları ayrı saymak istenirse süzgeç burada olur.
       const rows = results.filter((r) => r.userId);
       if (rows.length) track(accounts.recordResults(rows), `Oyun sonucu kaydedilemedi (${room.id})`);
     },
@@ -364,6 +369,8 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
       rooms.set(room.id, room);
       const playerId = crypto.randomUUID();
       room.addPlayer(playerId, user.username, { userId: user.id, look });
+      // Güçlü bot zekâsı (Sonnet) yalnızca sahip hesabın: başkası seçmeye çalışırsa sessizce varsayılana döner.
+      if (room.settings.botModel === 'sonnet' && !room.isOwnerPlayer(playerId)) room.settings.botModel = 'haiku';
       bind(socket, room, playerId);
       reply({ ok: true, roomId: room.id, playerId });
     });

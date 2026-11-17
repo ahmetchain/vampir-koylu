@@ -125,7 +125,7 @@ for (const revealRoles of [true, false]) {
     let prompts = 0;
     let ended = 0;
     const roles = new Set();
-    for (let g = 0; g < 4; g++) {
+    for (let g = 0; g < 6; g++) {
       const problems = [];
       const transport = mockTransport({ seed: `sinir-${g}`, latency: 700 });
       const client = makeClient(transport);

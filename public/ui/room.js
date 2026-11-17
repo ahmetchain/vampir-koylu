@@ -25,7 +25,6 @@ let roleSheet = null;
 let lastPlayerCount = 0;
 
 const initial = (name) => (String(name || '?').replace(/^Bot\s+/, '').trim()[0] || '?').toLocaleUpperCase('tr');
-const hadBots = (s) => !!(s && s.players.some((p) => p.bot));
 const botChip = (p) => (p && p.bot ? `<span class="chip chip-bot">${icon('bot')}Bot</span>` : '');
 const nameJob = (p) => (p && p.job && p.job.label ? `${esc(p.name)} · <span class="job">${esc(p.job.label)}</span>` : esc(p ? p.name : ''));
 
@@ -341,7 +340,7 @@ function onPhaseChange(s, prev) {
   if (ph === 'lobby') ctx.statsBefore = null;
   if (['night', 'day', 'trial', 'hunter'].includes(ph) && prev) vibrate(60);
   audioScene({ lobby: 'lobby', reveal: 'night', night: 'night', day: 'day', trial: 'day', hunter: 'day', ended: 'ended' }[ph] || 'lobby');
-  if (ph === 'ended') { if (hadBots(s)) ctx.statsAfter = null; else fetchStatsDelta(); }
+  if (ph === 'ended') fetchStatsDelta();   // botlu oyunlar da istatistiğe yazılır
 }
 
 function phaseLabel(s) {
@@ -967,9 +966,7 @@ function endHTML(s) {
     const key = (s.log || []).filter((l) => ['death', 'win', 'safe'].includes(l.kind));
     tale = key.length ? key.map((l) => `<p>${esc(l.text)}</p>`).join('') : '<p>Köy bu oyunu sessizce geride bıraktı.</p>';
   }
-  const delta = hadBots(s)
-    ? `<div class="note note-moon">${icon('bot')}<span>Bu oyunda bot vardı; istatistiklere ve liderlik tablosuna sayılmadı.</span></div>`
-    : statsDeltaHTML();
+  const delta = statsDeltaHTML();
   return `<section class="end" data-winner="${esc(room.winner || '')}">
     <div class="end-hero">${emblem(winRole, 'xl')}<h2>${WIN_TITLE[room.winner] || 'Oyun bitti'}</h2>
       <span class="end-me ${won ? 'win' : 'lose'}">${won ? 'Tebrikler, kazandın!' : 'Bu sefer kaybettin.'}</span></div>

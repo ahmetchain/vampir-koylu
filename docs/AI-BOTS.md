@@ -94,7 +94,7 @@ same line, so nothing leaks.
 
 ## Request shape
 
-`messages.create` with `model` (default `claude-haiku-5-5`, override with `AI_BOT_MODEL`), `max_tokens` 4096 (thinking counts towards it),
+`messages.create` with `model` (default `claude-haiku-5-5`, override with `AI_BOT_MODEL`; a room whose host account is the owner (`owner: true` in lib/banter.js PEOPLE, default `ahmetchain`) may set `settings.botModel = 'sonnet'` → `claude-sonnet-5-5`, effort `low`, priced from its own table per call; the setting is hidden from and rejected for everybody else; the game log line shows the model(s) actually used, `model=claude-haiku-5-5+claude-sonnet-5-5` if both), `max_tokens` 4096 (thinking counts towards it),
 `output_config: { effort: 'medium', format: { type: 'json_schema', schema } }`, the system prompt as one text block
 with `cache_control: { type: 'ephemeral' }` (≈ 7 K tokens; Haiku 5.5 caches from 512 tokens – correctness does
 not depend on it), one user message (≈ 1.2–2 K tokens on average, up to ≈ 3.5 K late in a long game). No sampling parameters, no prefill, no server-side fallbacks (not available
@@ -128,10 +128,11 @@ why the feature is off (`ANTHROPIC_API_KEY yok` / `AI_BOTS=off`).
 |---|---|---|
 | `ANTHROPIC_API_KEY` | – | enables the feature (server only, never sent to clients) |
 | `AI_BOTS` | – | `off` disables it even with a key |
-| `AI_BOT_MODEL` | `claude-sonnet-5-5` (Haiku: `claude-haiku-5-5`; never name an output field "think": Sonnet refuses) | model id |
-| `AI_BOT_EFFORT` | `low` | `low` / `medium` / `high` |
+| `AI_BOT_MODEL` | `claude-haiku-5-5` | model id of the default ("haiku") tier; rooms with `botModel: 'sonnet'` always use `claude-sonnet-5-5` at `low` effort (never name an output field "think": Sonnet refuses) |
+| `AI_BOT_EFFORT` | `medium` | `low` / `medium` / `high` (default tier) |
+| `BANTER_PEOPLE` | built-in map | JSON override of the special accounts (lib/banter.js): `{"user":{"kind":"host"\|"tease","call":["…"],"with":"…","owner":true}}` |
 | `AI_MAX_TOKENS` | 4096 | per call (256–4096) |
-| `AI_DAILY_CALL_LIMIT` | 1500 | all rooms, per UTC day |
+| `AI_DAILY_CALL_LIMIT` | 3000 | all rooms, per UTC day |
 | `AI_GAME_CALL_LIMIT` | 300 | per game |
 | `AI_BOT_CALL_LIMIT` | 45 | per bot per game |
 | `AI_CONCURRENCY` | 6 | simultaneous requests (all rooms) |

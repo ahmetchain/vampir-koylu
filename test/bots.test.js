@@ -5,7 +5,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Room, ROLE, isEvil, OPTIONAL_ROLES, MAX_PLAYERS } = require('../game');
-const { BOT_LINES, BOT_GREETINGS, BOT_NAMES } = require('../lib/bots');
+const { BOT_LINES, BOT_NAMES } = require('../lib/bots');
+const { ALL_LINES: BANTER_LINES } = require('../lib/banter');   // lobi/oyun sonu muhabbeti (şablonlar; {call}/{with} doldurulmuş hâlleri aşağıda eşleştirilir)
 const {
   startServer, http, register, client, connected, emit, waitFor,
 } = require('./helpers');
@@ -87,6 +88,15 @@ function playToEnd(t, room, { humanPlays = false, rng = mulberry('insan'), limit
   return elapsed;
 }
 
+// Muhabbet satırı mı: sabit şablon ya da {call}/{with} yerine adın konduğu hâli.
+function isBanter(text) {
+  return BANTER_LINES.some((tpl) => {
+    const parts = tpl.split(/\{\w+\}/);
+    if (parts.length === 1) return tpl === text;
+    return text.startsWith(parts[0]) && text.endsWith(parts[parts.length - 1]);
+  });
+}
+
 function enableClock(t) {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_700_000_000_000 });
 }
@@ -121,7 +131,7 @@ test('bot ekleme: sadece oda sahibi, sadece lobide, oda doluysa olmaz; bot herke
   // Lobide selamlaşma: sadece genel kanal, sadece bilinen satırlar.
   t.mock.timers.tick(5000);
   for (const c of ev.chats) {
-    assert.ok(BOT_GREETINGS.includes(c.message.text));
+    assert.ok(isBanter(c.message.text), c.message.text);
     assert.equal(c.message.channel, 'genel');
   }
 
@@ -255,12 +265,12 @@ for (const humanPlays of [false, true]) {
           const from = room.players.get(c.message.fromId);
           assert.ok(from && from.bot);
           assert.equal(c.message.channel, 'genel');
-          assert.ok(['day', 'trial', 'lobby'].includes(c.phase), c.phase);
-          assert.ok(BOT_LINES.includes(c.message.text) || BOT_GREETINGS.includes(c.message.text));
+          assert.ok(['day', 'trial', 'lobby', 'ended'].includes(c.phase), c.phase);
+          assert.ok(BOT_LINES.includes(c.message.text) || isBanter(c.message.text), c.message.text);
         }
         // Cadı iksirleri en fazla birer kez (kural) ve evrensel kural: oyun sonu bildirimi istatistiksiz.
         assert.equal(ev.finished.length, 1);
-        assert.equal(ev.finished[0].ranked, false, 'botlu oyun istatistiğe yazılmaz');
+        assert.equal(ev.finished[0].ranked, false, 'botlu oyun ranked:false bildirilir (istatistiğe yine yazılır: server.js)');
         room.destroy();
         assert.equal(room.bots.timers.size, 0);
       }
@@ -274,7 +284,7 @@ for (const humanPlays of [false, true]) {
 }
 
 test('bot sohbet satırları rol adı ya da gece bilgisi içermez', () => {
-  for (const line of [...BOT_LINES, ...BOT_GREETINGS]) {
+  for (const line of [...BOT_LINES, ...BANTER_LINES]) {
     const lower = line.toLocaleLowerCase('tr');
     for (const w of ROLE_WORDS) assert.equal(lower.includes(w), false, `"${line}" içinde "${w}"`);
   }
@@ -313,7 +323,7 @@ test('botsuz oyun istatistiğe yazılır (karşılaştırma)', (t) => {
 
 // ---------- soket üzerinden ----------
 
-test('soket: room:addBot, bot bayrağı, bot çıkarma ve botlu oyun istatistiğe yazılmaz', { timeout: 20000 }, async (t) => {
+test('soket: room:addBot, bot bayrağı, bot çıkarma ve botlu oyun da istatistiğe yazılır', { timeout: 20000 }, async (t) => {
   const srv = await startServer(t);
   const a = await register(srv, 'Yalnızİnsan');
   const b = await register(srv, 'Misafir');
@@ -345,9 +355,8 @@ test('soket: room:addBot, bot bayrağı, bot çıkarma ve botlu oyun istatistiğ
   await waitFor(() => host.lastState.room.phase === 'ended');
   await srv.settle();
   for (const tok of [a.token, b.token]) {
-    assert.equal((await http(srv, 'GET', '/api/me', { token: tok })).json.user.stats.games, 0, 'botlu oyun sayılmaz');
+    assert.equal((await http(srv, 'GET', '/api/me', { token: tok })).json.user.stats.games, 1, 'botlu oyun da insanların istatistiğine yazılır');
   }
-  assert.deepEqual((await http(srv, 'GET', '/api/leaderboard')).json.players, []);
 
   // İki insan da ayrılınca oda kapanır.
   await emit(guest, 'room:leave', {});
