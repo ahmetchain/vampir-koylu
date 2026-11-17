@@ -6,7 +6,8 @@
 //   node scripts/ai-eval.js [--out DIR] [--only 01,06] [--list]          anahtarsız: her senaryo için system.txt, user.txt, expect.md yazar
 //   node scripts/ai-eval.js --n 5 [--only ...]                           anahtarla: her senaryoyu N kez gerçek modele sorar, denetler, report.md yazar
 //   node scripts/ai-eval.js --mock [--only ...]                          anahtarsız boru hattı denemesi: sahte modelle aynı rapor (denetim sonuçları anlamsız)
-//   node scripts/ai-eval.js --selfplay [--bots 8] [--mock]               yalnızca botlardan oluşan tek oyun: kamuya açık döküm + son roller
+//   node scripts/ai-eval.js --selfplay [--bots 8] [--mock] [--review]    yalnızca botlardan oluşan tek oyun: kamuya açık döküm + son roller + oyun kaydı
+//                                                                        (selfplay-record.json); --review: kaydı güçlü modele inceletir (reviews/; bkz. scripts/ai-reviews.js)
 //
 // Anahtar: ortamdaki ANTHROPIC_API_KEY ya da git'e girmeyen .env.local (yalnızca bu betik okur; AI_BOT_MODEL,
 // AI_BOT_EFFORT da buradan verilebilir). Anahtar hiçbir yere yazılmaz. --mock: sahte modelle ve sahte saatle çalışır
@@ -17,20 +18,10 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 
-function loadEnvLocal(env) {
-  const file = path.join(ROOT, '.env.local');
-  const out = { ...env };
-  if (!fs.existsSync(file)) return out;
-  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
-    if (!m || m[1].startsWith('#')) continue;
-    if (out[m[1]] === undefined || out[m[1]] === '') out[m[1]] = m[2].replace(/^["']|["']$/g, '');
-  }
-  return out;
-}
+const { loadEnvLocal } = require('./env-local');
 
 function parseArgs(argv) {
-  const a = { n: 1, out: path.join(ROOT, 'ai-eval-out'), only: null, list: false, selfplay: false, mock: false, bots: 8 };
+  const a = { n: 1, out: path.join(ROOT, 'ai-eval-out'), only: null, list: false, selfplay: false, mock: false, bots: 8, review: false };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--n') a.n = Math.max(1, Number(argv[++i]) || 1);
@@ -39,6 +30,7 @@ function parseArgs(argv) {
     else if (k === '--list') a.list = true;
     else if (k === '--selfplay') a.selfplay = true;
     else if (k === '--mock') a.mock = true;
+    else if (k === '--review') a.review = true;
     else if (k === '--bots') a.bots = Math.max(4, Math.min(19, Number(argv[++i]) || 8));
     else if (k === '--help' || k === '-h') a.help = true;
   }
@@ -176,11 +168,14 @@ async function selfplay(args, lib, env) {
     client = realClient(lib.ai, env);
   }
   const transcript = [];
+  let record = null;
   const room = new Room({
     id: 'KENDI', name: 'Kendi kendine', settings: { nightSec: 15, daySec: 120, revealRoles: true, roleMode: 'random', events: 'some', roles: { gozcu: true, gardiyan: true, cadi: true, avci: true, muhtar: true, soytari: true, deli: true, hirsiz: true, iftiraci: true, temizlikci: true } },
     ai: client,
     hooks: {
       update() {}, empty() {}, finished() {},
+      // Oyun sonu kaydı (lib/ai/gamerec.js): sunucudaki incelemeyle aynı kayıt.
+      reviewReady: (r, rec) => { record = rec; },
       announce: (r, a, to) => { if (!to) transcript.push(`[${new Date().toISOString().slice(11, 19)}] * ${a.title}: ${a.text}`); },
       chat: (r, rec, m) => { if (m.channel === 'genel') transcript.push(`[${new Date().toISOString().slice(11, 19)}] ${m.from}: ${m.text}`); },
     },
@@ -214,6 +209,30 @@ async function selfplay(args, lib, env) {
   room.destroy();
   if (mockT) mockT.mock.timers.reset();
   console.log(`Döküm yazıldı: ${file}`);
+  if (record) {
+    const recFile = path.join(args.out, args.mock ? 'selfplay-record-mock.json' : 'selfplay-record.json');
+    write(recFile, JSON.stringify(record));
+    console.log(`Oyun kaydı yazıldı: ${recFile} (${JSON.stringify(record).length} karakter; yeniden incelemek için: node scripts/ai-reviews.js --local ${path.relative(process.cwd(), recFile)})`);
+  }
+  if (args.review) {
+    if (!record) { console.error('Oyun kaydı yok (oyun bitmedi ya da hiç model çağrısı başarılı olmadı); inceleme atlandı.'); return; }
+    const { reviewLocal, printSummary } = require('./ai-reviews');
+    const transport = args.mock ? mockReviewTransport : null;
+    const reviewEnv = args.mock ? { ...env, ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY || 'yok-sahte' } : env;
+    const res = await reviewLocal(record, reviewEnv, path.join(args.out, 'reviews'), { label: args.mock ? 'selfplay-mock' : 'selfplay', transport });
+    printSummary(res);
+    console.log(`İnceleme yazıldı: ${res.file}`);
+  }
+}
+
+// --mock --review: ağ yok; sabit bir inceleme döner (yalnızca boru hattı denemesi).
+function mockReviewTransport() {
+  const review = {
+    summary: 'Sahte inceleme (boru hattı denemesi).',
+    mistakes: [{ bot: 'Bot Cem', day_or_night: 'gün 1', quote: 'Bence acele etmeyelim.', what_was_wrong: 'Örnek hata.', rule_violated_or_missing: 'Evidence scale', severity: 'low', suggested_rule_change: 'Örnek kural.', suggested_scenario: { title: 'ornek', setup: 'kurulum', expected: 'beklenen' } }],
+    good_moves: [],
+  };
+  return Promise.resolve({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(review) }], usage: { input_tokens: 1000, output_tokens: 200 } });
 }
 
 async function main() {

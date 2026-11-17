@@ -11,6 +11,7 @@ const { Room } = require('./game');
 const { createStore } = require('./lib/store');
 const { Accounts } = require('./lib/auth');
 const { createAiClient, aiStatusLine } = require('./lib/ai');
+const { createReviewer, reviewStatusLine } = require('./lib/ai/review');
 const { createApi } = require('./lib/api');
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -56,7 +57,8 @@ function cacheHeaders(res, filePath) {
 // Sunucuyu kurar ama dinlemeye başlamaz (testler aynı süreçte kullanabilsin).
 // options: store (init edilmiş depo), origins, trustProxy, authOptions, limits
 // ai: akıllı botların API istemcisi (lib/ai) ya da null. Testler ve anahtarsız sunucu: null (yalnızca rastgele botlar).
-function createGameServer({ store, origins = [], trustProxy = false, authOptions = {}, limits = {}, port = 0, ai = null } = {}) {
+// reviewer: oyun sonu bot incelemesi (lib/ai/review.js Reviewer) ya da null. adminToken: ADMIN_TOKEN (boşsa yönetici adresleri kapalı).
+function createGameServer({ store, origins = [], trustProxy = false, authOptions = {}, limits = {}, port = 0, ai = null, reviewer = null, adminToken = '' } = {}) {
   const accounts = new Accounts(store, authOptions);
   const rooms = new Map();
   const moveTimers = new Map();
@@ -74,7 +76,7 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
   app.get('/healthz', (req, res) => {
     res.set('Cache-Control', 'no-store');
     // Akıllı botlar: yalnızca toplu sayılar (çağrı, token, tahmini maliyet); içerik asla.
-    res.json({ ok: true, rooms: rooms.size, store: store.kind, ...(ai ? { ai: ai.stats() } : {}) });
+    res.json({ ok: true, rooms: rooms.size, store: store.kind, ...(ai ? { ai: ai.stats() } : {}), ...(reviewer ? { aiReview: reviewer.stats() } : {}) });
   });
 
   // localhost'tan açan oda sahibinin davet linki, aynı ağdakilerin açabileceği adresle oluşturulsun.
@@ -86,6 +88,8 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
   app.use('/api', createApi(accounts, {
     origins,
     limits,
+    adminToken,
+    store,
     onLogout(tokenHash) {
       // Çıkış yapılan oturumun açık soketleri de kapanır.
       for (const s of io.sockets.sockets.values()) {
@@ -178,6 +182,11 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
     chat(room, recipients, message) {
       if (closing) return;
       sendToPlayers(room, recipients, 'chat', message);
+    },
+    // Akıllı botlu oyun bitti: oyun kaydı asenkron incelenir (oyunu beklemez; hata yalnızca tek satır log).
+    reviewReady(room, record) {
+      if (closing || !reviewer) return;
+      track(reviewer.process(record, room.id, store), `Oyun incelemesi (${room.id})`);
     },
     finished(room, { results, ranked }) {
       // Botlu oyunlar istatistiğe ve liderlik tablosuna yazılmaz.
@@ -439,7 +448,7 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
   });
 
   return {
-    app, server, io, rooms, accounts, store,
+    app, server, io, rooms, accounts, store, hooks,
     listen(p = port) {
       return new Promise((resolve, reject) => {
         server.once('error', reject);
@@ -498,9 +507,13 @@ async function main() {
     process.exit(1);
   }
   const ai = createAiClient(process.env);
+  const reviewer = ai ? createReviewer(process.env, { store }) : null;
+  const adminToken = String(process.env.ADMIN_TOKEN || '').trim();
   const game = createGameServer({
     store,
     ai,
+    reviewer,
+    adminToken,
     origins: parseOrigins(process.env.CLIENT_ORIGIN),
     trustProxy: trustProxySetting(),
     port: PORT,
@@ -510,6 +523,7 @@ async function main() {
   console.log('Vampir Köylü sunucusu çalışıyor.');
   console.log(`  Hesap deposu:         ${store.kind === 'postgres' ? 'PostgreSQL (DATABASE_URL)' : `JSON dosyası (${store.file})`}`);
   console.log(`  Akıllı botlar:        ${aiStatusLine(ai, process.env)}`);
+  console.log(`  Oyun incelemesi:      ${ai ? reviewStatusLine(reviewer, process.env) : 'kapalı (akıllı botlar kapalı)'}${adminToken ? '; yönetici adresleri açık (ADMIN_TOKEN)' : ''}`);
   console.log(`  Bu bilgisayardan:     http://localhost:${PORT}`);
   for (const ip of lanAddresses()) {
     console.log(`  Aynı Wi-Fi'dakiler:   http://${ip}:${PORT}`);
