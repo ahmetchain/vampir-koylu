@@ -103,7 +103,8 @@ export const ROLE_LIST = ['vampir', 'iftiraci', 'temizlikci', 'doktor', 'kahin',
 // Sunucunun özel rolleri ekleme sırası (PROTOCOL §3).
 export const SPECIAL_ORDER = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz'];
 export const TOGGLE_ROLES = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz', 'iftiraci', 'temizlikci'];
-export const DEFAULT_ROLES = { doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false, avci: false, muhtar: false, soytari: false, deli: false, hirsiz: false, iftiraci: false, temizlikci: false };
+// Yeni odada bütün roller açık gelir: rastgele dağıtımda her oyun farklı bir karışım çıkar (kapalı kalırsa herkes köylü olur).
+export const DEFAULT_ROLES = { doktor: true, kahin: true, gozcu: true, gardiyan: true, cadi: true, avci: true, muhtar: true, soytari: true, deli: true, hirsiz: true, iftiraci: true, temizlikci: true };
 export const MIN_PLAYERS = 5;
 export const MAX_PLAYERS = 20;
 export const FRAMER_MIN = 7;
