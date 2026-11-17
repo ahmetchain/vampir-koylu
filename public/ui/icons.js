@@ -91,6 +91,28 @@ const HATS = [
   '<path d="M12 21v-9"/><path d="M12 12c-4.5 0-6.5-3-6.5-6.5 4.2 0 6.5 2.6 6.5 6.5zM12 14.5c3.8 0 5.5-2.5 5.5-5.5-3.5 0-5.5 2.2-5.5 5.5z"/>',
   '<path d="M4.5 14.5c0-5 3.4-8 7.5-8s7 2.6 7.4 6.8"/><path d="M4.5 14.5h10c3 0 5.5.6 7 2-1.5.8-4 1-7 1h-10z"/><circle cx="12" cy="6" r="1" fill="currentColor"/>',
   '<path d="M5.5 15V12a6.5 6.5 0 0 1 13 0v3"/><rect x="3" y="13" width="5" height="7" rx="2"/><rect x="16" y="13" width="5" height="7" rx="2"/>',
+  // 9 takke, 10 örgü takke, 11 fes, 12 yemeni, 13 keçe külah, 14 kalpak, 15 ponponlu bere, 16 çiçek tacı, 17 aşçı başlığı, 18 taç
+  '<path d="M4.5 17c0-5.6 3.3-9 7.5-9s7.5 3.4 7.5 9z"/><path d="M4.8 14.3h14.4"/><path d="M7.5 14.3V17M10.5 14.3V17M13.5 14.3V17M16.5 14.3V17"/>',
+  '<path d="M4.5 17c0-5.6 3.3-9 7.5-9s7.5 3.4 7.5 9z"/><path d="M5 14.5l1.8 2.5 1.8-2.5 1.8 2.5 1.8-2.5 1.8 2.5 1.8-2.5 1.8 2.5 1.4-2"/><path d="M9 9.5l1.5 2 1.5-2 1.5 2 1.5-2"/>',
+  '<path d="M6.8 19.5l1.4-12h7.6l1.4 12z"/><path d="M7.3 16.3h9.4"/><path d="M12 7.5c2.3 0 3.7.8 4.3 2.4l.4 3.4"/><path d="M16.7 13.3l-.9 2.7h1.8z" fill="currentColor"/>',
+  '<path d="M12 3.5c-4.6 0-7.5 3.5-7.5 8.5v8.5h15V12c0-5-2.9-8.5-7.5-8.5z"/><path d="M8.5 20.5V14a3.5 3.5 0 0 1 7 0v6.5"/><circle cx="7.2" cy="11.5" r=".8" fill="currentColor"/><circle cx="16.8" cy="11.5" r=".8" fill="currentColor"/><circle cx="12" cy="6.5" r=".8" fill="currentColor"/>',
+  '<path d="M4.5 19h15"/><path d="M6.2 19L12 3.5 17.8 19"/><path d="M7.4 15.8h9.2"/>',
+  '<path d="M5.5 19V8.5c2.2-1.7 10.8-1.7 13 0V19z"/><path d="M8 11.5l1 1M11.5 10.8l1 1M15 11.5l1 1M9.5 15l1 1M13.5 14.8l1 1"/>',
+  '<path d="M5.5 14.5c0-4.6 2.9-7.2 6.5-7.2s6.5 2.6 6.5 7.2"/><rect x="4.5" y="14.5" width="15" height="4" rx="1.2"/><circle cx="12" cy="5" r="2"/><path d="M8 14.5v4M12 14.5v4M16 14.5v4"/>',
+  '<ellipse cx="12" cy="14.5" rx="8.5" ry="3.5"/><circle cx="5.5" cy="12.5" r="1.9"/><circle cx="12" cy="10.8" r="1.9"/><circle cx="18.5" cy="12.5" r="1.9"/>',
+  '<path d="M7.5 20.5h9V14.6a4 4 0 0 0-1-7.9 4 4 0 0 0-7 0 4 4 0 0 0-1 7.9z"/><path d="M7.5 17.3h9"/>',
+  '<path d="M4.8 17.5L3.5 8.5l5 3.8L12 6l3.5 6.3 5-3.8-1.3 9z"/><path d="M4.8 20.5h14.4"/><circle cx="12" cy="14.8" r=".9" fill="currentColor"/>',
+];
+
+// Aksesuar simgeleri: 0 yok, 1 bıyık, 2 gözlük, 3 sakal, 4 atkı, 5 papyon, 6 nazarlık
+const ACCS = [
+  HATS[0],
+  '<path d="M12 12c-1.6-2.2-4.3-2.4-5.8-.8-1 1.1-2.3 1.4-3.7.7.6 2.6 3.2 3.9 5.7 3.1 1.6-.4 3-1.4 3.8-3zM12 12c1.6-2.2 4.3-2.4 5.8-.8 1 1.1 2.3 1.4 3.7.7-.6 2.6-3.2 3.9-5.7 3.1-1.6-.4-3-1.4-3.8-3z"/>',
+  '<circle cx="7" cy="13" r="3.6"/><circle cx="17" cy="13" r="3.6"/><path d="M10.6 12.4c.9-.8 1.9-.8 2.8 0"/><path d="M3.4 12.2L2 9.5M20.6 12.2L22 9.5"/>',
+  '<path d="M5 7.5v4.5c0 4.6 3 8.5 7 8.5s7-3.9 7-8.5V7.5"/><path d="M8.3 12.6c1.3-1 2.5-1 3.7 0 1.2-1 2.4-1 3.7 0"/><path d="M10.5 16.2h3"/>',
+  '<path d="M4.5 8c2.2 1.5 4.7 2.2 7.5 2.2S17.3 9.5 19.5 8v3.2c-2.2 1.5-4.7 2.2-7.5 2.2s-5.3-.7-7.5-2.2z"/><path d="M14 13.3v7.2h3.5v-8.3"/><path d="M14 17h3.5"/>',
+  '<path d="M12 12L4.5 8v8zM12 12l7.5-4v8z"/><rect x="10.4" y="10.4" width="3.2" height="3.2" rx=".9"/>',
+  '<circle cx="12" cy="13.5" r="7"/><circle cx="12" cy="13.5" r="4.2"/><circle cx="12" cy="13.5" r="1.8" fill="currentColor"/><path d="M12 6.5V3.5"/>',
 ];
 
 function svg(body, cls, label) {
@@ -111,6 +133,9 @@ export function emblem(role, size = 'm', color) {
 }
 export function hatIcon(i, cls = '') {
   return svg(HATS[i] || HATS[0], cls);
+}
+export function accIcon(i, cls = '') {
+  return svg(ACCS[i] || ACCS[0], cls);
 }
 
 const ROLE_COLORS = {

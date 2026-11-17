@@ -90,7 +90,7 @@ test('oyun kaydı: botlu oyun bitince bir kez kurulur; insanın özel bilgisi yo
       whispered = true;
       humanSay(room, ev, 'h1', 'GENEL-INSAN-SOZU herkese merhaba');
       // İnsanın gizli kanaldaki satırı (kötü takımdaysa gerçekte olur): doğrudan kayıt kancasına verilir.
-      room.bots.smart.observeChat([], { channel: 'vampir', from: 'İrem', fromId: 'h1', text: 'GIZLI-FISILTI', ts: Date.now() });
+      room.observeChat([], { channel: 'vampir', from: 'İrem', fromId: 'h1', text: 'GIZLI-FISILTI', ts: Date.now() });
     }
   }
   assert.equal(room.phase, 'ended');
@@ -403,7 +403,7 @@ test('yönetici adresleri: anahtarsız 401, yanlış anahtar 401, doğru anahtar
   const j = await ok.json();
   assert.equal(j.ok, true);
   assert.deepEqual(j.reviews.map((r) => r.id), ['r0002', 'r0001']);
-  assert.deepEqual(Object.keys(j.reviews[0]).sort(), ['cost', 'createdAt', 'date', 'high', 'id', 'low', 'medium', 'mistakes', 'model', 'room', 'summary']);
+  assert.deepEqual(Object.keys(j.reviews[0]).sort(), ['cost', 'createdAt', 'date', 'high', 'id', 'logId', 'low', 'medium', 'mistakes', 'model', 'room', 'summary']);
   assert.equal(j.reviews[0].record, undefined);
   assert.equal(ok.headers.get('cache-control'), 'no-store');
   const full = await (await get(srv, '/api/admin/ai-reviews/r0001', 'gizli-yonetici-anahtari')).json();

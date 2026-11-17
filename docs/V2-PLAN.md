@@ -88,10 +88,12 @@ will be deleted by the ui owner once nothing references them.
   `#d7263d #2b59c3 #2f9e44 #f06595 #f76707 #f2c12e #3b3b46 #e9ecef #7048e8 #8d5a3b #15aabf #94d82d #862e3c #ffa8c5 #1c2e6e #868e96 #d9b99b #ff8364 #6b7a2a #b197fc`
   Names: Kırmızı, Mavi, Yeşil, Pembe, Turuncu, Sarı, Siyah, Beyaz, Mor, Kahverengi, Camgöbeği,
   Fıstık, Bordo, Gül, Lacivert, Gri, Bej, Mercan, Zeytin, Lavanta.
-- Look = `{ color: 0..19, hat: 0..8, skin: 0..11 }`.
-  `skin` picks one of 12 character models/variants. `hat` 0 = none; 1..8 are 3D hats attached to the
-  head (Hasır şapka, Bere, Çiçek, Silindir, Bandana, Filiz, Kasket, Kulaklık – may be re-themed but
-  keep 8). The player color must be obvious on the character from the game camera (tinted clothes
+- Look = `{ color: 0..19, hat: 0..18, skin: 0..11, acc?: 0..6 }`.
+  `skin` picks one of 12 character models/variants. `hat` 0 = none; 1..8 are 3D hats from `hats.glb`
+  (Hasır şapka, Bere, Çiçek, Silindir, Bandana, Filiz, Kasket, Kulaklık); 9..18 are built in code
+  (`client/world/hats.js`: Takke, Örgü takke, Fes, Yemeni, Keçe külah, Kalpak, Ponponlu bere,
+  Çiçek tacı, Aşçı başlığı, Taç). `acc` (optional, missing = 0 = none): Bıyık, Gözlük, Sakal, Atkı,
+  Papyon, Nazarlık. Hats and accessories are plain cosmetics; never use one as a role marker. The player color must be obvious on the character from the game camera (tinted clothes
   if feasible, otherwise scarf/cape + ground ring) and on the name tag and the house (banner/door).
 
 ## 5. Game rules (server)
@@ -633,3 +635,19 @@ Goal: find the bots' mistakes without reading every game, and turn them into rul
 - One log line per review (`[ai-review] oda=… model=… hata=N (yüksek=…) maliyet≈$…`), no chat text, no names.
 - The lobby note now also says that finished games may be reviewed by the AI service to improve the bots.
 - Measured: ≈ $0.13 per review of a 9-bot game (details and a first real review in `docs/AI-BOTS.md`).
+
+## 20. Game history for every game (owner request 2026-11-17)
+
+Goal: keep every finished game's full history as text for later analysis (what happened, how the bots talked, what the humans said to the bots, what problems came up). Details: `docs/GAME-LOGS.md`.
+
+- Every `Room` has a `GameRecorder` (`lib/ai/gamerec.js`, hooks in `game.js` through `room.rec(...)`); with or without bots. A record (`v:2`) is built when the game ends, or when the room closes mid-game after at least one night
+  (`end: "abandoned"`). It holds game id, room code, start/end, settings, players (human / bot / smart bot, final role & team, alive, how and when they died), winner and the full ordered event list: phases, public log,
+  ALL chat with channel (genel / vampir / olu) and time, night picks per player, the resolved night, private results marked per recipient, day votes with every change and the tally, Avcı shots and events (through the log),
+  smart bots' per-turn `think`/`memory` and fallbacks. ≈ 200 K characters max (oldest bot notes go first, then chat), stored gzip + base64 (a small game ≈ 4 K).
+- Storage in both stores, written asynchronously after the game (`hooks.gameLog`; failure = one log line): table `vk_game_logs` (created at start-up) / file `game-logs.json`; the newest 500 games or ≈ 200 MB.
+  `vk_ai_reviews.game_log_id` is added to the live table at start-up.
+- The Sonnet review of smart-bot games is unchanged (same limits); its input is now `reviewView(log)` (v:1 shape, no human private info) and the review and the log are linked both ways.
+- `GET /api/admin/game-logs` (list) and `/:id` (decompressed record): same `ADMIN_TOKEN` auth and rate limit as the review endpoints. `GAME_LOGS=off` disables saving.
+- `scripts/game-logs.js`: downloads new logs into the git-ignored `ai-eval-out/game-logs/` as raw JSON and a readable Turkish markdown transcript; `--analyze [ids]` sends them to `claude-sonnet-5-5`
+  (existing client, network-error retry) for a Turkish analysis (`analysis-<id>.md`, cost printed). `scripts/ai-eval.js --selfplay` also writes `selfplay-gamelog.json` (`--local`).
+- Privacy: humans' chat is stored; the lobby sheet now says "Oyun içi sohbet mesajları ve oyun geçmişi, oyunu geliştirmek için saklanır (IP adresi, oturum anahtarı ya da parola saklanmaz)". No IPs, tokens, passwords or user ids are in a record.

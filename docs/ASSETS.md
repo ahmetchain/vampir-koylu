@@ -153,6 +153,36 @@ ch.getObjectByName('head').add(hat);
 The hats are verified on 3 skins (`k1-hats*.png`). On skins with a high bun (1, 3, 5) a hat can
 intersect the hair a little. Use `hatYOffset`.
 
+### 3.3b Procedural hats (`look.hat` 9..18) and accessories (`look.acc` 1..6): `client/world/hats.js`
+No files: each item is built once in code (lathe with a rounded-square cross-section + a few
+primitives), merged into **one geometry with vertex colours** and drawn with one shared
+`MeshLambertMaterial` (`vkw-hat`, double-sided): 1 draw call per hat/accessory, 100–400 triangles.
+Coordinates are head-bone local like `hats.glb`; accessories with `bone: 'torso'` are torso-local.
+
+| look.hat | name | kind |
+|----------|------|------|
+| 9 | Takke (white, knitted band) | cap |
+| 10 | Örgü takke (cream, knitted) | cap |
+| 11 | Fes (red, black tassel) | cap |
+| 12 | Yemeni (cream, small print, coloured oya beads, knot at the nape) | cap |
+| 13 | Keçe külah (shepherd's felt cone) | cap |
+| 14 | Kalpak (lamb's wool) | cap |
+| 15 | Ponponlu bere (knit beanie, pompom) | cap |
+| 16 | Çiçek tacı (flower crown) | top |
+| 17 | Aşçı başlığı (chef's hat) | cap |
+| 18 | Taç (small crown) | top |
+
+Accessories: 1 Bıyık, 2 Gözlük, 3 Sakal (head) · 4 Atkı, 5 Papyon, 6 Nazarlık (torso).
+
+- **cap** hats share one base size (bottom edge y≈0.2, half-width ≥0.198). For them the character's
+  merged body/head geometry is swapped for a per-skin variant (`fitHair`, cached, built once) where
+  head vertices above y=0.205 are pressed inside the takke's inner surface, so buns, spiky and
+  thick hair never poke through. Hair below the cap (ponytails, side hair, beards) is untouched.
+- **top** hats keep the hair and use a per-skin `[y, xz-scale]` table (`TOP_FIT`).
+- `hat.userData.top` (head-local) drives `Character.headY` (name tag / bubble height) for tall hats.
+- Verified with contact sheets of every new hat on several skins (incl. the bun, ponytail and
+  spiky-hair skins) and a takke close-up.
+
 ### 3.4 Extras
 - `vampire.glb`, `ghost.glb`, `skeleton.glb`, `zombie.glb`, `keeper.glb` come from the Graveyard Kit.
   They use a **rigid part hierarchy**: each bone node carries its own mesh, with no skin. They have the
@@ -271,7 +301,7 @@ make an `InstancedMesh` per prop for trees, rocks and fences. Most props are one
 | **Garlic** | `garlic` is a Food Kit onion, close enough |
 | **Bat** | Procedural (`characters/bat.glb`, see §3.4) |
 | **Window glass, smoke, fire, poof, ghost glow** | Effects, not models |
-| **Hats** | Straw hat, bandana and earmuffs are procedural (already in `hats.glb`) |
+| **Hats** | Straw hat, bandana and earmuffs are procedural (already in `hats.glb`); hats 9..18 and accessories are built in code (§3.3b) |
 | **Vampire top hat / cape** | None separate. `vampire.glb` already wears a cape (rigid character) |
 
 ## 8. Gotchas

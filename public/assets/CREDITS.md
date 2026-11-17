@@ -25,7 +25,7 @@ some faces were split into recolourable materials (`cloth`, `tint-*`); the shape
 | Pirate Kit (2.1) | Kenney | CC0 1.0 | https://kenney.nl/assets/pirate-kit | crates |
 | Furniture Kit (2.0) | Kenney | CC0 1.0 | https://kenney.nl/assets/furniture-kit | beds, bookcases, rugs, small tables |
 | Nature Kit (2.1) | Kenney | CC0 1.0 | https://kenney.nl/assets/nature-kit | flower hat |
-| Procedural (this project) | Vampir Köylü | CC0 1.0 | built by the asset scripts | bat, straw hat, bandana, earmuffs, house interior "window glow" box, `tint.png` |
+| Procedural (this project) | Vampir Köylü | CC0 1.0 | built by the asset scripts | bat, straw hat, bandana, earmuffs, house interior "window glow" box, `tint.png`; hats 9–18 (takke, örgü takke, fes, yemeni, keçe külah, kalpak, ponponlu bere, çiçek tacı, aşçı başlığı, taç) and accessories (bıyık, gözlük, sakal, atkı, papyon, nazarlık), built in code in `client/world/hats.js` |
 
 ## Audio (`public/assets/audio/`)
 

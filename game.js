@@ -19,6 +19,7 @@ try {
 } catch (err) { /* düz isimle devam */ }
 
 const { BotBrain, botName } = require('./lib/bots');
+const { GameRecorder } = require('./lib/ai/gamerec');   // oyun geçmişi kaydı (docs/GAME-LOGS.md)
 
 const ROLE = {
   VAMPIRE: 'vampir',
@@ -109,8 +110,10 @@ function pickScene(value, allowed, fallback) {
 
 // Karakter görünümü: renk, şapka ve model sadece sıra numarasıyla tutulur, çizimi tarayıcı yapar.
 const COLOR_COUNT = 20;
-const HAT_COUNT = 9;
+const HAT_COUNT = 19;
 const SKIN_COUNT = 12;
+// Aksesuar (bıyık, gözlük…): isteğe bağlı alan, 0 = yok. 0 ise look'ta hiç tutulmaz (eski kayıtlarla aynı biçim).
+const ACC_COUNT = 7;
 
 // Meydan koordinatları 0-1 arası; (0.5, 0.5) kamp ateşi. Karakterler ateşle evler arasındaki halkada durur.
 const PLAZA = { cx: 0.5, cy: 0.5, minR: 0.10, maxR: 0.48, spawnMinR: 0.22, spawnMaxR: 0.42 };
@@ -449,6 +452,7 @@ class Room {
     this.bots = new BotBrain(this, { rng: botRng, ai });
     this.botRng = botRng;
     this.eventRng = eventRng;
+    this.recorder = new GameRecorder(this);
     this.resetGame();
   }
 
@@ -588,6 +592,15 @@ class Room {
     return ` Rolü: ${ROLE_LABEL[this.publicRoleOf(p)]}.`;
   }
 
+  // Oyun geçmişi kaydı (lib/ai/gamerec.js): akıllı bot olsun olmasın her oyun; hiçbir hata oyunu etkilemez.
+  rec(method, ...args) {
+    try {
+      this.recorder[method](...args);
+    } catch (err) {
+      if (!this.recWarned) { this.recWarned = true; console.error(`[${this.id}] Oyun kaydı hatası (${method}):`, err && err.message ? err.message : err); }
+    }
+  }
+
   get inGame() {
     return ['reveal', 'night', 'day', 'trial', 'hunter'].includes(this.phase);
   }
@@ -612,10 +625,11 @@ class Room {
     else color = free.length ? free[crypto.randomInt(free.length)] : crypto.randomInt(COLOR_COUNT);
     const hat = validIndex(want.hat, HAT_COUNT) ? want.hat : crypto.randomInt(HAT_COUNT);
     const skin = validIndex(want.skin, SKIN_COUNT) ? want.skin : crypto.randomInt(SKIN_COUNT);
+    const acc = validIndex(want.acc, ACC_COUNT) ? want.acc : 0; // kayıtlı görünümde aksesuar yoksa yok
     this.players.set(id, {
       id, name, userId, bot: Boolean(bot), seat: this.freeSeat(), role: null, job: null, alive: true, connected: true, left: false,
       socketId: null, graceTimer: null, notes: [],
-      look: { color, hat, skin },
+      look: acc ? { color, hat, skin, acc } : { color, hat, skin },
       pos: spawnSpot(),
     });
     if (!this.hostId && !bot) this.hostId = id;
@@ -650,6 +664,7 @@ class Room {
 
   // Gönderilen her sohbet mesajı (insan ya da bot) alıcı koltuklardaki botlara da ulaşır (akıllı botlar).
   observeChat(recipients, message) {
+    this.rec('chat', message);
     try {
       this.bots.observeChat(recipients, message);
     } catch (err) {
@@ -774,6 +789,10 @@ class Room {
     }
     if (look.hat !== undefined) next.hat = clampInt(look.hat, 0, HAT_COUNT - 1, p.look.hat);
     if (look.skin !== undefined) next.skin = clampInt(look.skin, 0, SKIN_COUNT - 1, p.look.skin);
+    if (look.acc !== undefined) {
+      const acc = clampInt(look.acc, 0, ACC_COUNT - 1, p.look.acc || 0);
+      if (acc) next.acc = acc; else delete next.acc;
+    }
     p.look = next;
     this.changed();
     return null;
@@ -833,6 +852,7 @@ class Room {
   close() {
     if (this.closed) return;
     this.closed = true;
+    this.rec('abandon');   // oyun sürerken herkes çıktıysa (en az bir gece) geçmişi yine de saklanır
     this.destroy();
     this.hooks.empty(this);
   }
@@ -886,6 +906,7 @@ class Room {
     for (const p of this.players.values()) {
       if (p.role === ROLE.MAD) p.fakeRole = fakes.length ? fakes[crypto.randomInt(fakes.length)] : ROLE.SEER;
     }
+    this.rec('begin');
 
     // Günlük ve meslekler rollerden sonra kurulur ama rolleri hiç görmez.
     this.createStory();
@@ -915,6 +936,7 @@ class Room {
     this.timerFrom = null;
     this.deadline = Date.now() + ms;
     this.timer = setTimeout(onEnd, ms);
+    this.rec('phase');
   }
 
   aliveWith(role) {
@@ -1245,6 +1267,7 @@ class Room {
       default:
         return 'Bu rolün gece görevi yok, sabahı bekle.';
     }
+    this.rec('pick', p, role, targetId, action);
     this.changed();
     return null;
   }
@@ -1275,6 +1298,7 @@ class Room {
     if (this.nightPassed.has(byId)) return PASSED_ERROR;
     if (!this.canActAtNight(byId)) return NO_PASS_ERROR;
     this.nightPassed.add(byId);
+    this.rec('pass', p);
     this.changed();
     return null;
   }
@@ -1550,6 +1574,7 @@ class Room {
       cleanedId: (trips.find((t) => t.kind === 'clean' && t.outcome === 'done') || {}).to || null,
     };
     this.frameMark = frame ? { targetId: frame.to, round: this.round } : null;
+    this.rec('nres');
   }
 
   // Gösterimin 14. saniyesinde: özel sonuç duyuruları (ve notlar). Bu gece ölenler yalnızca 'killed' alır.
@@ -2017,6 +2042,7 @@ class Room {
     // Oy değişikliği herkese açıktır (state.day); dedikodular için kalan süreyle kaydedilir.
     // Sis gününde kayıt tutulmaz (motor da o günün oylarını yok sayar); mahkeme oylaması kaydedilir.
     const after = this.dayVotes.has(byId) ? this.dayVotes.get(byId) : null;
+    if (after !== before) this.rec('vote', byId, after);
     if (after !== before && !this.secretVotes) {
       this.storyRecord('vote', { voter: byId, to: after, msLeft: Math.max(0, this.deadline - Date.now()) });
     }
@@ -2037,6 +2063,7 @@ class Room {
     const mad = p.role === ROLE.MAD;
     if (targetId === null) {
       if (mad) this.madDayLock.delete(byId); else this.dayLock = null;
+      this.rec('lock', p, null);
       this.changed();
       return null;
     }
@@ -2046,6 +2073,7 @@ class Room {
     const last = mad ? this.madLastLock.get(byId) || null : this.lastLockTarget;
     if (targetId === last) return 'Aynı kapıyı iki gece üst üste kilitleyemezsin.';
     if (mad) this.madDayLock.set(byId, targetId); else this.dayLock = targetId;
+    this.rec('lock', p, targetId);
     this.changed();
     return null;
   }
@@ -2073,6 +2101,7 @@ class Room {
 
   // Yaşayan oyuncuların son oyları ve sayımı.
   collectVotes() {
+    this.rec('tally');
     const ballots = [...this.dayVotes]
       .filter(([voterId]) => { const v = this.players.get(voterId); return v && v.alive; })
       .map(([voter, target]) => ({ voter, target, w: this.voteWeight(voter) }));
@@ -2309,6 +2338,7 @@ class Room {
     this.storyLine(n.story);
     if (this.epilogue) this.storyLine(this.epilogue.story, 'epilogue');
     this.announce('win', n.title, n.text, { ...extra, story: n.story, epilogue: this.epilogue });
+    this.rec('end');
     // Lobide olduğu gibi, bitmiş oyunda da bağlantısı kopanlar bir süre sonra çıkarılır.
     for (const p of this.players.values()) {
       if (!p.connected && !p.left) {
@@ -2397,10 +2427,12 @@ class Room {
   addLog(text, kind) {
     this.log.push({ text, kind, ts: Date.now() });
     if (this.log.length > LOG_MAX) this.log.shift();
+    this.rec('log', text, kind);
   }
 
   // to verilirse duyuru sadece o oyunculara gider (ör. kahinin sonucu).
   announce(kind, title, text, extra = {}, to = null) {
+    this.rec('announce', kind, title, text, extra, to);
     this.hooks.announce(this, { kind, title, text, ...extra }, to);
   }
 
@@ -2593,7 +2625,7 @@ class Room {
 
 module.exports = {
   Room, ROLE, SLEEP, MIN_PLAYERS, MAX_PLAYERS, FRAMER_MIN_PLAYERS, SPECIAL_ROLES, OPTIONAL_ROLES,
-  DEFAULT_ROLES, ROLE_LABEL, COLOR_COUNT, HAT_COUNT, SKIN_COUNT, PLAZA, MOVE_PHASES,
+  DEFAULT_ROLES, ROLE_LABEL, COLOR_COUNT, HAT_COUNT, SKIN_COUNT, ACC_COUNT, PLAZA, MOVE_PHASES,
   HOST_GRACE_MS, REVEAL_MS, ALL_VOTED_MS, HUNTER_MS, NIGHT_WALK_MS, NIGHT_SHOW_MS, NIGHT_RESULT_MS, PICK_GRACE_MS, ROLE_MODES, TRIAL_TURN_MS, TRIAL_VOTE_MS, TRIAL_ALL_VOTED_MS,
   EVENTS, EVENT_MODES, EVENT_GAP, EVENT_CHANCE, chooseEvent, LOBBY_GRACE_MS, EMPTY_ROOM_MS,
   LOG_MAX, SCENES,
