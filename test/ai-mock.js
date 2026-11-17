@@ -57,7 +57,7 @@ function mockTransport({ seed = 'mock', latency = 400, mode = 'ok', decide = nul
         const task = section(user, 'task');
         const names = allowedNames(task).filter((n) => !(spare && /^NIGHT/.test(task) && n === spare));
         const pick = names.length ? names[Math.floor(rng() * names.length)] : '';
-        const out = { think: '', say: '', vote: '', target: '', poison: '', memory: '' };
+        const out = { plan: '', say: '', vote: '', target: '', poison: '', memory: '' };
         if (/^NIGHT/.test(task)) out.target = pick;
         else if (/FINAL decision|EARLY check|COURT re-vote/.test(task)) { out.vote = pick; out.target = /door to lock/.test(task) ? pick : ''; }
         else if (/shoot one last arrow/.test(task)) out.target = pick;

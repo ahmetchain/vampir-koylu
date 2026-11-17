@@ -190,7 +190,7 @@ test('oyun sonu logu: tek satır, yalnızca sayılar (çağrı, token, maliyet, 
   assert.equal(room.phase, 'ended');
   const lines = logs.filter((l) => l.startsWith('[ai] oyun bitti'));
   assert.equal(lines.length, 1, logs.join('\n'));
-  assert.match(lines[0], /^\[ai\] oyun bitti oda=AKILLI model=claude-haiku-5-5 çağrı=\d+ başarılı=\d+ token: girdi=\d+ önbellek_okuma=\d+ önbellek_yazma=\d+ çıktı=\d+ maliyet≈\$\d+\.\d{4} yedek: .+ hata: .*error=\d+/);
+  assert.match(lines[0], /^\[ai\] oyun bitti oda=AKILLI model=claude-sonnet-5-5 çağrı=\d+ başarılı=\d+ token: girdi=\d+ önbellek_okuma=\d+ önbellek_yazma=\d+ çıktı=\d+ maliyet≈\$\d+\.\d{4} yedek: .+ hata: .*error=\d+/);
   assert.ok(!lines[0].includes('gizli') && ![...room.players.values()].some((p) => lines[0].includes(p.name)));
   room.destroy();
 });
@@ -254,7 +254,7 @@ test('açılış logu: model ve kapalı olma nedeni (anahtar yazılmaz); tırnak
   const ai = createAiClient({ ANTHROPIC_API_KEY: '"sk-test-123"' }, { logger: { warn() {} } });
   assert.ok(ai);
   assert.equal(ai.config.apiKey, 'sk-test-123');
-  assert.match(aiStatusLine(ai), /açık \(model claude-haiku-5-5, efor medium/);
+  assert.match(aiStatusLine(ai), /açık \(model claude-sonnet-5-5, efor low/);
   assert.ok(!aiStatusLine(ai).includes('sk-'));
   assert.equal(aiStatusLine(null, { ANTHROPIC_API_KEY: 'k', AI_BOTS: 'off' }), 'kapalı (AI_BOTS=off)');
   assert.equal(aiStatusLine(null, {}), 'kapalı (ANTHROPIC_API_KEY yok)');

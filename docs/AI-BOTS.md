@@ -128,10 +128,10 @@ why the feature is off (`ANTHROPIC_API_KEY yok` / `AI_BOTS=off`).
 |---|---|---|
 | `ANTHROPIC_API_KEY` | – | enables the feature (server only, never sent to clients) |
 | `AI_BOTS` | – | `off` disables it even with a key |
-| `AI_BOT_MODEL` | `claude-haiku-5-5` (Sonnet 5.5 refused ~70% of turns in the 2026-11-17 trial) | model id |
-| `AI_BOT_EFFORT` | `medium` | `low` / `medium` / `high` |
+| `AI_BOT_MODEL` | `claude-sonnet-5-5` (Haiku: `claude-haiku-5-5`; never name an output field "think": Sonnet refuses) | model id |
+| `AI_BOT_EFFORT` | `low` | `low` / `medium` / `high` |
 | `AI_MAX_TOKENS` | 4096 | per call (256–4096) |
-| `AI_DAILY_CALL_LIMIT` | 3000 | all rooms, per UTC day |
+| `AI_DAILY_CALL_LIMIT` | 1500 | all rooms, per UTC day |
 | `AI_GAME_CALL_LIMIT` | 300 | per game |
 | `AI_BOT_CALL_LIMIT` | 45 | per bot per game |
 | `AI_CONCURRENCY` | 6 | simultaneous requests (all rooms) |
