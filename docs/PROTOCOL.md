@@ -45,8 +45,8 @@ connection · 7 Client → server events · 8 Server → client events · 9 The 
 | `NIGHT_WALK_MS` | 4000 | night stage `walk`: walk-home lead-in at the start of every night, before the pick countdown (`room.timerFrom`) |
 | `nightSec` | 10–60, default 20 | night stage `pick` length (room setting; halved by `kisa-gece`) |
 | `PICK_GRACE_MS` | 1500 | the pick stage ends this long after every awaited actor has picked or passed (§12.1a) |
-| `NIGHT_SHOW_MS` | 14000 | night stage `show`: the resolved night is played back, then dawn |
-| `NIGHT_RESULT_MS` | 9000 | private night results are emitted this long after the show stage started |
+| `NIGHT_SHOW_MS` | 20000 | night stage `show`: the resolved night is played back, then dawn |
+| `NIGHT_RESULT_MS` | 14000 | private night results are emitted this long after the show stage started |
 | `HOST_GRACE_MS` | 60000 | the host role moves to another human only after the host has been disconnected this long without a break (§12.5) |
 | `TRIAL_TURN_MS` | 15000 | mahkeme: each defendant's defence turn (events only, §12.10) |
 | `TRIAL_VOTE_MS` | 20000 | mahkeme: re-vote between the two defendants; drops to 3000 ms once everyone voted |
@@ -366,7 +366,7 @@ Sent per viewer. Full shape:
     night: null | {                    // phase 'night' only (§12.1a)
       stage: 'walk' | 'pick' | 'show',
       pickUntil: 1763030024000,        // end of the pick stage (moves earlier when everyone picked/passed; may move back)
-      showUntil: 1763030038000,        // end of the show stage = dawn (= pickUntil + 14000 until the show starts)
+      showUntil: 1763030038000,        // end of the show stage = dawn (= pickUntil + 20000 until the show starts)
     },
     hostId: "player-uuid" | null,
     settings: { nightSec, daySec, revealRoles, events, roleMode, smartBots, roles: {…} },   // §4
@@ -494,7 +494,7 @@ show: {
 | vampir | `mySelection` = team target; `team: [{ vampId, name, targetId }]` all living vampires (`targetId` = team target if that vampire went, else null); `teamTarget: { targetId, by, byName } \| null` (who set it); `framer` = İftiracı's frame target |
 | iftiraci / temizlikci | `mySelection` = own frame / clean target; `team`, `teamTarget` as above (read-only); `framer` = frame target, `cleaner` = clean target (both visible to the whole evil team) |
 | doktor / kahin / hirsiz | `mySelection` = protected / inspected / steal target |
-| gozcu | `mySelection` = watched house. **No live panel any more** (the old `night.watch` field is gone): arrivals come in `show.watch` and the 9 s `watch` report |
+| gozcu | `mySelection` = watched house. **No live panel any more** (the old `night.watch` field is gone): arrivals come in `show.watch` and the 14 s `watch` report |
 | gardiyan | `mySelection` = the door locked tonight (chosen yesterday), `canAct: false` |
 | cadi | `witch: { heal, poison, healUsed, poisonUsed, victims: [id] }` – `victims` = the vampire team target (0–1 entries) |
 | others / dead | `null` |
@@ -530,7 +530,7 @@ lines and `scene` is its default – always be able to show just `text`. Private
 `watch`, `promote`, `locked`, `bounced`, `lockreport`, `rattled`, `steal`, `stealfail`, `saved`, `attacked`, `killed`) are never narrated: no `story`, no `scene`.
 
 **Night results timing.** `bounced`, `seer`, `watch`, `lockreport`, `steal`/`stealfail`, `saved`, `attacked` and
-`killed` are emitted **9 s into the show stage** (`NIGHT_RESULT_MS`), in that order, while `room.night.stage` is
+`killed` are emitted **14 s into the show stage** (`NIGHT_RESULT_MS`), in that order, while `room.night.stage` is
 `'show'` (a `state` follows). A player who dies tonight gets only `killed` (rule 4 of §12.2: no results). The public
 `death`/`safe` comes at dawn (end of the show stage).
 
@@ -540,13 +540,13 @@ lines and `scene` is its default – always be able to show just `text`. Private
 | `night` | all, narrated | "`<round>`. Gece" | "Köy uyuyor... Gece rolleri seçimini yapsın." | `story` |
 | `death` | all, narrated | "Sabah oldu" | per death "`<name>` bu gece vampir tarafından öldürüldü!`{role}`", "… zehirlenerek öldü!`{role}`" or "… soyulup öldürüldü!`{role}`" (Hırsız), joined with a space. `{role}` is " Rolü: `<public label>`." (Vampir after a stuck frame), " Rolü bilinmiyor; çalındı." (robbed) or " Rolü bilinmiyor; izler silinmiş." (cleaned) | `targets: [{ id, cause: 'vampir' \| 'zehir' \| 'hirsiz', scene }]` (1–3 entries; `bite`\|`bats`\|`vanish` for `vampir`, `poison` for `zehir`, always `vanish` for `hirsiz`), `scene` = `targets[0].scene`, `story` |
 | `safe` | all, narrated | "Sabah oldu" | "Bu gece kimse ölmedi." | `story` (also when someone was saved; who was saved is never revealed) |
-| `seer` | **kahin only** (9 s into show) | "Kristal küre konuştu" | "`<name>` şu ikisinden biri: `<A>` ya da `<B>`." (role labels, e.g. "Oyuncu3 şu ikisinden biri: Köylü ya da Vampir.") | `targets: [{ id }]`, `roles: [a, b]` (role ids in the text's order; one is the real role, §12.11) |
-| `saved` | **the doktor / cadı** whose protection stopped an attack (9 s into show) | doktor: "Koruman işe yaradı"; cadı: "Hayat iksiri işe yaradı" | doktor: "`<X>` bu gece saldırıya uğradı; senin koruman sayesinde kurtuldu." / self: "Bu gece evine saldırı oldu; kendini korudun ve kurtuldun."; cadı: "`<X>` bu gece vampirlerin saldırısına uğradı; hayat iksirin onu kurtardı." / self: "Vampirler bu gece evine geldi; hayat iksirin seni kurtardı." | `targets: [{ id: savedId }]` |
-| `attacked` | **the saved victim** (9 s into show) | "Saldırıdan kurtuldun" | "Bu gece evinde saldırıya uğradın ama sağ kurtuldun." (who/what is not said; `show.home` has the kinds) | `targets: [{ id: ownId }]` |
-| `killed` | **the dying victim** (9 s into show) | "Bu gece öldün" | vampir: "Vampirler bu gece evine girdi. Sabahı göremeyeceksin."; zehir: "Bu gece zehirlendin. Sabahı göremeyeceksin."; hirsiz: "Bu gece evine biri girdi, seni soydu ve canını aldı. Sabahı göremeyeceksin." | `targets: [{ id: ownId }]`, `cause: 'vampir' \| 'zehir' \| 'hirsiz'` |
-| `watch` | **gözcü only** (9 s into show) | "Gözcünün raporu" | e.g. "Bu gece `<X>'in` evine gelenler: A, B. Kilitli kapıdan dönenler: C. `<X>` gece evinden çıkıp `<Y>'nin` evine gitti. Sabah `<Y>'nin` evinden ölüm haberi geldi." / "… kimse gelmedi."; dark: "Rüzgârlı karanlıkta bu gece `<X>'in` evine 2 gölge geldi (1 tanesi kilitli kapıdan döndü). Ev sahibi gece dışarı çıktı." | `targets: [{ id: watchedId }]`, `visitors: [id]` (everyone who came, sorted by name), `blocked: [id]` (subset turned back), `count`, `blockedCount`, `ownerOut: bool`, `ownerWent: id\|null`, `dark: bool` (ids empty/null when dark), `saved: bool` (adds " Evden yeşil ışıklar yükseldi…" sentence), `deathAt: [id]` (houses the gözcü saw – watched house or `ownerWent` – whose owner died tonight; public anyway) |
+| `seer` | **kahin only** (14 s into show) | "Kristal küre konuştu" | "`<name>` şu ikisinden biri: `<A>` ya da `<B>`." (role labels, e.g. "Oyuncu3 şu ikisinden biri: Köylü ya da Vampir.") | `targets: [{ id }]`, `roles: [a, b]` (role ids in the text's order; one is the real role, §12.11) |
+| `saved` | **the doktor / cadı** whose protection stopped an attack (14 s into show) | doktor: "Koruman işe yaradı"; cadı: "Hayat iksiri işe yaradı" | doktor: "`<X>` bu gece saldırıya uğradı; senin koruman sayesinde kurtuldu." / self: "Bu gece evine saldırı oldu; kendini korudun ve kurtuldun."; cadı: "`<X>` bu gece vampirlerin saldırısına uğradı; hayat iksirin onu kurtardı." / self: "Vampirler bu gece evine geldi; hayat iksirin seni kurtardı." | `targets: [{ id: savedId }]` |
+| `attacked` | **the saved victim** (14 s into show) | "Saldırıdan kurtuldun" | "Bu gece evinde saldırıya uğradın ama sağ kurtuldun." (who/what is not said; `show.home` has the kinds) | `targets: [{ id: ownId }]` |
+| `killed` | **the dying victim** (14 s into show) | "Bu gece öldün" | vampir: "Vampirler bu gece evine girdi. Sabahı göremeyeceksin."; zehir: "Bu gece zehirlendin. Sabahı göremeyeceksin."; hirsiz: "Bu gece evine biri girdi, seni soydu ve canını aldı. Sabahı göremeyeceksin." | `targets: [{ id: ownId }]`, `cause: 'vampir' \| 'zehir' \| 'hirsiz'` |
+| `watch` | **gözcü only** (14 s into show) | "Gözcünün raporu" | e.g. "Bu gece `<X>'in` evine gelenler: A, B. Kilitli kapıdan dönenler: C. `<X>` gece evinden çıkıp `<Y>'nin` evine gitti. Sabah `<Y>'nin` evinden ölüm haberi geldi." / "… kimse gelmedi."; dark: "Rüzgârlı karanlıkta bu gece `<X>'in` evine 2 gölge geldi (1 tanesi kilitli kapıdan döndü). Ev sahibi gece dışarı çıktı." | `targets: [{ id: watchedId }]`, `visitors: [id]` (everyone who came, sorted by name), `blocked: [id]` (subset turned back), `count`, `blockedCount`, `ownerOut: bool`, `ownerWent: id\|null`, `dark: bool` (ids empty/null when dark), `saved: bool` (adds " Evden yeşil ışıklar yükseldi…" sentence), `deathAt: [id]` (houses the gözcü saw – watched house or `ownerWent` – whose owner died tonight; public anyway) |
 | `locked` | **owner of the locked house** | "Kapın kilitli" | "Kapın dışarıdan kilitlendi. Bu gece evinden çıkamazsın." (at night start) | `targets: [{ id: ownId }]` |
-| `bounced` | **the visitor** (9 s into show; one per house) | "Kapı kilitliydi" | "`<X>'in` kapısı dışarıdan kilitliydi; eve döndün." | `targets: [{ id: houseId }]` |
+| `bounced` | **the visitor** (14 s into show; one per house) | "Kapı kilitliydi" | "`<X>'in` kapısı dışarıdan kilitliydi; eve döndün." | `targets: [{ id: houseId }]` |
 | `lockreport` | **Gardiyan only** (alive at dawn) | "Gardiyanın raporu" | "Kilitlediğin kapıyı (`<X>'in` evi) bu gece N kişi zorladı." / "… kimse zorlamadı." | `targets: [{ id: lockedId }]`, `count` |
 | `rattled` | **The locked-in owner only** (alive at that point; only if >=1 distinct player tried the door; the Gardiyan's survival is irrelevant) | "Kapın zorlandı" | "Bu gece kilitli kapını N kişi zorladı." (never who) | `targets: [{ id: ownerId }]`, `count` |
 | `stealfail` | **the Hırsız only** (alive at dawn) | "Soygun başarısız" | "`<X>'in` evi bu gece korunuyordu; çalamadın ama hakkın yanmadı." (the doktor protected the target; a locked door gives `bounced` instead) | `targets: [{ id: targetId }]` |
@@ -567,7 +567,7 @@ Private announces are also stored as a note in the recipient's `me.notes` ("🔮
 "👁️ …" watch, "🔒 …" locked/bounced, "🗝️ …" lockreport/steal/stealfail, "🛡️ …" saved/attacked, "💀 …" killed,
 "🧛 `<round>`. tur: Vampire dönüştün.").
 
-Typical night sequence: `night` (start) → [`locked`] → … pick … → show stage starts (`state`) → 9 s:
+Typical night sequence: `night` (start) → [`locked`] → … pick … → show stage starts (`state`) → 14 s:
 [`bounced`] → [`seer`] → [`watch`] → [`lockreport`] → [`steal` | `stealfail`] → [`saved`] → [`attacked`] → [`killed`] →
 dawn (5 s later): `death` | `safe` → [`promote`] → [`hunter`] | [`win`], then the `day` (or `hunter`/`ended`) state. There is no `day` announce: the day start shows in
 `state.room.phase` and in the log (a `day` line, then a `story` line and a `rumor` line).
@@ -599,7 +599,7 @@ The sender receives their own message through the `chat` event too.
 
 ## 12. Game flow and rules
 
-Phases: `lobby` → `game:start` → `reveal` (8 s) → `night` (stages `walk` 4 s → `pick` ≤ `nightSec` → `show` 14 s,
+Phases: `lobby` → `game:start` → `reveal` (8 s) → `night` (stages `walk` 4 s → `pick` ≤ `nightSec` → `show` 20 s,
 §12.1a) → `day` (`daySec`, or 10 s after everyone voted, or immediately if every alive connected player voted `sleep`)
 → `night` … ; `hunter` (20 s) is inserted whenever a hunter dies and the village has not already won (after the
 show stage for night deaths); `trial` (2 × 15 s defence + 20 s re-vote) replaces the end of a mahkeme day (events only);
@@ -636,10 +636,13 @@ show stage for night deaths); `trial` (2 × 15 s defence + 20 s re-vote) replace
   (a human reconnects, an İftiracı is promoted because the last vampire left), the original `pickUntil`
   is restored. Vampires: once the team target is set no vampire is awaited; the Cadı is awaited while she
   still has a usable potion (she must pass to keep it).
-- **show** (`NIGHT_SHOW_MS` = 14000): the server resolves the night at the start of this stage (§12.2),
-  every alive viewer gets `state.night.show`, `room.deadline = room.night.showUntil`. No picks. 9 s in,
+- **show** (`NIGHT_SHOW_MS` = 20000): the server resolves the night at the start of this stage (§12.2),
+  every alive viewer gets `state.night.show`, `room.deadline = room.night.showUntil`. No picks. 14 s in,
   the private results are sent (§10). At the end: dawn – public `death`/`safe`, promotion, hunter/win,
-  then `day`.
+  then `day`. Client playback (world bundle, `SHOW_S` = 20 must match `NIGHT_SHOW_MS`): every walk is shown in
+  full (door → real route → in / knock / back window → home); times are derived from the path length at a
+  natural pace (a run for far houses, never a vanish on the way out), so the scenes the private results talk about
+  end by ≈ 13 s; the walk home ends by ≈ 19.4 s, and if it does not fit it may end in a mist fade near the house.
 
 Show the pick countdown from `timerFrom` to `room.night.pickUntil` (before `timerFrom`: full /
 "eve dönülüyor"). `timerFrom` and `room.night` are `null` in every other phase; the day timer, the 10 s
@@ -650,7 +653,7 @@ Show the pick countdown from `timerFrom` to `room.night.pickUntil` (before `time
 Every accepted choice is a planned **trip** to the target's house (self-targets – doktor or cadı heal on
 self, gözcü on own house – are no trip). The gözcü's trip only looks from outside: it is never blocked
 and never counts as a visitor. A trip to a **locked** house is turned back (`show.trip.outcome:
-'bounced'`, `bounced` announce at 9 s) and has no effect (a turned-back potion is not spent; a
+'bounced'`, `bounced` announce at 14 s) and has no effect (a turned-back potion is not spent; a
 turned-back Hırsız keeps their ability). A player who left the game before the show counts as dead and
 does nothing. Order:
 1. The Gardiyan's lock (chosen by day) holds all night: the locked-in owner does nothing; visitors bounce.
@@ -670,9 +673,9 @@ does nothing. Order:
    killed the target (but gets no role, see §12.9).
 5. Only actions that really happen create trips (what `show` and a gözcü can see).
 
-Deaths are then known to the affected players at once (`show.dead`, `killed` at 9 s) and become public
+Deaths are then known to the affected players at once (`show.dead`, `killed` at 14 s) and become public
 at dawn exactly as before: `death` (targets in resolution order: `vampir`, `hirsiz`, `zehir`) or `safe`.
-Private results at 9 s go only to players who survive the night: `seer` (§12.11), `watch`, `lockreport`
+Private results at 14 s go only to players who survive the night: `seer` (§12.11), `watch`, `lockreport`
 (and the Deli's fabricated versions, §12.8), the Hırsız's `steal`/`stealfail` (the takeover happens at
 that moment), `saved`, `attacked`. At dawn: promotion check (§12.3), then hunter / win check, then `day`.
 
@@ -715,7 +718,7 @@ this happens.
 ### 12.6 Gözcü
 
 No live panel. In the show stage the gözcü sees `show.watch` (who came to the watched house, sorted by
-name, `blocked` if turned back by a lock; whether the owner went out and where; `died`), and 9 s into the
+name, `blocked` if turned back by a lock; whether the owner went out and where; `died`), and 14 s into the
 show gets the `watch` report stating the same in words plus `deathAt`. Only trips that really happen
 count (§12.2 rule 5). It never shows roles or what anyone did.
 
@@ -725,7 +728,7 @@ By day the Gardiyan picks a door with `day:lock` (changeable until the day ends,
 not own door; not the door locked the previous night; never on night 1). At night start the lock
 applies if the Gardiyan is alive: the owner gets `locked` and cannot act (`night.locked`, error on
 `night:select`/`night:pass`), every trip to that house is turned back in the show (`bounced` to the
-visitor at 9 s; a real gözcü sees it with `blocked: true`). The lock holds all night even if the
+visitor at 14 s; a real gözcü sees it with `blocked: true`). The lock holds all night even if the
 Gardiyan dies; the `lockreport` (number of distinct people who tried, not who) goes to the Gardiyan
 only if they survive the night. Locks are secret: never in public texts, never given to the story engine.
 
@@ -754,7 +757,7 @@ player's house. If the thief reached it (not locked), was not killed by the vamp
 the night, and the target dies that night (by the thief – unless protected by the doktor – or killed by
 the vampires first), the thief **takes over the victim's role as it is** (used potions stay used; a stolen
 Deli stays Deli with the same believed role; a stolen vampir/İftiracı joins the evil team with mutual
-visibility and the vampire chat) and gets the private `steal` announce (`role` = new role) 9 s into the
+visibility and the vampire chat) and gets the private `steal` announce (`role` = new role) 14 s into the
 show; `me.role` changes at that moment. If the doktor's protection foiled it the thief gets the private
 `stealfail` (ability kept). When the victim died *of the theft* (`cause: hirsiz`) their role stays **hidden
 from everyone until the game ends** even with `revealRoles` on (death text "Rolü bilinmiyor; çalındı.",
@@ -781,7 +784,7 @@ everyone voted); a single top count hangs, a tie or no votes → nobody (`hanged
 
 ### 12.11 Kahin (detective)
 
-The kahin's result (`seer`, 9 s into the show, only if the kahin reached the house and survives the
+The kahin's result (`seer`, 14 s into the show, only if the kahin reached the house and survives the
 night) is **two roles, one of them the target's real role** at resolution time, in random order:
 `roles: [a, b]`, text "`<X>` şu ikisinden biri: `<A>` ya da `<B>`.". The real role is the role the
 target holds (an un-stolen Hırsız shows as `hirsiz`, the İftiracı as `iftiraci`, a promoted İftiracı as
@@ -873,7 +876,7 @@ accepted, the finished game is written to no account's stats and does not affect
   `walk`/`pick` stages show `min(remaining, room.night.pickUntil - timerFrom)` so the count only starts after
   the walk home; in `show` there is no pick countdown (the show ends at `room.night.showUntil` = `deadline`) (§12.1a).
 - **Night HUD**: `walk`/`pick` → prompt + countdown, offer "Bu gece bekle" (`night:pass`) while
-  `night.canAct`; `show` → play back `night.show`, then the result cards (announces at 9 s); dawn = `death`/`safe`.
+  `night.canAct`; `show` → play back `night.show`, then the result cards (announces at 14 s); dawn = `death`/`safe`.
 
 ## 16. Story: scenario, jobs, scenes, chronicle
 
@@ -958,7 +961,7 @@ Bots let one person start and test a full game alone (`MIN_PLAYERS` counts bots)
 - **Robustness:** all bot timers are dropped on every phase change, game end, `game:lobby`, kick and
   room close; a failing bot action is logged and the phase still ends by its timer.
 - **Typical length** (round 6, default timers `nightSec` 20, `daySec` 120), 1 human + 6 bots, 40
-  simulated games each: a night is 4 s walk + ≈ 5–8 s pick (bots' decisions + 1.5 s grace) + 14 s show
+  simulated games each: a night is 4 s walk + ≈ 5–8 s pick (bots' decisions + 1.5 s grace) + 20 s show
   ≈ **25 s on average (min 18 s, max 27.5 s)** when the human has no night role or picks within ~6 s
   (doktor + kahin, or all roles on); a human with a night role who neither picks nor passes keeps the
   pick stage at the full `nightSec`. Whole game ≈ 5 min (4.7 min with all roles on).

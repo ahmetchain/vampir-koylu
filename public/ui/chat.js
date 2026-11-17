@@ -83,6 +83,7 @@ export function initChat() {
 
   docked.addEventListener && docked.addEventListener('change', () => { if (docked.matches) closeChat(); syncUnread(); });
 
+  window.addEventListener('resize', fitTicker);
   setInterval(markStale, 2000);
   setInterval(() => trackSeen(500), 500);
 }
@@ -94,6 +95,31 @@ function markStale() {
     m.classList.toggle('stale', age > 25000);
     m.classList.toggle('gone', age > 60000);
   }
+  fitTicker();
+}
+
+// Kapalı şerit (telefon): son mesajlar tam metinle görünür; hiçbir satır "…" ile kesilmez. Şeride
+// sığmayan ESKİ satırlar gizlenir (en yeni satır her zaman görünür; tamamı için şeride dokunulur).
+const TICKER_MAX = 3;
+function fitTicker() {
+  const list = el.list;
+  if (!list) return;
+  const kids = [...list.children];
+  if (isOpen || docked.matches) { for (const n of kids) n.classList.remove('cut'); return; }
+  const last = kids.slice(-TICKER_MAX);
+  for (const n of last) n.classList.remove('cut');
+  const max = list.clientHeight;
+  const gap = parseFloat(getComputedStyle(list).rowGap) || 0;
+  let used = parseFloat(getComputedStyle(list).paddingTop) + parseFloat(getComputedStyle(list).paddingBottom);
+  let full = false;
+  for (let i = last.length - 1; i >= 0; i--) {
+    const n = last[i];
+    if (n.classList.contains('gone')) continue;
+    const h = n.offsetHeight;
+    if (full || (i < last.length - 1 && used + h > max + 1)) { full = true; n.classList.add('cut'); continue; }
+    used += h + gap;
+  }
+  list.scrollTop = list.scrollHeight;
 }
 
 export function openChat() {
@@ -102,6 +128,7 @@ export function openChat() {
   el.chat.dataset.open = 'true';
   el.room.classList.add('chat-open');
   unread = 0;
+  for (const n of el.list.children) n.classList.remove('cut');
   trackSeen(0);
   syncUnread();
   requestAnimationFrame(() => { el.list.scrollTop = el.list.scrollHeight; });
@@ -113,6 +140,7 @@ export function closeChat() {
   el.room.classList.remove('chat-open');
   if (document.activeElement === el.input && coarse.matches) el.input.blur();
   el.list.scrollTop = el.list.scrollHeight;
+  requestAnimationFrame(fitTicker);
 }
 export function chatIsOpen() { return isOpen; }
 
@@ -129,6 +157,7 @@ function push(node) {
   list.appendChild(node);
   while (list.children.length > MAX) list.firstElementChild.remove();
   if (atBottom || !isOpen) list.scrollTop = list.scrollHeight;
+  fitTicker();
   trackSeen(0);
 }
 
@@ -146,7 +175,8 @@ export function appendChat(m) {
   node.vkSeen = 0;
   push(node);
   const t = String(m.text || '');
-  W.bubble(m.fromId, t.length > 64 ? `${t.slice(0, 62).trimEnd()}…` : t, m.channel);
+  // balon çok satıra sarar (overlay.js); yalnızca aşırı uzun metin kelime sınırında kısalır, tamamı sohbette
+  W.bubble(m.fromId, t.length > 180 ? `${t.slice(0, 176).replace(/\s+\S*$/, '')}…` : t, m.channel);
   if (!mine) sfx('message', { volume: 0.5 });
 }
 

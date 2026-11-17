@@ -579,7 +579,7 @@ test('botlar: tek insan (gece rolü yok) + botlarla geceler kısa; tüm roller a
   const avg = nightLens.reduce((a, b) => a + b, 0) / nightLens.length;
   const max = Math.max(...nightLens);
   assert.ok(max <= NIGHT_WALK_MS + 8000 + PICK_GRACE_MS + NIGHT_SHOW_MS + 500, `en uzun gece ${max} ms`);
-  assert.ok(avg < 30000, `ortalama gece ${avg} ms`);
+  assert.ok(avg < 36000, `ortalama gece (gösterim 20 sn) ${avg} ms`);
 });
 
 // ---------- oda sahipliği ve kopmalar ----------

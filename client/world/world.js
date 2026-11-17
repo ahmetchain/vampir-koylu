@@ -15,7 +15,7 @@ import { createOverlay } from './overlay.js';
 import { createControls } from './control.js';
 import { createDirector } from './director.js';
 import { createChoreo } from './choreo.js';
-import { createNightShow, PRIVATE_KINDS } from './nightshow.js';
+import { createNightShow, PRIVATE_KINDS, SHOW_S } from './nightshow.js';
 import { computeLayout, plazaToWorld, worldToPlaza } from './layout.js';
 import { resolveStatic } from './nav.js';
 import { makeTod, evalTod, stepHour } from './tod.js';
@@ -300,7 +300,7 @@ export function create(container, handlers = {}) {
   const cineH = registerCinematics(director, world);
   const choreo = createChoreo(world);
   // gece gösterisi: ayrı (kapsamlı) yönetmen; ana yönetmenin sinematikleriyle yan yana çalışır
-  const showDir = createDirector(world, { scoped: true, timeout: 16 });
+  const showDir = createDirector(world, { scoped: true, timeout: SHOW_S + 3 });
   const nightShow = createNightShow(world, showDir, choreo, cineH);
 
   // ---------- durum ----------
@@ -643,6 +643,26 @@ export function create(container, handlers = {}) {
     const portrait = rig.portrait;
     let ch = chars.get(state.me.id);
     if (!(ch && ch.visible && ch.claimed)) { ch = null; for (const id of nightShow.actors) { const c = chars.get(id); if (c && c.visible && c.claimed && state.players.some((p) => p.id === id && p.role && (p.role === 'vampir' || p.role === 'iftiraci'))) { ch = c; break; } } }
+    const wc = nightShow.watchCam;
+    const wh = wc && ch && ch.peeking === wc.hid ? village.house(wc.hid) : null;
+    if (wh && ch.isMe) {
+      // gözcü arka pencerede: kamera evin arkasından (köyün dışından), kapı tarafına dönük, yüksekten (çatı kapı önünü
+      // örtmesin) — gözcünün omzunun üstünden kapıya ve gelenlerin meydandan gelen yoluna bakar (dikey ekranda derinlik dikeye düşer)
+      if (showCamMode === 'watch' && !force) return;
+      showCamMode = 'watch';
+      const a = village.anchors(wh);
+      const px = Math.cos(wh.angle), pz = -Math.sin(wh.angle);
+      const side = (a.door.x - wh.cx) * px + (a.door.z - wh.cz) * pz >= 0 ? 1 : -1;
+      let cx = 0, cz = 0;
+      for (const p of wc.pts) { cx += p.x; cz += p.z; }
+      cx /= wc.pts.length; cz /= wc.pts.length;
+      // kadraj merkezi biraz meydana doğru: gözcü altta, kapı önü ve gelenlerin yolu ekranın ortasında
+      const cr = Math.hypot(cx, cz) || 1, inw = portrait ? 3.5 : 2;
+      cx -= (cx / cr) * inw; cz -= (cz / cr) * inw;
+      rig.setShot({ kind: 'show', target: tmpShowT.set(cx, 0.6, cz), az: wh.angle + side * 0.6, el: portrait ? 1.2 : 1.06, fov: portrait ? 50 : 42, points: wc.pts, margin: portrait ? 0.84 : 0.82, minDist: 14, snap: force, speed: 0.9 });
+      rig.shot.dynamic = false;
+      return;
+    }
     if (ch) {
       showCamMode = 'follow';
       rig.setShot({ kind: 'show', target: tmpShowT.set(ch.pos.x * 0.9, 0.6, ch.pos.z * 0.9), az: 0.25, el: portrait ? 0.98 : 0.8, fov: portrait ? 46 : 40, dist: portrait ? 27 : 21, snap: force, speed: 1.3 });
@@ -949,9 +969,9 @@ export function create(container, handlers = {}) {
       case 'night': {
         const total = (room.settings && room.settings.nightSec) || 30;
         let p = rem == null ? 0.3 : clamp(1 - rem / total, 0, 1);
-        // §15.1: seçim aşaması gecenin ilk %70'i, gösteri (14 sn) kalanı — gösteri başlayınca saat geri gitmesin
+        // §15.1: seçim aşaması gecenin ilk %70'i, gösteri (SHOW_S sn) kalanı — gösteri başlayınca saat geri gitmesin
         if (room.night && room.night.stage) {
-          if (room.night.stage === 'show') p = 0.7 + 0.3 * (rem == null ? 0 : clamp(1 - rem / 14, 0, 1));
+          if (room.night.stage === 'show') p = 0.7 + 0.3 * (rem == null ? 0 : clamp(1 - rem / SHOW_S, 0, 1));
           else p = 0.7 * (rem == null ? 0.3 : clamp(1 - rem / (total + 4), 0, 1));
         }
         return (21.2 + p * 7.6) % 24;

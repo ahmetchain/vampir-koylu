@@ -139,7 +139,7 @@ test('gece süresi dolunca kendiliğinden sabah olur', (t) => {
   assert.equal(room.night.stage, 'show', 'seçim bitti, gece oynanıyor');
   assert.equal(room.players.get('p4').alive, true, 'ölüm sabah açıklanır');
   assert.equal(room.viewFor('p4').night.show.dead, true, 'kurban kendi ölümünü hemen görür');
-  t.mock.timers.tick(14000);
+  t.mock.timers.tick(20000);   // NIGHT_SHOW_MS
   assert.equal(room.phase, 'day');
   assert.equal(room.players.get('p4').alive, false);
   t.mock.timers.tick(120000);

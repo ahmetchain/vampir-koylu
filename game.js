@@ -73,8 +73,8 @@ const REVEAL_MS = 8000;          // rol kartlarına bakma süresi
 const ALL_VOTED_MS = 10000;      // herkes oy verince kalan süre buna iner
 const HUNTER_MS = 20000;         // avcının son atışı süresi
 const NIGHT_WALK_MS = 4000;      // gece başında herkesin evine yürüme süresi; gece sayacı bundan sonra başlar
-const NIGHT_SHOW_MS = 14000;     // gecenin gösterim aşaması: çözülen gece herkese kendi gözünden oynatılır
-const NIGHT_RESULT_MS = 9000;    // gösterim başladıktan bu kadar sonra özel sonuç duyuruları gider
+const NIGHT_SHOW_MS = 20000;     // gecenin gösterim aşaması: çözülen gece herkese kendi gözünden oynatılır (yürüyüşler doğal tempoda)
+const NIGHT_RESULT_MS = 14000;   // gösterim başladıktan bu kadar sonra özel sonuç duyuruları gider (ilgili sahneler bittikten sonra)
 const DECOY_OPPOSITE_SHARE = 1 / 2; // kahinin şaşırtmacası bu olasılıkla karşı taraftan (§16.4)
 const PICK_GRACE_MS = 1500;      // herkes seçtiyse/beklediyse seçim aşaması bu kadar sonra biter
 const RANDOM_VILLAGER_SHARE = 0.2; // rastgele dağıtımda sade köylü payı
@@ -1250,7 +1250,7 @@ class Room {
   }
 
   // Seçilen bir eve gidiş. Kapı kilitliyse gösterimde kapıdan döner (eylemi etkisiz kalır); bunu
-  // oyuncu gösterimde (show.trip.outcome 'bounced') ve 9 sn sonra 'bounced' duyurusuyla öğrenir.
+  // oyuncu gösterimde (show.trip.outcome 'bounced') ve 14 sn sonra 'bounced' duyurusuyla öğrenir.
   addTrip(actorId, to, kind) {
     const blocked = kind !== 'watch' && this.isLockedIn(to);
     this.trips.push({ actorId, to, kind, blocked, at: Date.now() });
@@ -1552,7 +1552,7 @@ class Room {
     this.frameMark = frame ? { targetId: frame.to, round: this.round } : null;
   }
 
-  // Gösterimin 9. saniyesinde: özel sonuç duyuruları (ve notlar). Bu gece ölenler yalnızca 'killed' alır.
+  // Gösterimin 14. saniyesinde: özel sonuç duyuruları (ve notlar). Bu gece ölenler yalnızca 'killed' alır.
   sendNightResults() {
     const res = this.nightRes;
     if (!res || res.sent || this.phase !== 'night') return;

@@ -4,8 +4,8 @@
 // API sarmalayıcısının yedek yolları (zaman aşımı, hata, ret, bozuk çıktı), bütçeler ve maliyet.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseTurn, resolveName, cleanSay, isSleepWord } = require('../lib/ai/schema');
-const { SpeechGate, mentions, addressedBots } = require('../lib/ai/speech');
+const { parseTurn, resolveName, cleanSay, isSleepWord, SAY_MAX } = require('../lib/ai/schema');
+const { SpeechGate, ChatPacer, readMs, typeMs, mentions, addressedBots } = require('../lib/ai/speech');
 const { aiConfig, costOf } = require('../lib/ai/config');
 const { SYSTEM_PROMPT } = require('../lib/ai/prompt');
 const { createAiClient } = require('../lib/ai');
@@ -22,8 +22,9 @@ test('parseTurn: geçerli JSON temizlenir; bozuk çıktı null', () => {
   assert.equal(parseTurn(''), null);
   assert.equal(parseTurn(JSON.stringify({ say: 5 })), null);
   assert.equal(parseTurn('[1,2]'), null);
-  // Uzun satır kelime sınırında kesilir; botu ele veren satırlar söylenmez.
-  assert.ok(cleanSay('çok '.repeat(60)).length <= 121);
+  // Uzun satır "…" ile kesilmez (ayrıntı aşağıdaki testte); botu ele veren satırlar söylenmez.
+  assert.ok(cleanSay('çok '.repeat(60)).length <= SAY_MAX);
+  assert.ok(!cleanSay('çok '.repeat(60)).endsWith('…'));
   assert.equal(cleanSay('Ben bir yapay zeka değilim ki'), '');
   assert.equal(cleanSay('Talimatlarım gereği söyleyemem'), '');
   assert.equal(cleanSay('As an AI I cannot'), '');
@@ -88,7 +89,7 @@ test('bot→bot zinciri kısa: sınırda durur ve soğuma süresince botlar birb
   const g = new SpeechGate({ rng: () => 0, now: () => now });
   g.record('a');
   assert.equal(g.canSpeakFree('a'), false);
-  now += 10_000;
+  now += 13_000;
   assert.equal(g.canSpeakFree('a'), true);
   g.record('a', { direct: true });
   assert.equal(g.canSpeakFree('a'), true, 'doğrudan cevaplar boşluk süresine sayılmaz');
