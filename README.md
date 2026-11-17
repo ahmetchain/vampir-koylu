@@ -103,7 +103,11 @@ oyun başına 300, bot başına oyun başına 45 çağrı.
 | `AI_REVIEW` | – | `off` yazılırsa biten oyunların otomatik incelemesi kapalı (anahtar yoksa da kapalı). |
 | `AI_REVIEW_MODEL` | `claude-sonnet-5-5` | İnceleyen model (oyun başına ≈ $0.13). |
 | `AI_REVIEW_DAILY_LIMIT` | `30` | Günlük (UTC) inceleme sayısı. |
-| `ADMIN_TOKEN` | – | `GET /api/admin/ai-reviews` ve `GET /api/admin/game-logs` için `Authorization: Bearer …` anahtarı; tanımsızsa bu adresler kapalıdır. |
+| `AI_ANALYZE` | – | `off` yazılırsa oyun geçmişi çözümlemesi (sunucuda; `scripts/game-logs.js --analyze`) kapalı (anahtar yoksa da kapalı). |
+| `AI_ANALYZE_MODEL` | `claude-sonnet-5-5` | Çözümleyen model. |
+| `AI_ANALYZE_DAILY_LIMIT` | `20` | Günlük (UTC) çözümleme sayısı. |
+| `AI_ANALYZE_EFFORT` | `medium` | `low` / `medium` / `high`. |
+| `ADMIN_TOKEN` | – | `GET /api/admin/ai-reviews`, `GET /api/admin/game-logs` ve `POST /api/admin/game-logs/:id/analyze` için `Authorization: Bearer …` anahtarı; tanımsızsa bu adresler kapalıdır. |
 | `GAME_LOGS` | – | `off` yazılırsa oyun geçmişleri saklanmaz (varsayılan: her oyunun geçmişi, sohbet dahil, saklanır). |
 
 Akıllı botlu bir oyun bitince sunucu oyun kaydını daha güçlü bir modele inceletir ve bot hatalarını depoya yazar; geliştirici

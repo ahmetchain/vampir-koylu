@@ -12,6 +12,7 @@ const { createStore } = require('./lib/store');
 const { Accounts } = require('./lib/auth');
 const { createAiClient, aiStatusLine } = require('./lib/ai');
 const { createReviewer, reviewStatusLine } = require('./lib/ai/review');
+const { createAnalyzer, analyzeStatusLine } = require('./lib/ai/analyze');
 const { createApi } = require('./lib/api');
 const { packAsync } = require('./lib/ai/gamerec');
 
@@ -59,8 +60,9 @@ function cacheHeaders(res, filePath) {
 // options: store (init edilmiş depo), origins, trustProxy, authOptions, limits
 // ai: akıllı botların API istemcisi (lib/ai) ya da null. Testler ve anahtarsız sunucu: null (yalnızca rastgele botlar).
 // reviewer: oyun sonu bot incelemesi (lib/ai/review.js Reviewer) ya da null. adminToken: ADMIN_TOKEN (boşsa yönetici adresleri kapalı).
+// analyzer: sunucuda oyun geçmişi çözümlemesi (lib/ai/analyze.js Analyzer) ya da null (uç nokta 503 döner).
 // gameLogs: her oyunun geçmişi depoya yazılsın mı (GAME_LOGS=off ile kapatılır; docs/GAME-LOGS.md).
-function createGameServer({ store, origins = [], trustProxy = false, authOptions = {}, limits = {}, port = 0, ai = null, reviewer = null, adminToken = '', gameLogs = true } = {}) {
+function createGameServer({ store, origins = [], trustProxy = false, authOptions = {}, limits = {}, port = 0, ai = null, reviewer = null, analyzer = null, adminToken = '', gameLogs = true } = {}) {
   const accounts = new Accounts(store, authOptions);
   const rooms = new Map();
   const moveTimers = new Map();
@@ -79,7 +81,7 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
   app.get('/healthz', (req, res) => {
     res.set('Cache-Control', 'no-store');
     // Akıllı botlar: yalnızca toplu sayılar (çağrı, token, tahmini maliyet); içerik asla.
-    res.json({ ok: true, rooms: rooms.size, store: store.kind, ...(ai ? { ai: ai.stats() } : {}), ...(reviewer ? { aiReview: reviewer.stats() } : {}) });
+    res.json({ ok: true, rooms: rooms.size, store: store.kind, ...(ai ? { ai: ai.stats() } : {}), ...(reviewer ? { aiReview: reviewer.stats() } : {}), ...(analyzer ? { aiAnalyze: analyzer.stats() } : {}) });
   });
 
   // localhost'tan açan oda sahibinin davet linki, aynı ağdakilerin açabileceği adresle oluşturulsun.
@@ -93,6 +95,7 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
     limits,
     adminToken,
     store,
+    analyzer,
     onLogout(tokenHash) {
       // Çıkış yapılan oturumun açık soketleri de kapanır.
       for (const s of io.sockets.sockets.values()) {
@@ -490,6 +493,7 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
     // Testler ve düzgün kapanış için: odaları, zamanlayıcıları, soketleri ve depoyu kapatır.
     async close({ closeStore = true } = {}) {
       closing = true;
+      if (analyzer) analyzer.abortAll();
       clearTimeout(listTimer);
       for (const t of moveTimers.values()) clearTimeout(t);
       moveTimers.clear();
@@ -499,12 +503,12 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
         io.close(() => resolve());
         if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
       });
-      await Promise.allSettled([...pending]);
+      await Promise.allSettled([...pending, ...(analyzer ? [analyzer.settle()] : [])]);
       if (closeStore) await store.close();
     },
     // Arka plandaki depo yazmalarının bitmesini bekler (testler için).
     settle() {
-      return Promise.allSettled([...pending]);
+      return Promise.allSettled([...pending, ...(analyzer ? [analyzer.settle()] : [])]);
     },
   };
 }
@@ -536,12 +540,14 @@ async function main() {
   }
   const ai = createAiClient(process.env);
   const reviewer = ai ? createReviewer(process.env, { store }) : null;
+  const analyzer = createAnalyzer(process.env);
   const adminToken = String(process.env.ADMIN_TOKEN || '').trim();
   const gameLogs = !['off', '0', 'false', 'no'].includes(String(process.env.GAME_LOGS || '').toLowerCase());
   const game = createGameServer({
     store,
     ai,
     reviewer,
+    analyzer,
     adminToken,
     gameLogs,
     origins: parseOrigins(process.env.CLIENT_ORIGIN),
@@ -554,6 +560,7 @@ async function main() {
   console.log(`  Hesap deposu:         ${store.kind === 'postgres' ? 'PostgreSQL (DATABASE_URL)' : `JSON dosyası (${store.file})`}`);
   console.log(`  Akıllı botlar:        ${aiStatusLine(ai, process.env)}`);
   console.log(`  Oyun incelemesi:      ${ai ? reviewStatusLine(reviewer, process.env) : 'kapalı (akıllı botlar kapalı)'}${adminToken ? '; yönetici adresleri açık (ADMIN_TOKEN)' : ''}`);
+  console.log(`  Geçmiş çözümleme:     ${analyzeStatusLine(analyzer)}`);
   console.log(`  Oyun geçmişi:         ${gameLogs ? 'açık (her oyun saklanır; en yeni 500 oyun ya da ~200 MB)' : 'kapalı (GAME_LOGS=off)'}`);
   console.log(`  Bu bilgisayardan:     http://localhost:${PORT}`);
   for (const ip of lanAddresses()) {

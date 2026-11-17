@@ -2,16 +2,19 @@
 'use strict';
 
 // Her oyunun tam geçmişini (lib/ai/gamerec.js, docs/GAME-LOGS.md) sunucudan indirir ve istenirse güçlü bir modele
-// çözümlettirir (YALNIZCA geliştirme; sunucu bu dosyayı kullanmaz).
+// çözümlettirir. Çözümleme varsayılan olarak SUNUCUDA, sunucunun anahtarıyla yapılır (bu bilgisayarda geçerli anahtar gerekmez).
 //
-//   node scripts/game-logs.js                       yeni oyun geçmişlerini çeker (REVIEW_URL + ADMIN_TOKEN)
-//   node scripts/game-logs.js --all                 daha önce çekilenleri de yeniden çeker
-//   node scripts/game-logs.js --analyze [id ...]    verilen oyunları (yoksa en yenisini) Türkçe çözümlettirir -> analysis-<id>.md
-//   node scripts/game-logs.js --local FILE          yerel bir geçmiş JSON'unu markdown'a çevirir (--analyze ile çözümletir)
-//   [--out DIR] [--model claude-sonnet-5-5] [--effort low|medium|high] [--limit N]
+//   node scripts/game-logs.js                        yeni oyun geçmişlerini çeker (REVIEW_URL + ADMIN_TOKEN)
+//   node scripts/game-logs.js --all                  daha önce çekilenleri de yeniden çeker
+//   node scripts/game-logs.js --analyze [id ...]     verilen oyunları (yoksa en yenisini) SUNUCUDA çözümlettirir -> analysis-<id>.md
+//   node scripts/game-logs.js --analyze --latest N   sunucudaki en yeni N oyunu çözümlettirir (zaten çözümlenmişler ücretsiz gelir)
+//   [--force]                                        kayıtlı çözümlemeyi yok sayıp yeniden çözümlettirir
+//   [--local-model]                                  eski davranış: modele bu bilgisayardaki ANTHROPIC_API_KEY ile doğrudan gider
+//   node scripts/game-logs.js --local FILE           yerel bir geçmiş JSON'unu markdown'a çevirir (--analyze ile yerel modelle çözümletir)
+//   [--out DIR] [--model claude-sonnet-5-5] [--effort low|medium|high] (yalnızca yerel model) [--limit N]
 //
 // ADMIN_TOKEN ve REVIEW_URL (yayındaki sitenin adresi) ortamdan ya da git'e girmeyen .env.local dosyasından okunur;
-// hiçbir yere yazdırılmaz. Çözümleme için ANTHROPIC_API_KEY gerekir. Çıktı (git'e girmez): ai-eval-out/game-logs/
+// hiçbir yere yazdırılmaz. Çıktı (git'e girmez): ai-eval-out/game-logs/
 //   json/<id>.json   ham geçmiş      <tarih>-<oda>-<id>.md   okunur döküm      analysis-<id>.md   model çözümlemesi
 
 const fs = require('fs');
@@ -21,14 +24,22 @@ const { logMarkdown } = require('../lib/ai/gamelog-format');
 
 const write = (file, text) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, text); };
 const safeName = (s) => String(s || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) || 'x';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const money = (n) => `$${(Number(n) || 0).toFixed(4)}`;
 
 function parseArgs(argv) {
-  const a = { out: path.join(ROOT, 'ai-eval-out', 'game-logs'), all: false, analyze: false, ids: [], local: null, model: '', effort: '', limit: 500 };
+  const a = {
+    out: path.join(ROOT, 'ai-eval-out', 'game-logs'), all: false, analyze: false, ids: [], local: null, model: '', effort: '', limit: 500,
+    latest: 0, force: false, localModel: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--out') a.out = path.resolve(argv[++i]);
     else if (k === '--all') a.all = true;
     else if (k === '--local') a.local = path.resolve(argv[++i]);
+    else if (k === '--local-model') a.localModel = true;
+    else if (k === '--force') a.force = true;
+    else if (k === '--latest') a.latest = Math.max(1, Math.min(50, Number.parseInt(argv[++i], 10) || 1));
     else if (k === '--model') a.model = String(argv[++i] || '');
     else if (k === '--effort') a.effort = String(argv[++i] || '');
     else if (k === '--limit') a.limit = Math.max(1, Number.parseInt(argv[++i], 10) || 500);
@@ -56,7 +67,11 @@ function saveLog(outDir, full) {
 
 async function apiGet(base, token, pathname) {
   const res = await fetch(`${base}${pathname}`, { headers: { Authorization: `Bearer ${token}` } });
-  if (res.status === 404) throw new Error('Yönetici adresi kapalı ya da sunucu bu sürümde değil (404; sunucuda ADMIN_TOKEN tanımlı mı?).');
+  if (res.status === 404) {
+    const j = await res.json().catch(() => null);
+    if (j && j.code === 'not_found' && /geçmişi/.test(j.error || '')) throw new Error('Oyun geçmişi bulunamadı (404).');
+    throw new Error('Yönetici adresi kapalı ya da sunucu bu sürümde değil (404; sunucuda ADMIN_TOKEN tanımlı mı?).');
+  }
   if (res.status === 401) throw new Error('ADMIN_TOKEN reddedildi (401).');
   if (res.status === 429) throw new Error('Çok fazla istek (429); biraz bekleyin.');
   if (!res.ok) throw new Error(`Sunucu cevabı: ${res.status}`);
@@ -95,89 +110,133 @@ async function fetchRemote(args, env) {
   return rows;
 }
 
-// ---------- model çözümlemesi ----------
+// ---------- çözümleme: yerel model (--local-model) ----------
 
-const ANALYSIS_SYSTEM = (rules) => `You are a senior game designer and QA analyst for "Vampir Köylü", a Turkish social-deduction party game (Werewolf/Mafia style, played in the browser). You receive the complete history of ONE finished (or abandoned) game as a Turkish markdown transcript: the header with every player's true role and result, then a day-by-day timeline with the public log, all chat (channels: genel / vampir / ölüler), votes with changes over time, night picks and results, private results marked "(yalnızca X gördü)" (only that player saw it), and, for smart bots (LLM-driven players), indented "bot notu" lines with their private notes (think / memory / fallbacks). You see the full truth; the players did not. Judge each player by what it could know at that moment.
-
-Some players are humans; the others are bots: "bot" (simple random bots) and "akıllı bot" (smart, LLM-driven bots that read the chat and talk like players).
-
-Write your analysis in TURKISH, as markdown, with exactly these sections:
-## Ne oldu
-A short chronological account of the game (who died when and how, who claimed what, how it ended) in 6-12 sentences.
-## Dönüm noktaları
-The 3-6 moments that decided the outcome, each with the time/phase and why it mattered.
-## Botlar nasıl oynadı
-How the smart bots played overall: reasoning quality, bluffing, role claims, voting, whether they stayed consistent with their private notes. Name concrete bots and quote short lines.
-## İnsanlar botlara ne söyledi, botlar nasıl cevap verdi
-Everything the humans said TO the bots (questions, accusations, persuasion attempts, jokes) and how each bot answered: did it answer at all, was it on topic, was it fooled or convincing, was the Turkish natural. Quote exact lines. If there were no humans or they said nothing to the bots, say so.
-## Sorunlar
-Real problems only, most severe first: wrong deductions, rule misunderstandings (a bot or human asking a role for information it cannot have, misreading the game rules), bot behaviour that leaks hidden information, contradictions, repeated or robotic lines, fallbacks to random moves, odd game outcomes that look like bugs (rule or timing bugs in the game itself). For each: who, when, the quote or note that shows it, why it is a problem.
-## İyileştirme önerileri
-Concrete, actionable suggestions, split into: (a) bot rule-book changes (imperative, usable wording for the section it belongs to), (b) game rules / UI / timing changes if the game itself caused trouble, (c) regression scenarios worth adding (title, setup, what a correct bot must do). Prefer fewer, sharper items over a long list.
-
-Be specific and honest; do not pad. If the game was abandoned or very short, say what can and cannot be concluded. Cite times as mm:ss as in the transcript.
-
-# Reference: the rule book the smart bots were given (to judge them by, and to say where it is wrong, vague or missing)
-<rule_book>
-${rules}
-</rule_book>`;
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-// Tek oyun geçmişini çözümletir. { ok, text, usage, cost, model } döner; hata atar (anlaşılır mesajla).
-async function analyzeLog(record, md, env, { transport = null, model = '', effort = '', log = () => {} } = {}) {
-  const { reviewConfig } = require('../lib/ai/review');
-  const { sdkTransport, classify } = require('../lib/ai/client');
-  const { costOf, PRICES } = require('../lib/ai/config');
-  const { SYSTEM_PROMPT } = require('../lib/ai/prompt');
-  const cfg = reviewConfig({ ...env, ...(model ? { AI_REVIEW_MODEL: model } : {}), ...(effort ? { AI_REVIEW_EFFORT: effort } : {}) });
+// Tek oyun geçmişini bu bilgisayardan çözümletir. { ok, text, usage, cost, model } döner; hata atar (anlaşılır mesajla).
+async function analyzeLog(record, md, env, { transport = null, model = '', effort = '', log = () => {}, sleep: wait = sleep } = {}) {
+  const { analyzeConfig, analyzeTranscript } = require('../lib/ai/analyze');
+  const { sdkTransport } = require('../lib/ai/client');
+  const cfg = analyzeConfig({ ...env, ...(model ? { AI_ANALYZE_MODEL: model } : {}), ...(effort ? { AI_ANALYZE_EFFORT: effort } : {}) });
   const useTransport = transport || (cfg.apiKey ? sdkTransport(cfg.apiKey) : null);
-  if (!useTransport) throw new Error('Çözümleme için ANTHROPIC_API_KEY gerekli.');
-  const params = {
-    model: cfg.model,
-    max_tokens: 16000,
-    system: [{ type: 'text', text: ANALYSIS_SYSTEM(SYSTEM_PROMPT) }],
-    messages: [{ role: 'user', content: `Analyse this game. Transcript follows.\n<game_transcript>\n${md}\n</game_transcript>` }],
-    output_config: { effort: cfg.effort },
-  };
-  let res = null;
-  for (let attempt = 1; ; attempt++) {
-    try {
-      res = await useTransport(params, { timeout: 300000 });
-      break;
-    } catch (err) {
-      // Bu bilgisayarda TLS ara katmanı bazen bağlantıyı bozar (SELF_SIGNED_CERT_IN_CHAIN): birkaç kez dene.
-      const why = classify(err, useTransport.errors);
-      if (why === 'auth') throw new Error(`ANTHROPIC_API_KEY reddedildi (${err && err.status ? err.status : 'auth'}): anahtar geçersiz ya da iptal edilmiş.`);
-      if (why !== 'network' || attempt >= 6) throw new Error(`Model isteği başarısız (${why}${err && err.status ? ` ${err.status}` : ''}).`);
-      log(`  ağ hatası, yeniden deneniyor (${attempt}/5)...`);
-      await sleep(1500 * attempt);
-    }
+  if (!useTransport) throw new Error('--local-model için bu bilgisayarda ANTHROPIC_API_KEY gerekli (anahtarsız kullanmak için --local-model olmadan çalıştırın: çözümleme sunucuda yapılır).');
+  try {
+    // Bu bilgisayarda TLS ara katmanı bazen bağlantıyı bozar (SELF_SIGNED_CERT_IN_CHAIN): birkaç kez dene.
+    return await analyzeTranscript({
+      md, config: cfg, transport: useTransport, retries: 6, sleep: wait,
+      log: (n, max) => log(`  ağ hatası, yeniden deneniyor (${n}/${max - 1})...`),
+    });
+  } catch (err) {
+    const why = err && err.reason ? err.reason : 'error';
+    const c = err && err.cost ? ` (maliyet ≈ ${money(err.cost)})` : '';
+    if (why === 'auth') throw new Error(`ANTHROPIC_API_KEY reddedildi (${err.status || 'auth'}): anahtar geçersiz ya da iptal edilmiş.`);
+    if (why === 'refusal') throw new Error(`Model reddetti${c}.`);
+    if (why === 'empty') throw new Error(`Model boş cevap verdi${c}.`);
+    if (why === 'malformed') throw new Error('Model cevabı okunamadı.');
+    throw new Error(`Model isteği başarısız (${why}${err && err.status ? ` ${err.status}` : ''}).`);
   }
-  const usage = res && res.usage ? res.usage : {};
-  const prices = PRICES[cfg.model] || PRICES['claude-sonnet-5-5'];
-  const cost = costOf(usage, prices);
-  if (!res || !Array.isArray(res.content)) throw new Error('Model cevabı okunamadı.');
-  if (res.stop_reason === 'refusal') throw new Error(`Model reddetti (maliyet ≈ $${cost.toFixed(4)}).`);
-  const text = res.content.filter((b) => b && b.type === 'text').map((b) => b.text).join('').trim();
-  if (!text) throw new Error(`Model boş cevap verdi (${res.stop_reason}; maliyet ≈ $${cost.toFixed(4)}).`);
-  return { ok: true, text, usage, cost, model: cfg.model, truncated: res.stop_reason === 'max_tokens' };
 }
 
 function analysisFile(outDir, id) { return path.join(outDir, `analysis-${safeName(id)}.md`); }
 
+function writeAnalysis(args, id, a) {
+  const u = a.usage;
+  const tokens = u ? ` · token: girdi=${u.input_tokens || 0} çıktı=${u.output_tokens || 0}` : '';
+  const file = analysisFile(args.out, id);
+  write(file, `# Oyun ${id} çözümlemesi\n\n- Model: ${a.model || '?'} · maliyet ≈ ${money(a.cost)}${tokens}${a.where ? ` · ${a.where}` : ''}${a.truncated ? ' · UYARI: çıktı sınıra takıldı' : ''}\n\n${a.text}\n`);
+  return file;
+}
+
 async function runAnalysis(args, env, items, opts = {}) {
   let total = 0;
   for (const { id, record, md } of items) {
-    console.log(`Çözümleniyor: ${id} (${md.length} karakter)...`);
+    console.log(`Çözümleniyor (yerel model): ${id} (${md.length} karakter)...`);
     const res = await analyzeLog(record, md, env, { model: args.model, effort: args.effort, log: console.log, ...opts });
-    const file = analysisFile(args.out, id);
-    write(file, `# Oyun ${id} çözümlemesi\n\n- Model: ${res.model} · maliyet ≈ $${res.cost.toFixed(4)} · token: girdi=${res.usage.input_tokens || 0} çıktı=${res.usage.output_tokens || 0}${res.truncated ? ' · UYARI: çıktı sınıra takıldı' : ''}\n\n${res.text}\n`);
+    const file = writeAnalysis(args, id, res);
     total += res.cost;
     console.log(`  Yazıldı: ${file}`);
-    console.log(`  Maliyet ≈ $${res.cost.toFixed(4)} (model ${res.model}, girdi=${res.usage.input_tokens || 0} önbellek_yazma=${res.usage.cache_creation_input_tokens || 0} çıktı=${res.usage.output_tokens || 0})`);
+    console.log(`  Maliyet ≈ ${money(res.cost)} (model ${res.model}, girdi=${res.usage.input_tokens || 0} önbellek_yazma=${res.usage.cache_creation_input_tokens || 0} çıktı=${res.usage.output_tokens || 0})`);
   }
-  if (items.length > 1) console.log(`Toplam çözümleme maliyeti ≈ $${total.toFixed(4)}`);
+  if (items.length > 1) console.log(`Toplam çözümleme maliyeti ≈ ${money(total)}`);
+  return total;
+}
+
+// ---------- çözümleme: sunucuda (varsayılan) ----------
+
+const FAIL_TEXT = {
+  auth: 'sunucunun ANTHROPIC_API_KEY anahtarı reddedildi', network: 'sunucunun model bağlantısı koptu', timeout: 'model zaman aşımına uğradı',
+  rate_limit: 'model istek sınırı', bad_request: 'model isteği geçersiz', api_error: 'model hatası', refusal: 'model reddetti', empty: 'model boş cevap verdi',
+  malformed: 'model cevabı okunamadı', store: 'sonuç depoya yazılamadı', error: 'bilinmeyen hata',
+};
+
+// Sunucuya istek atar; hız sınırına (429) takılırsa Retry-After kadar bekleyip yeniden dener.
+async function apiCall(base, token, method, pathname, { wait = sleep } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${base}${pathname}`, { method, headers: { Authorization: `Bearer ${token}` } });
+    let j = null;
+    try { j = await res.json(); } catch { /* gövde yok */ }
+    if (res.status === 429 && !(j && j.code === 'daily_limit') && attempt < 5) {
+      await wait((Math.min(120, Number(res.headers.get('retry-after')) || 10) + 1) * 1000);
+      continue;
+    }
+    if (res.status === 404 && j && j.code === 'not_found' && /geçmişi/.test(j.error || '')) throw new Error('Oyun geçmişi bulunamadı (404).');
+    if (res.status === 404) throw new Error('Yönetici adresi kapalı ya da sunucu bu sürümde değil (404; sunucuda ADMIN_TOKEN tanımlı mı?).');
+    if (res.status === 401) throw new Error('ADMIN_TOKEN reddedildi (401).');
+    if (res.status === 429 && j && j.code === 'daily_limit') throw new Error(j.error || 'Günlük çözümleme sınırına ulaşıldı.');
+    if (res.status === 429) throw new Error('Çok fazla istek (429); biraz bekleyin.');
+    if (res.status === 503 && j && j.code === 'analyze_disabled') throw new Error(j.error || 'Sunucuda çözümleme kapalı.');
+    if (!res.ok) throw new Error(`Sunucu cevabı: ${res.status}${j && j.error ? ` (${j.error})` : ''}`);
+    return { status: res.status, json: j || {} };
+  }
+}
+
+// Sunucuda çözümletir, bitene kadar sorar. { text, cost, model, analyzedAt, cached } döner.
+async function remoteAnalyze(args, env, id, { pollMs = Number(env.VK_ANALYZE_POLL_MS) || 8000, maxMs = 20 * 60 * 1000, wait = sleep, say = console.log } = {}) {
+  const { token, base } = remote(env);
+  const enc = encodeURIComponent(id);
+  const start = await apiCall(base, token, 'POST', `/api/admin/game-logs/${enc}/analyze${args.force ? '?force=1' : ''}`, { wait });
+  if (start.json.status === 'done') say('  Önceden çözümlenmiş (sunucudan alınıyor; --force ile yeniden çözümletilir).');
+  else if (start.json.alreadyRunning) say('  Sunucuda zaten çözümleniyor, bekleniyor...');
+  const t0 = Date.now();
+  let none = 0;
+  let nextNote = 30000;
+  for (;;) {
+    const r = await apiCall(base, token, 'GET', `/api/admin/game-logs/${enc}/analysis`, { wait });
+    const a = r.json.analysis || {};
+    if (a.status === 'done') return { text: a.text, cost: a.cost, model: a.model, analyzedAt: a.analyzedAt, cached: start.json.status === 'done' };
+    if (a.status === 'failed') throw new Error(`Sunucuda çözümleme başarısız: ${FAIL_TEXT[a.reason] || a.reason || 'hata'}.`);
+    // 'none': iş bellekte yok (sunucu yeniden başladı ya da uyudu); üst üste görülürse vazgeç.
+    none = a.status === 'none' ? none + 1 : 0;
+    if (none >= 3) throw new Error('Sunucuda çözümleme işi kayboldu (sunucu yeniden başlamış olabilir); yeniden deneyin.');
+    const spent = Date.now() - t0;
+    if (spent > maxMs) throw new Error('Çözümleme beklenenden uzun sürdü; sonra yeniden çalıştırın (bitmişse sonuç sunucuda saklanır, ek maliyet olmaz).');
+    if (spent >= nextNote) { say(`  hâlâ çözümleniyor... (${Math.round(spent / 1000)} sn)`); nextNote += 30000; }
+    await wait(pollMs);
+  }
+}
+
+// --analyze için kimlikler: verilenler; yoksa sunucudaki en yeni N oyun (--latest N, varsayılan 1).
+async function pickIds(args, env) {
+  if (args.ids.length) return args.ids;
+  const { token, base } = remote(env);
+  const list = await apiGet(base, token, `/api/admin/game-logs?limit=${args.latest || 1}`);
+  const ids = (list.logs || []).map((r) => r.id);
+  if (!ids.length) throw new Error('Çözümlenecek oyun geçmişi yok.');
+  return ids;
+}
+
+async function runRemote(args, env) {
+  const ids = await pickIds(args, env);
+  let total = 0;
+  for (const id of ids) {
+    console.log(`Sunucuda çözümleniyor: ${id}...`);
+    const { full, file: transcript } = await fetchOne(env, id, args.out);   // okunur döküm de yerelde dursun
+    const res = await remoteAnalyze(args, env, id);
+    const file = writeAnalysis(args, full.id, { ...res, where: 'sunucuda çözümlendi' });
+    if (!res.cached) total += Number(res.cost) || 0;
+    console.log(`  Yazıldı: ${file}`);
+    console.log(`  Maliyet ≈ ${money(res.cost)} (model ${res.model || '?'}${res.cached ? '; önceden çözümlenmişti, yeni maliyet yok' : ''}); döküm: ${transcript}`);
+  }
+  if (ids.length > 1) console.log(`Toplam yeni çözümleme maliyeti ≈ ${money(total)}`);
   return total;
 }
 
@@ -192,7 +251,7 @@ async function loadItem(args, env, id) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (args.help) { console.log(fs.readFileSync(__filename, 'utf8').split('\n').slice(3, 14).join('\n')); return; }
+  if (args.help) { console.log(fs.readFileSync(__filename, 'utf8').split('\n').slice(3, 16).join('\n')); return; }
   const env = loadEnvLocal(process.env, { main: true });
   if (args.local) {
     const raw = JSON.parse(fs.readFileSync(args.local, 'utf8'));
@@ -202,6 +261,11 @@ async function main() {
     write(file, md);
     console.log(`Yazıldı: ${file}`);
     if (args.analyze) await runAnalysis(args, env, [{ id: record.id, record, md }]);
+    return;
+  }
+  if (args.analyze && !args.localModel) {
+    if (args.model || args.effort) console.log('Not: --model/--effort yalnızca --local-model ile geçerli; sunucu AI_ANALYZE_MODEL / AI_ANALYZE_EFFORT kullanır.');
+    await runRemote(args, env);
     return;
   }
   let fetched = [];
@@ -224,4 +288,6 @@ async function main() {
 
 if (require.main === module) main().catch((e) => { console.error(e && e.message ? e.message : e); process.exit(1); });
 
-module.exports = { parseArgs, saveLog, fileFor, fetchRemote, fetchOne, analyzeLog, runAnalysis, ANALYSIS_SYSTEM, analysisFile };
+module.exports = {
+  parseArgs, saveLog, fileFor, fetchRemote, fetchOne, analyzeLog, runAnalysis, remoteAnalyze, runRemote, analysisFile, writeAnalysis,
+};

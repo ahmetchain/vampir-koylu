@@ -482,11 +482,11 @@ test('PostgreSQL: eski inceleme tablosuna game_log_id eklenir ve oyun geçmişi 
 
 // ---------- sunucu kancası ve yönetici adresleri ----------
 
-async function gameServer(t, { adminToken = 'gizli-yonetici', limits, store: given, reviewer = null, gameLogs = true } = {}) {
+async function gameServer(t, { adminToken = 'gizli-yonetici', limits, store: given, reviewer = null, analyzer = null, gameLogs = true } = {}) {
   const dir = tempDir('vk-glsrv-');
   const store = given || new JsonStore({ dir });
   if (!given) await store.init();
-  const srv = createGameServer({ store, adminToken, limits, reviewer, gameLogs, authOptions: { scryptOptions: FAST } });
+  const srv = createGameServer({ store, adminToken, limits, reviewer, analyzer, gameLogs, authOptions: { scryptOptions: FAST } });
   const port = await srv.listen(0);
   srv.url = `http://localhost:${port}`;
   srv.dir = dir;
@@ -588,7 +588,7 @@ test('yönetici adresleri (oyun geçmişi): ADMIN_TOKEN yoksa 404; anahtarsız/y
   const j = await ok.json();
   assert.equal(j.logs.length, 1);
   const m = j.logs[0];
-  assert.deepEqual(Object.keys(m).sort(), ['bots', 'createdAt', 'date', 'days', 'end', 'endedAt', 'hasReview', 'humans', 'id', 'players', 'reviewId', 'room', 'size', 'smartBots', 'startedAt', 'winner']);
+  assert.deepEqual(Object.keys(m).sort(), ['analysisCost', 'analyzed', 'analyzedAt', 'bots', 'createdAt', 'date', 'days', 'end', 'endedAt', 'hasReview', 'humans', 'id', 'players', 'reviewId', 'room', 'size', 'smartBots', 'startedAt', 'winner']);
   assert.deepEqual([m.id, m.room, m.players, m.humans, m.bots, m.days, m.winner, m.hasReview], [rec.id, 'GECMS', 6, 6, 0, 1, 'koylu', false]);
   assert.equal(m.record, undefined);
   const full = await (await get(srv, `/api/admin/game-logs/${rec.id}`, 'gizli-yonetici')).json();
@@ -639,7 +639,7 @@ test('scripts/game-logs.js: sunucudan yalnızca yeni geçmişleri çeker, json +
   // Yanlış anahtar anlaşılır hata verir; --analyze anahtarsız çalışmaz.
   const wrong = await run({ ADMIN_TOKEN: 'yanlis' }).catch((e) => e);
   assert.ok(wrong.code === 1 && /reddedildi/.test(wrong.stderr));
-  const noKey = await execFileP(process.execPath, [script, '--out', out, '--analyze', rec.id], {
+  const noKey = await execFileP(process.execPath, [script, '--out', out, '--local-model', '--analyze', rec.id], {
     env: { ...process.env, ADMIN_TOKEN: 'cok-gizli-456', REVIEW_URL: srv.url, ANTHROPIC_API_KEY: '', VK_NO_ENV_LOCAL: '1' },
   }).catch((e) => e);
   assert.ok(noKey.code === 1 && /ANTHROPIC_API_KEY/.test(noKey.stderr), noKey.stderr);
@@ -708,4 +708,360 @@ test('gizlilik: lobi notu oyun sohbetinin saklandığını söyler; geçmiş ç�
   assert.match(room, /şifre|parola/i);
   const ig = fs.readFileSync(path.join(__dirname, '..', '.gitignore'), 'utf8');
   assert.match(ig, /^ai-eval-out\/$/m);
+});
+
+// ---------- sunucuda çözümleme (lib/ai/analyze.js, POST /api/admin/game-logs/:id/analyze) ----------
+
+const { Analyzer, analyzeConfig, createAnalyzer } = require('../lib/ai/analyze');
+
+const USAGE = { input_tokens: 40000, output_tokens: 3000, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };   // ≈ $0.11
+const ANALYSIS_TEXT = '## Ne oldu\nKöylüler kazandı.';
+
+// Sahte taşıyıcı: gate verilirse cevap ona kadar bekler; fail/stop/text ile hata, ret, boş cevap sahnelenir.
+function analyzeTransport({ gate = null, fail = null, text = ANALYSIS_TEXT, stop = 'end_turn' } = {}) {
+  const calls = [];
+  const transport = (params) => {
+    calls.push(params);
+    if (fail) return Promise.reject(fail);
+    const ok = () => ({ stop_reason: stop, content: [{ type: 'text', text }], usage: USAGE });
+    return gate ? gate.then(ok) : Promise.resolve(ok());
+  };
+  transport.calls = calls;
+  return transport;
+}
+
+function testAnalyzer(transport, env = {}, extra = {}) {
+  const lines = { log: [], warn: [] };
+  const logger = { log: (m) => lines.log.push(m), warn: (m) => lines.warn.push(m) };
+  const analyzer = new Analyzer({ config: analyzeConfig({ ANTHROPIC_API_KEY: 'k', ...env }), transport, logger, sleep: () => Promise.resolve(), ...extra });
+  analyzer.lines = lines;
+  return analyzer;
+}
+
+const post = (srv, url, token, body) => fetch(srv.url + url, {
+  method: 'POST', headers: { ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }), 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}),
+});
+
+// rec: aynı testte birden çok sunucu için önceden kaydedilmiş oyun (sahte saat bir testte bir kez kurulur).
+async function storedLog(t, opts = {}, rec = recordedGame(t)) {
+  const srv = await gameServer(t, opts);
+  const orig = console.log;
+  console.log = () => {};
+  try { srv.hooks.gameLog({ id: 'GECMS' }, rec); await srv.settle(); } finally { console.log = orig; }
+  return { rec, srv };
+}
+
+const J = async (p) => (await p).json();
+
+for (const backend of backends) {
+  test(`[${backend.name}] çözümleme: kaydet, getir (metin), listede yalnızca özet, üzerine yaz, olmayan oyun false`, async (t) => {
+    const { store, reopen } = await backend.open(t);
+    await store.saveGameLog(logRow(1));
+    await store.saveGameLog(logRow(2));
+    assert.equal((await store.getGameLog('g0001')).analysis, null);
+    assert.equal((await store.listGameLogs())[0].analyzedAt, null);
+    assert.equal(await store.saveGameLogAnalysis('g0001', { text: 'ilk metin', cost: 0.11, model: 'claude-sonnet-5-5', analyzedAt: 1_760_000_100_000 }), true);
+    assert.equal(await store.saveGameLogAnalysis('yok', { text: 'x' }), false);
+    const full = await store.getGameLog('g0001');
+    assert.deepEqual([full.analysis, full.analysisCost, full.analysisModel, full.analyzedAt], ['ilk metin', 0.11, 'claude-sonnet-5-5', 1_760_000_100_000]);
+    const list = await store.listGameLogs();
+    const row = list.find((r) => r.id === 'g0001');
+    assert.deepEqual([row.analyzedAt, row.analysisCost, row.analysis], [1_760_000_100_000, 0.11, undefined], 'listede metin yok');
+    assert.equal(list.find((r) => r.id === 'g0002').analyzedAt, null);
+    await store.saveGameLogAnalysis('g0001', { text: 'ikinci metin', cost: 0.2, model: 'm', analyzedAt: 5 });
+    assert.equal((await store.getGameLog('g0001')).analysis, 'ikinci metin');
+    assert.equal(unpack((await store.getGameLog('g0001')).record).n, 1, 'kayıt bozulmadı');
+    if (backend.name.startsWith('JSON')) {
+      await store.close();
+      const again = await reopen();
+      assert.equal((await again.getGameLog('g0001')).analysis, 'ikinci metin', 'dosyadan geri yüklendi');
+      await again.close();
+    }
+  });
+}
+
+const OLD_LOGS_TABLE = 'CREATE TABLE vk_game_logs (id TEXT PRIMARY KEY, created_at BIGINT NOT NULL, room TEXT NOT NULL, started_at BIGINT NOT NULL, ended_at BIGINT NOT NULL, end_kind TEXT NOT NULL, winner TEXT NOT NULL DEFAULT \'\', players INTEGER NOT NULL DEFAULT 0, humans INTEGER NOT NULL DEFAULT 0, bots INTEGER NOT NULL DEFAULT 0, smart INTEGER NOT NULL DEFAULT 0, rounds INTEGER NOT NULL DEFAULT 0, size INTEGER NOT NULL DEFAULT 0, review_id TEXT, record TEXT NOT NULL)';
+
+test('PostgreSQL: eski oyun geçmişi tablosuna çözümleme sütunları eklenir; eski satır okunur; ikinci açılış zararsız; eklenemezse geçmiş etkilenmez', async () => {
+  const pool = new (newDb().adapters.createPg().Pool)();
+  // Canlıdaki şema: vk_game_logs var ama çözümleme sütunları yok.
+  await pool.query(OLD_LOGS_TABLE);
+  await pool.query("INSERT INTO vk_game_logs (id, created_at, room, started_at, ended_at, end_kind, record) VALUES ('eski', 1, 'R', 1, 2, 'finished', 'rec')");
+  const store = new PgStore({ pool });
+  await store.init();
+  await store.init();
+  const old = await store.getGameLog('eski');
+  assert.equal(old.analysis, null);
+  assert.equal(old.analyzedAt, null);
+  assert.equal((await store.listGameLogs())[0].analyzedAt, null);
+  assert.equal(await store.saveGameLogAnalysis('eski', { text: 'metin', cost: 0.05, model: 'm', analyzedAt: 9 }), true);
+  assert.equal((await store.getGameLog('eski')).analysis, 'metin');
+  await store.saveGameLog(logRow(1));
+  assert.equal((await store.listGameLogs()).length, 2);
+
+  // ALTER başarısız olursa: açılış sürer, geçmiş okunur/yazılır, çözümleme saklanmaz (false).
+  const p2 = new (newDb().adapters.createPg().Pool)();
+  await p2.query(OLD_LOGS_TABLE);
+  const realQuery = p2.query.bind(p2);
+  p2.query = (sql, ...a) => (/ALTER TABLE vk_game_logs/.test(sql) ? Promise.reject(new Error('izin yok')) : realQuery(sql, ...a));
+  const store2 = new PgStore({ pool: p2 });
+  const orig = console.error;
+  console.error = () => {};
+  try { await store2.init(); } finally { console.error = orig; }
+  await store2.saveGameLog(logRow(1));
+  assert.equal((await store2.listGameLogs()).length, 1);
+  assert.equal((await store2.getGameLog('g0001')).analysis, null);
+  assert.equal(await store2.saveGameLogAnalysis('g0001', { text: 'x' }), false);
+});
+
+test('çözümleme uç noktası: yetki, 202 + ilerleme sorgusu, kayıt, önbellek (ücretsiz), force, günlük sınır, tek log satırı, /healthz', async (t) => {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const transport = analyzeTransport({ gate });
+  const analyzer = testAnalyzer(transport, { AI_ANALYZE_DAILY_LIMIT: '2' });
+  const { rec, srv } = await storedLog(t, { analyzer });
+  const A = `/api/admin/game-logs/${rec.id}/analyze`;
+  const S = `/api/admin/game-logs/${rec.id}/analysis`;
+  // Yetki: anahtarsız/yanlış 401; geçmiş yoksa 404; çağrı yapılmadı.
+  assert.equal((await post(srv, A, undefined)).status, 401);
+  assert.equal((await post(srv, A, 'yanlis')).status, 401);
+  assert.equal((await get(srv, S, 'yanlis')).status, 401);
+  assert.equal((await post(srv, '/api/admin/game-logs/yok/analyze', 'gizli-yonetici')).status, 404);
+  assert.equal(transport.calls.length, 0);
+  // Başlat: 202; çalışırken tekrar başlatmak ikinci çağrı yapmaz; durum her yerde "running".
+  const first = await post(srv, A, 'gizli-yonetici');
+  assert.equal(first.status, 202);
+  assert.deepEqual(await first.json(), { ok: true, status: 'running', alreadyRunning: false });
+  const again = await post(srv, A, 'gizli-yonetici');
+  assert.equal(again.status, 202);
+  assert.equal((await again.json()).alreadyRunning, true);
+  assert.equal((await J(get(srv, S, 'gizli-yonetici'))).analysis.status, 'running');
+  assert.equal((await J(get(srv, `/api/admin/game-logs/${rec.id}`, 'gizli-yonetici'))).log.analysis.status, 'running');
+  assert.equal((await J(get(srv, '/healthz'))).aiAnalyze.running, 1);
+  release();
+  await srv.settle();
+  assert.equal(transport.calls.length, 1);
+  assert.equal(transport.calls[0].model, 'claude-sonnet-5-5');
+  assert.match(transport.calls[0].system[0].text, /in TURKISH/);
+  assert.ok(transport.calls[0].messages[0].content.includes('Günaydın, dün gece ne oldu?'), 'döküm modele gitti');
+  // Bitti: ayrı sorgu, tam kayıt ve liste.
+  const done = (await J(get(srv, S, 'gizli-yonetici'))).analysis;
+  assert.equal(done.status, 'done');
+  assert.equal(done.text, ANALYSIS_TEXT);
+  assert.ok(Math.abs(done.cost - 0.11) < 1e-9);
+  assert.equal(done.model, 'claude-sonnet-5-5');
+  const full = (await J(get(srv, `/api/admin/game-logs/${rec.id}`, 'gizli-yonetici'))).log;
+  assert.equal(full.analysis.text, ANALYSIS_TEXT);
+  assert.deepEqual(full.record, rec);
+  const meta = (await J(get(srv, '/api/admin/game-logs', 'gizli-yonetici'))).logs[0];
+  assert.equal(meta.analyzed, true);
+  assert.ok(Math.abs(meta.analysisCost - 0.11) < 1e-9);
+  assert.match(meta.analyzedAt, /^\d{4}-/);
+  assert.equal(meta.analysis, undefined, 'listede metin yok');
+  // Tek log satırı, yalnızca sayılar (içerik, isim, çıktı yok).
+  assert.equal(analyzer.lines.log.length, 1);
+  assert.match(analyzer.lines.log[0], /^\[ai-analyze\] oyun=\S+ model=claude-sonnet-5-5 girdi=40000 çıktı=3000 maliyet≈\$0\.1100 süre=\d+sn$/);
+  assert.ok(!analyzer.lines.log[0].includes('Oyuncu') && !analyzer.lines.log[0].includes('Köylüler'));
+  assert.equal(analyzer.lines.warn.length, 0);
+  // Önbellek: ikinci istek model çağırmaz, günlük sayacı artmaz.
+  const cached = await post(srv, A, 'gizli-yonetici');
+  assert.equal(cached.status, 200);
+  const cj = await cached.json();
+  assert.deepEqual([cj.status, cj.cached, cj.analysis.status, cj.analysis.text], ['done', true, 'done', undefined]);
+  assert.equal(transport.calls.length, 1);
+  assert.equal(analyzer.stats().today, 1);
+  // force: yeniden üretir (ikinci hak); sonra günlük sınır (2) dolar.
+  assert.equal((await post(srv, `${A}?force=1`, 'gizli-yonetici')).status, 202);
+  await srv.settle();
+  assert.equal(transport.calls.length, 2);
+  const limited = await post(srv, A, 'gizli-yonetici', { force: true });
+  assert.equal(limited.status, 429);
+  assert.equal((await limited.json()).code, 'daily_limit');
+  assert.equal(transport.calls.length, 2);
+  // /healthz: yalnızca toplu sayılar.
+  const hz = (await J(get(srv, '/healthz'))).aiAnalyze;
+  assert.deepEqual([hz.enabled, hz.model, hz.today, hz.dailyLimit, hz.running, hz.analyses, hz.failures], [true, 'claude-sonnet-5-5', 2, 2, 0, 2, 0]);
+  assert.ok(Math.abs(hz.costUsd - 0.22) < 1e-9);
+  assert.ok(!JSON.stringify(hz).includes('Köylüler'));
+});
+
+test('çözümleme uç noktası: kapalıyken (anahtar yok / AI_ANALYZE=off / analyzer yok) 503; ADMIN_TOKEN yoksa 404', async (t) => {
+  const noKey = testAnalyzer(null, {}, { config: analyzeConfig({}) });
+  const off = testAnalyzer(analyzeTransport(), { AI_ANALYZE: 'off' });
+  const rec0 = recordedGame(t);
+  const a = await storedLog(t, { analyzer: noKey }, rec0);
+  const url = (r) => `/api/admin/game-logs/${r.id}/analyze`;
+  let res = await post(a.srv, url(a.rec), 'gizli-yonetici');
+  assert.equal(res.status, 503);
+  let j = await res.json();
+  assert.equal(j.code, 'analyze_disabled');
+  assert.match(j.error, /ANTHROPIC_API_KEY/);
+  assert.equal((await J(get(a.srv, '/healthz'))).aiAnalyze.enabled, false);
+  const b = await storedLog(t, { analyzer: off }, rec0);
+  j = await J(post(b.srv, url(b.rec), 'gizli-yonetici'));
+  assert.match(j.error, /AI_ANALYZE=off/);
+  const c = await storedLog(t, { analyzer: null }, rec0);
+  res = await post(c.srv, url(c.rec), 'gizli-yonetici');
+  assert.equal(res.status, 503);
+  assert.equal((await J(get(c.srv, '/healthz'))).aiAnalyze, undefined);
+  const d = await gameServer(t, { adminToken: '', analyzer: noKey });
+  assert.equal((await post(d, '/api/admin/game-logs/x/analyze', 'gizli-yonetici')).status, 404);
+  assert.equal((await get(d, '/api/admin/game-logs/x/analysis', 'gizli-yonetici')).status, 404);
+});
+
+test('çözümleme: model hatası, ret, boş cevap sunucuyu çökertmez; durum "failed", sayaç ve tek uyarı satırı; sonra yeniden denenebilir', async (t) => {
+  const auth = Object.assign(new Error('401'), { status: 401 });
+  const cases = [
+    ['auth', analyzeTransport({ fail: auth })],
+    ['refusal', analyzeTransport({ stop: 'refusal' })],
+    ['empty', analyzeTransport({ text: '   ' })],
+  ];
+  const rec0 = recordedGame(t);
+  for (const [reason, transport] of cases) {
+    const analyzer = testAnalyzer(transport);
+    const { rec, srv } = await storedLog(t, { analyzer }, rec0);
+    const res = await post(srv, `/api/admin/game-logs/${rec.id}/analyze`, 'gizli-yonetici');
+    assert.equal(res.status, 202, reason);
+    await srv.settle();
+    const st = (await J(get(srv, `/api/admin/game-logs/${rec.id}/analysis`, 'gizli-yonetici'))).analysis;
+    assert.equal(st.status, 'failed', reason);
+    assert.equal(st.reason, reason);
+    assert.equal((await J(get(srv, `/api/admin/game-logs/${rec.id}`, 'gizli-yonetici'))).log.analysis.status, 'failed');
+    assert.equal((await get(srv, '/healthz')).status, 200, 'sunucu ayakta');
+    assert.equal(analyzer.lines.warn.length, 1, reason);
+    assert.match(analyzer.lines.warn[0], /^\[ai-analyze\] oyun=\S+ atlandı: \S+ girdi=\d+ çıktı=\d+ maliyet≈\$[\d.]+ süre=\d+sn$/);
+    assert.equal(analyzer.stats().failures, 1);
+    assert.equal((await srv.store.getGameLog(rec.id)).analysis, null);
+  }
+  // Ret edilen çağrının maliyeti sayılır; başarısızdan sonra yeniden denenir (yeni iş).
+  const flaky = testAnalyzer(analyzeTransport({ stop: 'refusal' }));
+  const { rec, srv } = await storedLog(t, { analyzer: flaky }, rec0);
+  await post(srv, `/api/admin/game-logs/${rec.id}/analyze`, 'gizli-yonetici');
+  await srv.settle();
+  assert.ok(flaky.stats().costUsd > 0.1);
+  flaky.transport = analyzeTransport();
+  assert.equal((await post(srv, `/api/admin/game-logs/${rec.id}/analyze`, 'gizli-yonetici')).status, 202);
+  await srv.settle();
+  assert.equal((await J(get(srv, `/api/admin/game-logs/${rec.id}/analysis`, 'gizli-yonetici'))).analysis.status, 'done');
+});
+
+test('çözümleme: geçici ağ hatası yeniden denenir; depo yazamazsa "store" hatası; kaydı olmayan iş "none" görünür', async (t) => {
+  let n = 0;
+  class Net extends Error {}
+  const inner = analyzeTransport();
+  const flaky = (params) => { n += 1; return n < 3 ? Promise.reject(new Net('SELF_SIGNED_CERT_IN_CHAIN')) : inner(params); };
+  flaky.errors = { APIConnectionError: Net };
+  const analyzer = testAnalyzer(flaky);
+  const rec0 = recordedGame(t);
+  const { rec, srv } = await storedLog(t, { analyzer }, rec0);
+  await post(srv, `/api/admin/game-logs/${rec.id}/analyze`, 'gizli-yonetici');
+  await srv.settle();
+  assert.equal(n, 3);
+  assert.equal((await J(get(srv, `/api/admin/game-logs/${rec.id}/analysis`, 'gizli-yonetici'))).analysis.status, 'done');
+  assert.equal(analyzer.lines.warn.length, 2, 'her yeniden deneme tek uyarı satırı');
+  // Depo yazamıyor.
+  const b = await storedLog(t, { analyzer: testAnalyzer(analyzeTransport()) }, rec0);
+  b.srv.store.saveGameLogAnalysis = () => Promise.reject(new Error('disk dolu'));
+  await post(b.srv, `/api/admin/game-logs/${b.rec.id}/analyze`, 'gizli-yonetici');
+  await b.srv.settle();
+  const st = (await J(get(b.srv, `/api/admin/game-logs/${b.rec.id}/analysis`, 'gizli-yonetici'))).analysis;
+  assert.deepEqual([st.status, st.reason], ['failed', 'store']);
+  // Bellekte iş yok, kayıt da yok: none.
+  const fresh = await storedLog(t, { analyzer: testAnalyzer(analyzeTransport()) }, rec0);
+  assert.equal((await J(get(fresh.srv, `/api/admin/game-logs/${fresh.rec.id}/analysis`, 'gizli-yonetici'))).analysis.status, 'none');
+  assert.equal((await J(get(fresh.srv, `/api/admin/game-logs/${fresh.rec.id}`, 'gizli-yonetici'))).log.analysis, null);
+});
+
+test('yapılandırma: AI_ANALYZE_MODEL / AI_ANALYZE_DAILY_LIMIT varsayılanları ve sınırları; createAnalyzer anahtarsız da kapalı bir Analyzer döner', () => {
+  const d = analyzeConfig({ ANTHROPIC_API_KEY: 'k' });
+  assert.deepEqual([d.model, d.dailyLimit, d.effort, d.enabled], ['claude-sonnet-5-5', 20, 'medium', true]);
+  const c = analyzeConfig({ ANTHROPIC_API_KEY: '"k"', AI_ANALYZE_MODEL: 'claude-opus-5-5', AI_ANALYZE_DAILY_LIMIT: '3', AI_ANALYZE_EFFORT: 'high' });
+  assert.deepEqual([c.model, c.dailyLimit, c.effort, c.prices.input], ['claude-opus-5-5', 3, 'high', 4]);
+  assert.equal(analyzeConfig({ ANTHROPIC_API_KEY: 'k', AI_ANALYZE: 'off' }).enabled, false);
+  assert.equal(analyzeConfig({ ANTHROPIC_API_KEY: 'k', AI_BOTS: 'off' }).reason, 'off');
+  assert.equal(analyzeConfig({}).reason, 'no_key');
+  assert.equal(analyzeConfig({ ANTHROPIC_API_KEY: 'k', AI_ANALYZE_DAILY_LIMIT: 'x' }).dailyLimit, 20);
+  const a = createAnalyzer({});
+  assert.equal(a.available(), false);
+  assert.equal(a.start('x', {}, null).state, 'off');
+});
+
+test('scripts/game-logs.js --analyze (sunucuda): sahte taşıyıcıyla çözümletir, bekler, analysis-<id>.md yazar, maliyeti basar; önbellek ve --force; --local-model eski yol', async (t) => {
+  const gate = new Promise((r) => setTimeout(r, 400));   // iş birkaç yoklama boyunca "çalışıyor" görünsün
+  const transport = analyzeTransport({ gate });
+  const analyzer = testAnalyzer(transport);
+  const { rec, srv } = await storedLog(t, { adminToken: 'cok-gizli-789', analyzer });
+  const out = tempDir('vk-glrem-');
+  t.after(() => removeDir(out));
+  const script = path.join(__dirname, '..', 'scripts', 'game-logs.js');
+  const run = (args, env = {}) => execFileP(process.execPath, [script, '--out', out, ...args], {
+    env: { ...process.env, ADMIN_TOKEN: 'cok-gizli-789', REVIEW_URL: srv.url, ANTHROPIC_API_KEY: '', VK_NO_ENV_LOCAL: '1', VK_ANALYZE_POLL_MS: '60', ...env },
+  });
+  // Bu bilgisayarda anahtar yok; çözümleme yine de çalışır (sunucuda).
+  const r1 = await run(['--analyze']);
+  assert.match(r1.stdout, /Sunucuda çözümleniyor: /);
+  assert.match(r1.stdout, /Maliyet ≈ \$0\.1100 \(model claude-sonnet-5-5\)/);
+  assert.ok(!r1.stdout.includes('cok-gizli-789') && !r1.stderr.includes('cok-gizli-789'));
+  const text = fs.readFileSync(path.join(out, `analysis-${rec.id}.md`), 'utf8');
+  assert.match(text, /^# Oyun .+ çözümlemesi/);
+  assert.match(text, /Model: claude-sonnet-5-5 · maliyet ≈ \$0\.1100 · sunucuda çözümlendi/);
+  assert.match(text, /Köylüler kazandı\./);
+  assert.ok(fs.readdirSync(out).some((f) => /^\d{4}-\d{2}-\d{2}-GECMS-.+\.md$/.test(f)), 'okunur döküm de yazıldı');
+  assert.equal(transport.calls.length, 1);
+  assert.equal((await srv.store.getGameLog(rec.id)).analysis, ANALYSIS_TEXT);
+  // Aynı oyun: önbellek, yeni maliyet yok, model çağrılmaz.
+  const r2 = await run(['--analyze', rec.id]);
+  assert.match(r2.stdout, /Önceden çözümlenmiş/);
+  assert.match(r2.stdout, /yeni maliyet yok/);
+  assert.equal(transport.calls.length, 1);
+  // --latest N ve --force.
+  const r3 = await run(['--analyze', '--latest', '1', '--force']);
+  assert.match(r3.stdout, /Sunucuda çözümleniyor/);
+  assert.equal(transport.calls.length, 2);
+  // Yanlış anahtar ve olmayan oyun anlaşılır hata verir.
+  const bad = await run(['--analyze', rec.id], { ADMIN_TOKEN: 'yanlis' }).catch((e) => e);
+  assert.ok(bad.code === 1 && /reddedildi/.test(bad.stderr));
+  const missing = await run(['--analyze', 'olmayan-id']).catch((e) => e);
+  assert.ok(missing.code === 1 && /bulunamadı/.test(missing.stderr), missing.stderr);
+  // Sunucuda anahtar yoksa sunucunun mesajı.
+  analyzer.config = analyzeConfig({});
+  analyzer.transport = null;
+  const off = await run(['--analyze', '--force', rec.id]).catch((e) => e);
+  assert.ok(off.code === 1 && /ANTHROPIC_API_KEY/.test(off.stderr) && /Sunucuda/.test(off.stderr), off.stderr);
+  // --local-model: eski yol, anahtar bu bilgisayarda aranır.
+  const local = await run(['--analyze', '--local-model', rec.id]).catch((e) => e);
+  assert.ok(local.code === 1 && /--local-model için/.test(local.stderr), local.stderr);
+});
+
+test('scripts/game-logs.js remoteAnalyze: sunucu işi kaybederse ya da başarısız olursa anlaşılır hata; hız sınırında bekler', async (t) => {
+  const { remoteAnalyze } = require('../scripts/game-logs');
+  const replies = [];
+  const http = require('http');
+  const server = http.createServer((req, res) => {
+    const r = replies.shift() || { status: 200, body: { ok: true, analysis: { status: 'none' } } };
+    res.writeHead(r.status, { 'Content-Type': 'application/json', ...(r.headers || {}) });
+    res.end(JSON.stringify(r.body));
+  });
+  await new Promise((r) => server.listen(0, r));
+  t.after(() => new Promise((r) => server.close(r)));
+  const env = { ADMIN_TOKEN: 'a', REVIEW_URL: `http://localhost:${server.address().port}` };
+  const waits = [];
+  const wait = (ms) => { waits.push(ms); return Promise.resolve(); };
+  const opts = { wait, say: () => {}, pollMs: 1 };
+  // Başarısız iş.
+  replies.push({ status: 202, body: { ok: true, status: 'running' } }, { status: 200, body: { ok: true, analysis: { status: 'failed', reason: 'auth' } } });
+  await assert.rejects(remoteAnalyze({}, env, 'x', opts), /anahtarı reddedildi/);
+  // Kaybolan iş (üst üste none).
+  replies.push({ status: 202, body: { ok: true, status: 'running' } });
+  await assert.rejects(remoteAnalyze({}, env, 'x', opts), /kayboldu/);
+  // 429 (Retry-After) beklenir, sonra devam edilir; günlük sınır beklenmez.
+  replies.push({ status: 429, headers: { 'Retry-After': '7' }, body: { ok: false, code: 'rate_limited', error: 'x' } },
+    { status: 202, body: { ok: true, status: 'running' } },
+    { status: 200, body: { ok: true, analysis: { status: 'done', text: 'T', cost: 0.1, model: 'm' } } });
+  waits.length = 0;
+  const done = await remoteAnalyze({}, env, 'x', opts);
+  assert.deepEqual([done.text, done.cached], ['T', false]);
+  assert.equal(waits[0], 8000);
+  replies.push({ status: 429, body: { ok: false, code: 'daily_limit', error: 'Günlük çözümleme sınırına ulaşıldı (20).' } });
+  await assert.rejects(remoteAnalyze({}, env, 'x', opts), /Günlük çözümleme sınırı/);
 });
