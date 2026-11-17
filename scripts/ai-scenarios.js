@@ -415,6 +415,48 @@ const SCENARIOS = [
       ] }] };
     },
   },
+  {
+    id: '21-gozcu-doktoru-dogrular',
+    title: 'Doktor "kendimi korudum, saldırı engellendi" der; Gözcü bot aynı evi izlemişti ve bunu görmüştü',
+    expect: 'Gözcü Eren, Ahmet\'in evini izledi: Deniz geldi, saldırı engellendi. Ahmet Doktor olduğunu ve saldırının engellendiğini söyleyince Eren onu destekler, Deniz\'i adıyla söyler ve Deniz\'e oy verir; Ahmet\'e oy vermez.',
+    build(client) {
+      const g = new Game({ client, players: [
+        { name: 'Ahmet', role: 'doktor' }, { name: 'Cem', role: 'koylu', bot: true }, { name: 'Deniz', role: 'vampir', bot: true },
+        { name: 'Eren', role: 'gozcu', bot: true }, { name: 'Ece', role: 'koylu', bot: true }, { name: 'Fatma', role: 'koylu', bot: true },
+      ] });
+      g.night([['Ahmet', 'Ahmet'], ['Deniz', 'Ahmet'], ['Eren', 'Ahmet']]);
+      g.say('Ahmet', 'Ben Doktorum, dün gece kendimi korudum; vampir evime geldi ama saldırı engellendi.');
+      g.say('Deniz', 'Ahmet yalan söylüyor bence, Doktor olduğunu kanıtlayamaz. Ahmet\'i asalım.');
+      return { g, turns: [{
+        bot: 'Eren', task: { kind: 'react', trigger: g.lastChat('Eren') },
+        checks: [
+          hard('Ahmet\'e oy vermez', (o) => !voteIs('Ahmet')(o)),
+          soft('Ahmet\'i destekler / Deniz\'i adıyla söyler', re(/Deniz/)),
+          soft('Deniz\'e oy verir', voteIs('Deniz')),
+        ],
+      }] };
+    },
+  },
+  {
+    id: '22-iki-iddia-birbirini-dogrular',
+    title: 'Doktor ve Gözcü birbirini doğruluyor; köylü bot bunu güçlü kanıt sayar',
+    expect: 'Ahmet "Doktorum, kendimi korudum, saldırı engellendi" dedi; Eren "Gözcüyüm, Ahmet\'in evini izledim: Deniz geldi, saldırı engellendi" dedi; Deniz Ahmet\'i suçluyor. İki bağımsız iddia birbirini tutuyor: Cem Deniz\'e oy verir, Ahmet\'e vermez.',
+    build(client) {
+      const g = new Game({ client, players: [
+        { name: 'Ahmet', role: 'doktor' }, { name: 'Cem', role: 'koylu', bot: true }, { name: 'Deniz', role: 'vampir', bot: true },
+        { name: 'Eren', role: 'gozcu', bot: true }, { name: 'Ece', role: 'koylu', bot: true }, { name: 'Fatma', role: 'koylu', bot: true },
+      ] });
+      g.night([['Ahmet', 'Ahmet'], ['Deniz', 'Ahmet'], ['Eren', 'Ahmet']]);
+      g.talk([
+        ['Ahmet', 'Ben Doktorum, dün gece kendimi korudum; vampir evime geldi ama saldırı engellendi.'],
+        ['Eren', 'Gözcüyüm, dün Ahmet\'in evini izledim: Deniz geldi, içeride saldırı engellendi.'],
+        ['Deniz', 'İkisi anlaşmış, Ahmet\'i asalım.'],
+      ]);
+      return { g, turns: [
+        { bot: 'Cem', task: { kind: 'vote', final: true }, checks: [hard('Ahmet\'e oy vermez', (o) => !voteIs('Ahmet')(o)), hard('Deniz\'e oy verir', voteIs('Deniz'))] },
+      ] };
+    },
+  },
 ];
 
 module.exports = { SCENARIOS };
