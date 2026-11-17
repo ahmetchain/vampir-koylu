@@ -2396,15 +2396,6 @@ class Room {
     if (!p) return { error: 'Odada değilsin.' };
     const text = String(rawText || '').replace(/\s+/g, ' ').trim().slice(0, 300);
     if (!text) return { error: 'Boş mesaj gönderilemez.' };
-    // Aynı mesajı art arda yığmak (spam) sohbeti okunmaz yapıyordu: 30 sn içinde aynı metin en fazla 2 kez.
-    {
-      const key = text.toLocaleLowerCase('tr');
-      const now = Date.now();
-      const recent = (p.recentLines || []).filter((x) => now - x.at < 30000);
-      if (recent.filter((x) => x.key === key).length >= 2) return { error: 'Aynı mesajı arka arkaya gönderemezsin.' };
-      recent.push({ key, at: now });
-      p.recentLines = recent.slice(-10);
-    }
 
     const all = [...this.players.values()].filter((x) => !x.left);
     let channel = 'genel';
