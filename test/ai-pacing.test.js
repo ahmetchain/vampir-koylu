@@ -254,7 +254,7 @@ test('açılış logu: model ve kapalı olma nedeni (anahtar yazılmaz); tırnak
   const ai = createAiClient({ ANTHROPIC_API_KEY: '"sk-test-123"' }, { logger: { warn() {} } });
   assert.ok(ai);
   assert.equal(ai.config.apiKey, 'sk-test-123');
-  assert.match(aiStatusLine(ai), /açık \(model claude-haiku-5-5, efor low/);
+  assert.match(aiStatusLine(ai), /açık \(model claude-haiku-5-5, efor medium/);
   assert.ok(!aiStatusLine(ai).includes('sk-'));
   assert.equal(aiStatusLine(null, { ANTHROPIC_API_KEY: 'k', AI_BOTS: 'off' }), 'kapalı (AI_BOTS=off)');
   assert.equal(aiStatusLine(null, {}), 'kapalı (ANTHROPIC_API_KEY yok)');

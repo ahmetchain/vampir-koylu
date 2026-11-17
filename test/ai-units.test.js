@@ -98,7 +98,7 @@ test('bot→bot zinciri kısa: sınırda durur ve soğuma süresince botlar birb
 test('ayarlar: varsayılanlar, sınırlar, anahtarsız/kapalı sunucuda istemci yok', () => {
   const c = aiConfig({});
   assert.equal(c.model, 'claude-haiku-5-5');
-  assert.equal(c.effort, 'low');
+  assert.equal(c.effort, 'medium');
   assert.equal(c.dailyCalls, 3000);
   assert.equal(aiConfig({ AI_BOT_MODEL: 'claude-sonnet-5-5', AI_DAILY_CALL_LIMIT: '12', AI_CONCURRENCY: '999' }).concurrency, 64);
   assert.equal(aiConfig({ AI_DAILY_CALL_LIMIT: '12' }).dailyCalls, 12);
@@ -119,8 +119,8 @@ test('istek: Haiku, düşük efor, küçük max_tokens, JSON şeması, önbellek
   assert.equal(res.data.target, 'Ali');
   const p = tr.calls[0].params;
   assert.equal(p.model, 'claude-haiku-5-5');
-  assert.equal(p.max_tokens, 1536);
-  assert.deepEqual(p.output_config.effort, 'low');
+  assert.equal(p.max_tokens, 2048);
+  assert.deepEqual(p.output_config.effort, 'medium');
   assert.equal(p.output_config.format.type, 'json_schema');
   assert.equal(p.output_config.format.schema.additionalProperties, false);
   assert.deepEqual(p.system[0].cache_control, { type: 'ephemeral' });
