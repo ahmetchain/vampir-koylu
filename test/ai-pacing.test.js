@@ -259,3 +259,16 @@ test('açılış logu: model ve kapalı olma nedeni (anahtar yazılmaz); tırnak
   assert.equal(aiStatusLine(null, { ANTHROPIC_API_KEY: 'k', AI_BOTS: 'off' }), 'kapalı (AI_BOTS=off)');
   assert.equal(aiStatusLine(null, {}), 'kapalı (ANTHROPIC_API_KEY yok)');
 });
+
+// Kod düzeyinde koruma: aynı gün kendi satırına çok benzeyen satır ve yasak genel sorular gönderilmez.
+test('tekrar ve yasak genel soru süzgeci', () => {
+  const { SmartBots } = require('../lib/ai/brain');
+  const fake = Object.create(SmartBots.prototype);
+  fake.saidToday = new Map();
+  assert.equal(fake.lineAllowed('b1', 'Gece kimse bir şey duydu mu?', false), false);
+  assert.equal(fake.lineAllowed('b1', 'Gül gitti, kim ne gördü acaba?', false), false);
+  assert.equal(fake.lineAllowed('b1', 'Ahmet, neden bu kadar hızlı beni işaret ediyorsun? Somut bir şey var mı?', false), true);
+  assert.equal(fake.lineAllowed('b1', 'Ahmet neden bu kadar hızlı beni işaret ediyorsun, somut bir şey var mı', false), false);
+  assert.equal(fake.lineAllowed('b1', 'Deniz, Gözcü olduğunu söyledin; 2. gece kimin evini izledin?', false), true);
+  assert.equal(fake.lineAllowed('b2', 'Ahmet neden bu kadar hızlı beni işaret ediyorsun, somut bir şey var mı', false), true);
+});
