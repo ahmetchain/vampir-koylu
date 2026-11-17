@@ -19,11 +19,107 @@
     <div id="world" class="world"></div>
     <div id="scrim" class="scrim" aria-hidden="true"></div>
 
+    <!-- Gece köyü sahnesi: açılış ve giriş ekranının arkası (CSS/SVG, hafif) -->
+    <div class="auth-bg" aria-hidden="true">
+      <div class="ab-sky"></div>
+      <svg class="ab-stars" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMin slice">
+        <g fill="#e9e4ff">
+          <circle cx="40" cy="60" r="1.6"/><circle cx="96" cy="190" r="1.1"/><circle cx="150" cy="40" r="1.3"/><circle cx="205" cy="128" r="1.8"/>
+          <circle cx="262" cy="22" r="1.1"/><circle cx="300" cy="230" r="1.2"/><circle cx="342" cy="88" r="1.5"/><circle cx="398" cy="160" r="1"/>
+          <circle cx="430" cy="34" r="1.2"/><circle cx="470" cy="250" r="1.4"/><circle cx="512" cy="110" r="1.1"/><circle cx="560" cy="18" r="1.7"/>
+          <circle cx="598" cy="196" r="1.1"/><circle cx="640" cy="70" r="1.3"/><circle cx="680" cy="270" r="1"/><circle cx="716" cy="146" r="1.5"/>
+          <circle cx="770" cy="40" r="1.1"/><circle cx="818" cy="214" r="1.3"/><circle cx="856" cy="98" r="1.8"/><circle cx="900" cy="20" r="1.1"/>
+          <circle cx="936" cy="170" r="1.4"/><circle cx="972" cy="66" r="1.1"/><circle cx="20" cy="300" r="1.1"/><circle cx="120" cy="330" r="1"/>
+          <circle cx="240" cy="290" r="1.2"/><circle cx="380" cy="320" r="1"/><circle cx="545" cy="300" r="1.2"/><circle cx="760" cy="330" r="1"/>
+          <circle cx="880" cy="300" r="1.2"/><circle cx="990" cy="280" r="1"/>
+        </g>
+      </svg>
+      <i class="ab-tw" style="--x:18%;--y:9%;--d:0s"></i><i class="ab-tw" style="--x:44%;--y:4%;--d:1.4s"></i>
+      <i class="ab-tw" style="--x:63%;--y:22%;--d:2.6s"></i><i class="ab-tw" style="--x:88%;--y:31%;--d:.7s"></i>
+      <i class="ab-tw" style="--x:8%;--y:34%;--d:3.3s"></i>
+      <div class="ab-moon"><i></i></div>
+      <svg class="ab-bat" viewBox="0 0 64 28"><path d="M32 9c1.6-2.6 3.4-3 4-1 2-3 6-5.5 12-5 5 .4 10 3 14 9-4-1.6-7-1.2-8.6 1.4-2.4-1.8-5.6-1.6-7.2.8-1.4-1.2-3.4-1.2-5 .6-.8-1.4-2-2.4-3.2-2.6-1.2.2-2.4 1.2-3.2 2.6-1.6-1.8-3.6-1.8-5-.6-1.6-2.4-4.8-2.6-7.2-.8C11 10.4 8 10 4 11.6 8 5.6 13 3 18 2.6c6-.5 10 2 12 5 .6-2 2.4-1.6 4 1z" fill="#0b0918"/></svg>
+      <svg class="ab-town" viewBox="0 0 1600 360" preserveAspectRatio="xMidYMax slice">
+        <defs>
+          <linearGradient id="abWin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe09a"/><stop offset="1" stop-color="#ff9a3a"/></linearGradient>
+          <radialGradient id="abGlow"><stop offset="0" stop-color="#ffb347" stop-opacity=".55"/><stop offset=".45" stop-color="#ff8a2a" stop-opacity=".18"/><stop offset="1" stop-color="#ff7a1a" stop-opacity="0"/></radialGradient>
+          <symbol id="abPine" viewBox="0 0 60 120"><path d="M30 0l22 40H42l16 32H44l16 32H34v16h-8v-16H0l16-32H2l16-32H8z"/></symbol>
+          <symbol id="abHouseA" viewBox="0 0 150 150">
+            <rect x="96" y="14" width="15" height="40" fill="#0d0b1c"/>
+            <path d="M2 74L75 8l73 66z" fill="#0d0b1c"/>
+            <path d="M2 74L75 8l73 66" fill="none" stroke="#8fb4ff" stroke-opacity=".28" stroke-width="2.5"/>
+            <rect x="14" y="68" width="122" height="82" fill="#110e24"/>
+            <rect x="26" y="88" width="24" height="24" rx="3" fill="url(#abWin)"/>
+            <rect x="100" y="88" width="24" height="24" rx="3" fill="url(#abWin)"/>
+            <path d="M38 88v24M26 100h24M112 88v24M100 100h24" stroke="#110e24" stroke-width="3"/>
+            <path d="M61 150v-34a14 14 0 0 1 28 0v34z" fill="#2a1a10"/>
+            <circle cx="75" cy="48" r="8" fill="url(#abWin)"/>
+          </symbol>
+          <symbol id="abHouseB" viewBox="0 0 100 190">
+            <path d="M-2 82L50 4l52 78z" fill="#0d0b1c"/>
+            <path d="M-2 82L50 4l52 78" fill="none" stroke="#8fb4ff" stroke-opacity=".28" stroke-width="2.5"/>
+            <rect x="8" y="76" width="84" height="114" fill="#120f27"/>
+            <rect x="20" y="96" width="18" height="26" rx="9" fill="url(#abWin)"/>
+            <rect x="62" y="96" width="18" height="26" rx="9" fill="#1d1838"/>
+            <rect x="40" y="144" width="20" height="46" rx="3" fill="#2a1a10"/>
+            <circle cx="50" cy="56" r="6" fill="url(#abWin)"/>
+          </symbol>
+        </defs>
+        <path d="M0 236c160-44 330-24 470-38 170-18 260-52 430-34 190 20 300-20 450-6 110 10 180 30 250 34V360H0z" fill="#1a1538"/>
+        <g fill="#161230">
+          <use href="#abPine" x="30" y="176" width="34" height="68"/><use href="#abPine" x="118" y="168" width="40" height="80"/>
+          <use href="#abPine" x="214" y="180" width="30" height="60"/><use href="#abPine" x="404" y="160" width="40" height="80"/>
+          <use href="#abPine" x="470" y="170" width="34" height="68"/><use href="#abPine" x="1110" y="150" width="44" height="88"/>
+          <use href="#abPine" x="1236" y="168" width="34" height="68"/><use href="#abPine" x="1330" y="158" width="40" height="80"/>
+          <use href="#abPine" x="1470" y="176" width="34" height="68"/><use href="#abPine" x="1540" y="170" width="38" height="76"/>
+          <use href="#abPine" x="676" y="150" width="34" height="68"/><use href="#abPine" x="960" y="160" width="38" height="76"/>
+        </g>
+        <g fill="#0c0a1c">
+          <use href="#abPine" x="48" y="186" width="62" height="124"/><use href="#abPine" x="290" y="160" width="76" height="152"/>
+          <use href="#abPine" x="510" y="178" width="66" height="132"/><use href="#abPine" x="1056" y="150" width="80" height="160"/>
+          <use href="#abPine" x="1392" y="170" width="70" height="140"/><use href="#abPine" x="1514" y="200" width="54" height="108"/>
+        </g>
+        <use href="#abHouseB" x="176" y="160" width="84" height="160"/>
+        <use href="#abHouseA" x="586" y="160" width="150" height="150"/>
+        <use href="#abHouseB" x="742" y="122" width="100" height="190"/>
+        <use href="#abHouseA" x="850" y="192" width="122" height="122"/>
+        <use href="#abHouseA" x="1170" y="176" width="134" height="134"/>
+        <path d="M986 296v-26M1004 296v-26M1022 296v-26M1040 296v-26M980 278h66" stroke="#0c0a1c" stroke-width="5" stroke-linecap="round"/>
+        <rect x="1078" y="232" width="5" height="70" fill="#0c0a1c"/><rect x="1071" y="220" width="19" height="16" rx="3" fill="url(#abWin)"/>
+        <g class="ab-glows">
+          <circle cx="200" cy="252" r="30" fill="url(#abGlow)"/>
+          <circle cx="218" cy="207" r="18" fill="url(#abGlow)"/>
+          <circle class="ab-flick" cx="624" cy="260" r="44" fill="url(#abGlow)"/>
+          <circle cx="698" cy="260" r="44" fill="url(#abGlow)"/>
+          <circle cx="661" cy="208" r="22" fill="url(#abGlow)"/>
+          <circle cx="771" cy="231" r="40" fill="url(#abGlow)"/>
+          <circle class="ab-flick ab-flick-2" cx="792" cy="178" r="24" fill="url(#abGlow)"/>
+          <circle cx="881" cy="273" r="34" fill="url(#abGlow)"/>
+          <circle class="ab-flick ab-flick-3" cx="941" cy="273" r="34" fill="url(#abGlow)"/>
+          <circle class="ab-flick ab-flick-3" cx="1080" cy="228" r="40" fill="url(#abGlow)"/>
+          <circle cx="1204" cy="265" r="36" fill="url(#abGlow)"/>
+          <circle class="ab-flick ab-flick-2" cx="1270" cy="265" r="36" fill="url(#abGlow)"/>
+        </g>
+        <path d="M0 304c250-18 520-6 800-12s560-16 800 2V360H0z" fill="#0a0817"/>
+      </svg>
+      <div class="ab-fog ab-fog-1"></div><div class="ab-fog ab-fog-2"></div>
+      <div class="ab-flies">
+        <i style="--x:8%;--y:78%;--dx:40px;--dy:-30px;--t:9s;--d:0s"></i>
+        <i style="--x:22%;--y:88%;--dx:-30px;--dy:-44px;--t:11s;--d:-3s"></i>
+        <i style="--x:35%;--y:70%;--dx:26px;--dy:-24px;--t:10s;--d:-6s"></i>
+        <i style="--x:52%;--y:84%;--dx:-36px;--dy:-30px;--t:12s;--d:-1s"></i>
+        <i style="--x:64%;--y:74%;--dx:30px;--dy:-40px;--t:9.5s;--d:-4s"></i>
+        <i style="--x:78%;--y:90%;--dx:-24px;--dy:-26px;--t:13s;--d:-7s"></i>
+        <i style="--x:90%;--y:76%;--dx:-34px;--dy:-34px;--t:10.5s;--d:-2s"></i>
+        <i style="--x:46%;--y:62%;--dx:20px;--dy:-20px;--t:14s;--d:-9s"></i>
+      </div>
+    </div>
+
     <!-- Açılış -->
     <section id="splash" class="screen splash">
       <div class="splash-in">
         <div class="splash-logo" id="splash-logo"></div>
-        <h1 class="title">Vampir Köylü</h1>
+        <h1 class="auth-title splash-title"><span class="at-v">Vampir</span> <span class="at-k">Köylü</span></h1>
         <div class="progress" aria-label="Yükleniyor"><i id="splash-bar"></i></div>
         <p class="muted small" id="splash-text">Köy hazırlanıyor…</p>
       </div>
@@ -33,40 +129,74 @@
     <section id="screen-auth" class="screen screen-auth" hidden>
       <div class="corner-btns"><button type="button" class="iconbtn glass" data-sound-btn aria-label="Ses ayarları"></button></div>
       <div class="auth-wrap">
-        <div class="brand">
-          <div class="brand-logo" data-logo></div>
-          <h1 class="title">Vampir Köylü</h1>
-          <p class="tagline">Köyde vampirler var. Gündüz onları bulun, gece hayatta kalın.</p>
-        </div>
-        <div class="card auth-card">
-          <div class="note note-fire" id="auth-invite" hidden></div>
-          <div class="seg" role="tablist" aria-label="Giriş ya da kayıt">
-            <button type="button" role="tab" class="seg-btn on" data-mode="login" aria-selected="true">Giriş Yap</button>
-            <button type="button" role="tab" class="seg-btn" data-mode="register" aria-selected="false">Kayıt Ol</button>
+        <header class="auth-hero">
+          <div class="auth-logo" data-logo></div>
+          <h1 class="auth-title"><span class="at-v">Vampir</span> <span class="at-k">Köylü</span></h1>
+          <svg class="auth-orn" viewBox="0 0 220 16" aria-hidden="true"><path d="M4 8h84M132 8h84" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".55"/><circle cx="96" cy="8" r="2" fill="currentColor" opacity=".7"/><circle cx="124" cy="8" r="2" fill="currentColor" opacity=".7"/><path d="M114 2.5a6 6 0 1 0 2.6 9.6 4.8 4.8 0 1 1-2.6-9.6z" fill="currentColor"/></svg>
+          <p class="auth-tagline">Gece çöktü. Aranızdaki vampiri bulabilecek misin?</p>
+        </header>
+
+        <div class="auth-main">
+          <div class="auth-invite" id="auth-invite" role="status" hidden></div>
+          <div class="card auth-card">
+            <div class="auth-seg" role="tablist" aria-label="Giriş ya da kayıt" data-mode="login">
+              <button type="button" role="tab" class="auth-tab on" id="auth-tab-login" data-mode="login" aria-selected="true" aria-controls="auth-form">Giriş Yap</button>
+              <button type="button" role="tab" class="auth-tab" id="auth-tab-register" data-mode="register" aria-selected="false" aria-controls="auth-form" tabindex="-1">Kayıt Ol</button>
+            </div>
+            <div class="auth-head">
+              <h2 class="auth-h" id="auth-h">Tekrar hoş geldin</h2>
+              <p class="auth-sub" id="auth-sub">Köy seni bekliyor. Kaldığın yerden devam et.</p>
+            </div>
+            <form id="auth-form" class="auth-form" role="tabpanel" aria-labelledby="auth-h" novalidate>
+              <div class="af-field" data-f="user">
+                <div class="af-label"><label for="auth-user">Kullanıcı adı</label><span class="af-count" id="auth-user-count" aria-hidden="true" hidden></span></div>
+                <div class="af-box">
+                  <span class="af-ic" data-ic="user"></span>
+                  <input class="af-input" id="auth-user" name="username" type="text" autocomplete="username" maxlength="16"
+                    autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next" placeholder="ör. Gece Kuşu"
+                    aria-describedby="auth-user-msg" required>
+                </div>
+                <p class="af-msg" id="auth-user-msg"></p>
+              </div>
+              <div class="af-field" data-f="pass">
+                <div class="af-label"><label for="auth-pass">Şifre</label><span class="af-caps" id="auth-caps" hidden>Caps Lock açık</span></div>
+                <div class="af-box">
+                  <span class="af-ic" data-ic="key"></span>
+                  <input class="af-input" id="auth-pass" name="password" type="password" autocomplete="current-password" maxlength="72"
+                    enterkeyhint="go" placeholder="Şifren" aria-describedby="auth-pass-msg" required>
+                  <button type="button" class="af-eye" id="auth-eye" aria-label="Şifreyi göster" aria-pressed="false"></button>
+                </div>
+                <p class="af-msg" id="auth-pass-msg"></p>
+              </div>
+              <div class="af-field" data-f="pass2" id="auth-pass2-wrap" hidden>
+                <div class="af-label"><label for="auth-pass2">Şifre (tekrar)</label></div>
+                <div class="af-box">
+                  <span class="af-ic" data-ic="lock"></span>
+                  <input class="af-input" id="auth-pass2" name="password-confirm" type="password" autocomplete="new-password" maxlength="72"
+                    enterkeyhint="go" placeholder="Şifreni tekrar yaz" aria-describedby="auth-pass2-msg" disabled>
+                </div>
+                <p class="af-msg" id="auth-pass2-msg"></p>
+              </div>
+              <div class="auth-alert" id="auth-error" role="alert"></div>
+              <button class="btn btn-primary btn-lg btn-block auth-submit" type="submit" id="auth-submit"><span class="as-spin" aria-hidden="true"></span><span class="as-label">Giriş Yap</span></button>
+            </form>
+            <p class="auth-switch" id="auth-switch"></p>
+            <p class="auth-noemail"><span data-ic="sparkle"></span>E-posta gerekmez: bir kullanıcı adı ve şifre yeter.</p>
           </div>
-          <form id="auth-form" class="form" novalidate>
-            <label class="field">
-              <span>Kullanıcı adı</span>
-              <input class="input" id="auth-user" name="username" autocomplete="username" maxlength="16"
-                autocapitalize="off" spellcheck="false" placeholder="ör. Gece Kuşu" required>
-            </label>
-            <p class="field-hint" id="auth-user-hint" hidden>3–16 karakter. Harf, rakam, boşluk ve _ - . kullanabilirsin.</p>
-            <label class="field">
-              <span>Şifre</span>
-              <span class="input-wrap">
-                <input class="input" id="auth-pass" name="password" type="password" autocomplete="current-password" maxlength="72" placeholder="En az 6 karakter" required>
-                <button type="button" class="iconbtn input-eye" id="auth-eye" aria-label="Şifreyi göster"></button>
-              </span>
-            </label>
-            <label class="field" id="auth-pass2-wrap" hidden>
-              <span>Şifre (tekrar)</span>
-              <input class="input" id="auth-pass2" type="password" autocomplete="new-password" maxlength="72" placeholder="Şifreni tekrar yaz">
-            </label>
-            <p class="form-error" id="auth-error" aria-live="polite"></p>
-            <button class="btn btn-primary btn-lg btn-block" type="submit" id="auth-submit">Giriş Yap</button>
-          </form>
-          <p class="auth-switch" id="auth-switch"></p>
         </div>
+
+        <section class="auth-how" aria-labelledby="auth-how-h">
+          <div class="auth-how-top">
+            <h2 class="auth-how-h" id="auth-how-h">Nasıl oynanır?</h2>
+            <button type="button" class="link auth-how-more" data-howto>Tüm kurallar</button>
+          </div>
+          <ol class="auth-steps">
+            <li><span class="as-ic" data-ic="house"></span><span><b>Köyü kur</b><small>Oda aç, kodu arkadaşlarına gönder.</small></span></li>
+            <li><span class="as-ic as-ic-moon" data-ic="moon"></span><span><b>Geceyi atlat</b><small>Gece herkes evinde; vampir sessizce avlanır.</small></span></li>
+            <li><span class="as-ic as-ic-blood" data-ic="vampir"></span><span><b>Vampiri bul</b><small>Gündüz tartışın, oy verin, vampiri asın.</small></span></li>
+          </ol>
+        </section>
+
         <footer class="credit">Ehlil Basiret tarafından yapılmıştır</footer>
       </div>
     </section>
