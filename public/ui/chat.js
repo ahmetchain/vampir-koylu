@@ -28,12 +28,19 @@ export function initChat() {
   el.close.innerHTML = icon('close');
 
   el.list.addEventListener('click', () => { if (!isOpen && !docked.matches) openChat(); });
-  // Telefonda yazmak açık sayfada olur: son mesajlar klavyenin üstünde görünür kalır.
-  el.input.addEventListener('focus', () => { if (!isOpen && !docked.matches && coarse.matches) openChat(); });
+  // Telefonda girişe dokunmak sohbet sayfasını AÇMAZ: oyun ekranı açıkken doğrudan yazılır
+  // (klavye açıkken son mesajlar girişin üstünde görünür; geçmiş için soldaki sohbet düğmesi).
   // Gönder'e dokunmak girişten odağı almasın (klavye kapanmasın).
   el.send.addEventListener('pointerdown', (e) => { if (document.activeElement === el.input) e.preventDefault(); });
-  el.toggle.addEventListener('click', () => { sfx('click'); if (isOpen) closeChat(); else openChat(); });
-  el.close.addEventListener('click', () => closeChat());
+  // Düğmeler pointerdown'da çalışır: klavye açıkken ilk dokunuş klavyeyi kapatıp düzeni kaydırdığı
+  // için 'click' boşa gidiyordu (iki kez basmak gerekiyordu). Klavye/erişilebilirlik için click de kalır.
+  const tap = (btn, fn) => {
+    let handled = false;
+    btn.addEventListener('pointerdown', (e) => { if (e.button > 0) return; e.preventDefault(); handled = true; setTimeout(() => { handled = false; }, 700); fn(); });
+    btn.addEventListener('click', () => { if (handled) { handled = false; return; } fn(); });
+  };
+  tap(el.toggle, () => { sfx('click'); if (isOpen) closeChat(); else openChat(); });
+  tap(el.close, () => closeChat());
   el.backdrop.addEventListener('click', () => closeChat());
   dragToClose(el.head, el.chat, () => closeChat());
 
