@@ -269,6 +269,7 @@ test('tekrar ve yasak genel soru süzgeci', () => {
   assert.equal(fake.lineAllowed('b1', 'Gül gitti, kim ne gördü acaba?', false), false);
   assert.equal(fake.lineAllowed('b1', 'Ahmet, neden bu kadar hızlı beni işaret ediyorsun? Somut bir şey var mı?', false), true);
   assert.equal(fake.lineAllowed('b1', 'Ahmet neden bu kadar hızlı beni işaret ediyorsun, somut bir şey var mı', false), false);
+  assert.equal(fake.lineAllowed('b1', 'Ahmet neden bu kadar hızlı beni işaret ediyorsun, somut bir şey var mı', true), true);
   assert.equal(fake.lineAllowed('b1', 'Deniz, Gözcü olduğunu söyledin; 2. gece kimin evini izledin?', false), true);
   assert.equal(fake.lineAllowed('b2', 'Ahmet neden bu kadar hızlı beni işaret ediyorsun, somut bir şey var mı', false), true);
 });
