@@ -286,7 +286,7 @@ test('geçmiş: akıllı botlu oyun; botların düşünce/hafıza notları, yede
   assert.equal(rec.game.humans, 1);
   assert.equal(rec.game.bots, 8);
   assert.ok(rec.game.smartBots >= 5, 'akıllı bot sayısı');
-  assert.equal(rec.game.model, 'claude-haiku-5-5');
+  assert.equal(rec.game.model, 'claude-sonnet-5-5');
   assert.ok(rec.game.botCalls.calls > 0);
   assert.ok(rec.players.some((p) => p.kind === 'smart' && p.calls > 0));
   assert.equal(rec.players.find((p) => p.name === 'İrem').kind, 'human');

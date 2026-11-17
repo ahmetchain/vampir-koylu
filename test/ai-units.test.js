@@ -97,16 +97,16 @@ test('bot→bot zinciri kısa: sınırda durur ve soğuma süresince botlar birb
 
 test('ayarlar: varsayılanlar, sınırlar, anahtarsız/kapalı sunucuda istemci yok', () => {
   const c = aiConfig({});
-  assert.equal(c.model, 'claude-haiku-5-5');
-  assert.equal(c.effort, 'medium');
-  assert.equal(c.dailyCalls, 3000);
+  assert.equal(c.model, 'claude-sonnet-5-5');
+  assert.equal(c.effort, 'low');
+  assert.equal(c.dailyCalls, 1500);
   assert.equal(aiConfig({ AI_BOT_MODEL: 'claude-sonnet-5-5', AI_DAILY_CALL_LIMIT: '12', AI_CONCURRENCY: '999' }).concurrency, 64);
   assert.equal(aiConfig({ AI_DAILY_CALL_LIMIT: '12' }).dailyCalls, 12);
   assert.equal(createAiClient({}), null);
   assert.equal(createAiClient({ ANTHROPIC_API_KEY: 'k', AI_BOTS: 'off' }), null);
   assert.ok(createAiClient({ ANTHROPIC_API_KEY: 'k' }).available());
   // Maliyet: Haiku 5.5 fiyatları ($/1M).
-  assert.equal(costOf({ input_tokens: 1e6, output_tokens: 1e6, cache_read_input_tokens: 1e6, cache_creation_input_tokens: 1e6 }, c.prices).toFixed(3), '0.735');
+  assert.equal(costOf({ input_tokens: 1e6, output_tokens: 1e6, cache_read_input_tokens: 1e6, cache_creation_input_tokens: 1e6 }, c.prices).toFixed(3), '14.600');
   // Sabit sistem istemi Haiku 5.5'in en küçük önbellek boyunun (512 token) üstünde.
   assert.ok(estTokens(SYSTEM_PROMPT) > 900, `sistem istemi ~${estTokens(SYSTEM_PROMPT)} token`);
 });
@@ -118,9 +118,9 @@ test('istek: Haiku, düşük efor, küçük max_tokens, JSON şeması, önbellek
   assert.equal(res.ok, true);
   assert.equal(res.data.target, 'Ali');
   const p = tr.calls[0].params;
-  assert.equal(p.model, 'claude-haiku-5-5');
-  assert.equal(p.max_tokens, 2048);
-  assert.deepEqual(p.output_config.effort, 'medium');
+  assert.equal(p.model, 'claude-sonnet-5-5');
+  assert.equal(p.max_tokens, 4096);
+  assert.deepEqual(p.output_config.effort, 'low');
   assert.equal(p.output_config.format.type, 'json_schema');
   assert.equal(p.output_config.format.schema.additionalProperties, false);
   assert.deepEqual(p.system[0].cache_control, { type: 'ephemeral' });
