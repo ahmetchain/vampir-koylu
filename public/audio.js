@@ -78,7 +78,7 @@
     whoosh:  { files: takes('whoosh', 2), vol: 0.6,  pitch: 0.08, max: 3, gap: 60, prio: 2 },
     bell:    { files: takes('bell', 1),   vol: 0.8,  max: 1, gap: 600, duck: 0.7, prio: 2 },
     // oda sahibi hesabı odaya girince çalan özgün, 10 sn'lik güreş girişi tarzı tören müziği
-    entrance: { files: takes('entrance', 1), vol: 0.95, max: 1, gap: 31000, duck: 0.2, prio: 3, fade: 3 }
+    entrance: { files: takes('entrance', 1), vol: 0.95, max: 1, gap: 31000, party: 0.22, prio: 3, fade: 3 }
   };
   // gece rastgele baykuş (iç efekt, genel sfx listesinde değil)
   var OWL = { files: ['sfx/owl.mp3'] };
@@ -182,9 +182,13 @@
     } catch (e) { }
     nodes.music = c.createGain(); nodes.duck = c.createGain();
     nodes.sfx = c.createGain(); nodes.amb = c.createGain();
-    nodes.music.connect(nodes.duck); nodes.duck.connect(nodes.master);
-    nodes.amb.connect(nodes.master);               // ortam kendi kaydırıcısıyla, efektlerden bağımsız
-    nodes.sfx.connect(nodes.master);
+    // base: oyunun bütün sesleri (müzik, ortam, efektler) buradan geçer; giriş müziği çalarken kısılır (party).
+    // hero: giriş müziği gibi "öne çıkan" efektler base'i atlayıp doğrudan master'a gider.
+    nodes.base = c.createGain(); nodes.hero = c.createGain();
+    nodes.music.connect(nodes.duck); nodes.duck.connect(nodes.base);
+    nodes.amb.connect(nodes.base);                 // ortam kendi kaydırıcısıyla, efektlerden bağımsız
+    nodes.sfx.connect(nodes.base);
+    nodes.base.connect(nodes.master); nodes.hero.connect(nodes.master);
     nodes.master.connect(nodes.comp); nodes.comp.connect(c.destination);
     nodes.duck.gain.value = 1; targets.duck = 1;
     applyVolumes(0);
@@ -195,6 +199,7 @@
     ramp(nodes.master.gain, settings.muted ? 0 : curve(settings.master), dur, 'master');
     ramp(nodes.music.gain, curve(settings.music), dur, 'music');
     ramp(nodes.sfx.gain, curve(settings.sfx), dur, 'sfx');
+    ramp(nodes.hero.gain, curve(settings.sfx), dur, 'hero');
     ramp(nodes.amb.gain, curve(settings.amb), dur, 'amb');
   }
 
@@ -429,6 +434,15 @@
         voices.push(v);
         s.onended = function () { remove(v); };
         s.start(0);
+        // Giriş müziği gibi parçalar çalarken oyunun diğer sesleri kısılır (def.party seviyesine) ve bitince geri döner.
+        if (def.party && nodes.base) {
+          var dur0 = buf.duration / (s.playbackRate.value || 1), tp = ctx.currentTime, bp = nodes.base.gain;
+          bp.cancelScheduledValues(tp); bp.setValueAtTime(bp.value, tp);
+          bp.linearRampToValueAtTime(def.party, tp + 0.5);
+          var back = Math.max(tp + 0.6, tp + dur0 - (def.fade || 2));
+          bp.setValueAtTime(def.party, back);
+          bp.linearRampToValueAtTime(1, tp + dur0 + 0.3);
+        }
         // Uzun parçalar sonda yavaşça kısılır (def.fade sn): ani kesilme olmasın.
         if (def.fade) {
           var dur = buf.duration / (s.playbackRate.value || 1), t0 = ctx.currentTime;
@@ -516,7 +530,7 @@
         if (!isFinite(v)) v = 1;
         v = Math.max(0, Math.min(2, v));
         if (v <= 0) return;
-        play(def, name, def.vol * v, nodes.sfx, def.pitch || 0, false);
+        play(def, name, def.vol * v, def.party ? nodes.hero : nodes.sfx, def.pitch || 0, false);
       } catch (e) { logErr('sfx', e); }
     },
     // Çalan bir efekti yumuşakça kapatır (varsayılan 1,5 sn'de azalır), örn. VKAudio.stopSfx('entrance').
@@ -532,7 +546,10 @@
             v.src.stop(t + f + 0.05);
           } catch (e) { }
         });
-        duckUntil = 0;
+        if (nodes.base) {      // kısılan diğer sesler de aynı sürede eski seviyesine döner
+          var bg = nodes.base.gain;
+          bg.cancelScheduledValues(t); bg.setValueAtTime(bg.value, t); bg.linearRampToValueAtTime(1, t + f);
+        }
       } catch (e) { logErr('stopSfx', e); }
     },
     setVolume: function (o) {
