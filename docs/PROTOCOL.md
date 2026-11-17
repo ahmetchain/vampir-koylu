@@ -341,7 +341,8 @@ Nothing moves in the village until the show stage; a locked door is discovered o
 | `state` | the viewer's view (§9) | after every change in the room, to every seated socket (each gets its own view) |
 | `announce` | `{ kind, title, text, ...extra }` (§10) | game events; some kinds only to one player |
 | `chat` | `{ channel, from, fromId, text, ts }` (§11) | chat message for this viewer |
-| `entrance` | `{ call }` | the owner account (lib/banter.js, default `ahmetchain`) connected to the room for the first time in its session while in the lobby (not on reconnects, not after a game). Every client plays `sfx('entrance')` and shows a small toast "🎺 {call} geldi!"; bots then cheer in the chat (2-4 lines, lobby only). |
+| `music:play` (client → server, ack `{ok}`) | `{}` | The owner account presses the lobby "Müzik" button (visible only to it): everyone hears `entrance` again, 2-3 bots react with different lines each time; at most once per 21 s; lobby only. The same happens when the owner types e.g. "verin müziği" in the lobby chat. |
+| `entrance` | `{ call }` | the owner account (lib/banter.js, default `ahmetchain`) joined someone else's room for the first time in its session while in the lobby (not when it created the room, not on reconnects, not after a game; also sent for `music:play` with `manual: true`). Every client plays `sfx('entrance')` and shows a small toast "🎺 {call} geldi!"; bots then cheer in the chat (2-4 lines, lobby only). |
 | `kicked` | string | the seat was taken over by another tab ("Bu oturum başka bir sekmede açıldı.") or the host kicked you ("Oda sahibi seni odadan çıkardı."). The socket is no longer bound to a seat. |
 | `rooms:update` | `[RoomInfo]` | to sockets that called `rooms:watch`, debounced 200 ms |
 

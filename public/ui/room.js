@@ -48,6 +48,12 @@ export function initRoom() {
     sfx('click');
     send('room:addBot', {});
   });
+  // Sahip hesap: giriş müziğini elle çaldır (herkeste çalar).
+  $('#lobby-card').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-l="music"]');
+    if (!b || b.disabled) return;
+    send('music:play', {});
+  });
   $('#overlay').addEventListener('click', onOverlayClick);
   setInterval(tick, 250);
   window.addEventListener('resize', scheduleInsets);
@@ -724,6 +730,7 @@ function renderLobby(s) {
     ${ib('look', 'palette', 'Görünüm')}
     ${ib('roles', host ? 'gear' : 'scroll', host ? 'Ayarlar' : 'Roller', `aria-label="${host ? 'Roller ve oda ayarları' : 'Roller ve kurallar'} (${total}/${room.maxPlayers} oyuncu)"`)}
     ${host ? ib('bot', 'bot', 'Bot', `${full ? 'disabled' : ''} aria-label="Bot ekle${full ? ' (oda dolu)' : ''}"`) : ''}
+    ${s.me && s.me.canChooseBotModel ? ib('music', 'music', 'Müzik', 'aria-label="Giriş müziğini çal"') : ''}
     ${main}
   </div>`);
 }

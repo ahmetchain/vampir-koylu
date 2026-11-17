@@ -168,19 +168,56 @@ test('giriş fanfarı: sahip hesap ilk girişte bir kez; başkası girince, yeni
     room.destroy();
   }
   assert.ok(cheerTotal >= 16);
-  // Kendi odasını kuran sahip: fanfar hemen, botlar eklenince (60 sn içinde) tezahürat; geç eklenenlerde yok.
+  // Kendi odasını kuran sahip: otomatik fanfar yok (oda sahibi olarak giriyor); müzik düğmesiyle elle çalar.
   const own = setup({ humans: ['ahmetchain'], bots: 0, seed: 'kendi' });
-  assert.equal(own.entrances.length, 1, 'oda kurulurken fanfar');
-  own.room.addBot('h0'); own.room.addBot('h0'); own.room.addBot('h0');
+  assert.equal(own.entrances.length, 0, 'oda kurarken otomatik çalmaz');
+  own.room.addBot('h0'); own.room.addBot('h0'); own.room.addBot('h0'); own.room.addBot('h0');
   tick(t, 30000);
-  assert.ok(texts(own.chats).filter((x) => cheers.test(x)).length >= 2);
+  assert.equal(texts(own.chats).filter((x) => cheers.test(x)).length, 0, 'tezahürat yok');
+  // Elle düğme: sahip çalar; 20 sn içinde ikinci basış reddedilir; her seferinde farklı satırlar.
+  const mc = (arr) => texts(arr).filter((x) => x && !/Selamün|hocam hoş|seviyoruz/.test(x));
+  const n0 = own.chats.length;
+  assert.equal(own.room.playEntrance('h0'), null);
+  assert.equal(own.entrances.length, 1);
+  assert.equal(own.entrances[0].manual, true);
+  assert.match(own.room.playEntrance('h0'), /bekle/, 'çalarken ikinci basış reddedilir');
+  tick(t, 30000);
+  const first = mc(own.chats.slice(n0));
+  assert.ok(first.length >= 2 && first.length <= 3, `tepki ${first.length}`);
+  const n1 = own.chats.length;
+  assert.equal(own.room.playEntrance('h0'), null);
+  tick(t, 30000);
+  const second = mc(own.chats.slice(n1));
+  assert.ok(second.length >= 2);
+  assert.equal(second.filter((x) => first.includes(x)).length, 0, 'ikinci basışta aynı espriler tekrarlanmaz');
   own.room.destroy();
-  const late = setup({ humans: ['ahmetchain'], bots: 0, seed: 'gec' });
-  tick(t, 90000);
-  late.room.addBot('h0'); late.room.addBot('h0');
+  // Sohbetten komut: sahip "verin müziği" yazınca müzik çalar; başkası yazarsa çalmaz.
+  const cmd = setup({ humans: ['ahmetchain', 'burak'], bots: 4, seed: 'komut' });
+  cmd.say('h1', 'verin müziği');
+  tick(t, 5000);
+  assert.equal(cmd.entrances.length, 0, 'başkasının yazdığı komut işlemez');
+  cmd.say('h0', 'Verin müziği hocam');
+  assert.equal(cmd.entrances.length, 1, 'sahibin komutu müziği çaldırır');
+  assert.equal(cmd.entrances[0].manual, true);
   tick(t, 30000);
-  assert.equal(texts(late.chats).filter((x) => cheers.test(x)).length, 0, 'bir dakika sonra tezahürat yok');
-  late.room.destroy();
+  assert.ok(texts(cmd.chats).length >= 2, 'botlar tepki verir');
+  cmd.room.destroy();
+  // Sahip olmayan düğmeyi kullanamaz; oyun sırasında çalınmaz.
+  const other = setup({ humans: ['burak', 'ahmetchain'], bots: 2, seed: 'diger' });
+  assert.match(other.room.playEntrance('h0'), /sen kullanamazsın/);
+  other.room.hostId = 'h1';
+  other.room.addBot('h1'); other.room.addBot('h1'); other.room.addBot('h1');
+  other.room.start('h1');
+  assert.match(other.room.playEntrance('h1'), /lobide/);
+  other.room.destroy();
+  // Oyun başladıktan sonra sohbetten komut da işlemez.
+  const inGame = setup({ humans: ['ahmetchain', 'burak'], bots: 4, seed: 'oyunda' });
+  inGame.room.start('h0');
+  const e0 = inGame.entrances.length;
+  inGame.say('h0', 'lokman ver olum müziği');
+  tick(t, 10000);
+  assert.equal(inGame.entrances.length, e0, 'oyun sırasında müzik çalmaz');
+  inGame.room.destroy();
   // Hesapsız koltuk ya da bot fanfar tetiklemez.
   const guest = setup({ humans: [{ guest: 'ahmetchain' }], bots: 2, seed: 'konuk2' });
   assert.equal(guest.entrances.length, 0);

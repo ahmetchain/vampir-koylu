@@ -423,6 +423,14 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
       reply(res.error ? { ok: false, error: res.error } : { ok: true, playerId: res.id });
     });
 
+    // Sahip hesap lobide müziği elle çaldırır (herkeste çalar, botlar tepki verir).
+    handle('music:play', (data, reply) => {
+      const c = ctx(socket);
+      if (!c) return reply({ ok: false, error: 'Bir odada değilsin.' });
+      const error = c.room.playEntrance(c.player.id);
+      reply(error ? { ok: false, error } : { ok: true });
+    });
+
     act('room:kick', ({ room, player }, data) => {
       const targetId = String(data.playerId || '');
       const target = room.players.get(targetId);
