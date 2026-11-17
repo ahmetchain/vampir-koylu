@@ -177,7 +177,7 @@ async function selfplay(args, lib, env) {
   }
   const transcript = [];
   const room = new Room({
-    id: 'KENDI', name: 'Kendi kendine', settings: { nightSec: 10, daySec: 60, revealRoles: true, roleMode: 'random', events: 'some', roles: { gozcu: true, gardiyan: true, cadi: true, avci: true, muhtar: true, soytari: true, deli: true, hirsiz: true, iftiraci: true, temizlikci: true } },
+    id: 'KENDI', name: 'Kendi kendine', settings: { nightSec: 15, daySec: 120, revealRoles: true, roleMode: 'random', events: 'some', roles: { gozcu: true, gardiyan: true, cadi: true, avci: true, muhtar: true, soytari: true, deli: true, hirsiz: true, iftiraci: true, temizlikci: true } },
     ai: client,
     hooks: {
       update() {}, empty() {}, finished() {},
