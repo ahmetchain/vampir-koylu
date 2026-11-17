@@ -413,6 +413,8 @@ function renderTop(s) {
 
 function tick() {
   const s = ctx.state;
+  // Gösteride ölüm anı durum güncellemesi olmadan gelir: gece etiketi buradan yenilenir.
+  if (s && nightStage(s) === 'show') renderNightLabel(s);
   const clock = document.querySelector('#prompt [data-clock]');
   if (clock && s && s.room.night) {
     const until = Number(s.room.night.pickUntil) || s.room.deadline;
@@ -655,7 +657,10 @@ function nightStage(s) {
 }
 function killedTonight(s) {
   const n = s.night || {};
-  return s.room.phase === 'night' && ((n.show && n.show.dead) || ctx.killedRound === s.room.round);
+  if (s.room.phase !== 'night') return false;
+  // Ölüm, gösteride yaşandığı anda (ya da sonuç kartı gelince) belli olur. Gösteri başlar başlamaz
+  // yazmak "koruyan yetişecek mi" merakını bozuyordu: saldırı sahnesi önce oynar.
+  return ctx.killedRound === s.room.round || !!(n.show && n.show.dead && W.sawOwnDeath());
 }
 function passedTonight(s) {
   return s.room.phase === 'night' && !!((s.night && s.night.passed) || ctx.passedKey === phaseKey);
