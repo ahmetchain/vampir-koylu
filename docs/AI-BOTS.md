@@ -142,8 +142,62 @@ An authentication error pauses the feature for 10 minutes, a rate-limit error fo
 ## Privacy
 
 With smart bots on, chat messages and player names of that room are sent to the Anthropic API (the lobby and
-the room settings say so). Prompts, chat content and model output are never logged; logs and `/healthz` carry
+the room settings say so); finished games with smart bots may also be reviewed by a stronger model (see "Automatic game review"; the lobby note says so). Prompts, chat content and model output are never logged; logs and `/healthz` carry
 only counts, token sums, cost estimates and failure reasons. Model output goes nowhere but into the game.
+
+## Automatic game review (post-game, developer feedback loop)
+
+Every mistake a smart bot makes should become a rule in `lib/ai/rules.js` and a scenario in `scripts/ai-scenarios.js`.
+To find the mistakes without reading every game, a game that had smart bots is reviewed automatically after it ends:
+
+1. **Record** (`lib/ai/gamerec.js`, only if at least one smart-bot model call succeeded in that game): players with final roles/teams;
+   the public timeline (dawn results, hangings, reveals, hunter shots, events; story/rumor flavour lines are left out); per day who voted for
+   whom (counts only on Sis days); public chat in order with seconds-since-start and phase tag (`gün 2`, `gece 1`…), bot lines flagged; for each
+   bot its role, its night picks and what happened to them, its private results (the notes: Kahin pairs, Gözcü reports, saved / attacked
+   notices) and its last 24 turns with the private `think`, `say`, `vote`, `target`, `memory`. **Human players' private info is not
+   included** (no notes, no night actions, no whispers in the evil/dead channels): only what they said in public chat and the roles that
+   the end screen shows to everyone. Capped at ≈ 60 000 characters: the oldest chat lines go first, then the oldest bot turns, then the oldest log lines;
+   `truncated` says how much was dropped. Names of players are in the record (the lobby note says finished games may be reviewed).
+2. **Reviewer call** (`lib/ai/review.js`): asynchronous after the game ends, never awaited by the game, own budget, any failure is one log line.
+   One non-streaming `messages.create` on `AI_REVIEW_MODEL` (default `claude-sonnet-5-5`) with a fixed English system prompt that includes the bots'
+   whole rule book (`SYSTEM_PROMPT` of `rules.js`) as the reference, the record as the user message and structured output (`output_config.format`
+   json_schema): `{ summary, mistakes: [{ bot, day_or_night, quote, what_was_wrong, rule_violated_or_missing, severity: high|medium|low,
+   suggested_rule_change, suggested_scenario: { title, setup, expected } }], good_moves: [] }`. It is told to focus on game logic (wrong deductions,
+   asking a role for information it cannot have, ignoring facts, contradicting its role, voting without reason, pile-ons, not sharing key
+   results, unnatural Turkish) and to skip style nitpicks and hindsight-only mistakes.
+3. **Storage**: the store keeps the latest 200 reviews (`vk_ai_reviews` table in PostgreSQL; `ai-reviews.json` next to `accounts.json` in the JSON store):
+   id, created_at, room, model, cost, summary, mistake counts, the record (gzip + base64) and the review JSON.
+4. **Log** (one line, numbers only, no chat, no names): `[ai-review] oda=ABCDE model=claude-sonnet-5-5 hata=7 (yüksek=2) maliyet≈$0.1034`;
+   failures: `[ai-review] oda=ABCDE atlandı: timeout` (`daily_limit`, `refusal`, `max_tokens`, `malformed`, `rate_limit`…). `/healthz` gets `aiReview` (counts, cost).
+
+| var | default | meaning |
+|---|---|---|
+| `AI_REVIEW` | – | `off` disables reviews (they are also off without `ANTHROPIC_API_KEY` or with `AI_BOTS=off`) |
+| `AI_REVIEW_MODEL` | `claude-sonnet-5-5` | reviewer model (`claude-opus-5-5` also priced) |
+| `AI_REVIEW_DAILY_LIMIT` | 10 | reviews per UTC day (separate from the bots' call budget; counted in memory) |
+| `AI_REVIEW_EFFORT` | `medium` | `low` / `medium` / `high` |
+| `ADMIN_TOKEN` | – | enables the admin endpoints below; unset = they answer 404 |
+
+**Endpoints** (both need `Authorization: Bearer <ADMIN_TOKEN>`; compared in constant time; unset token → 404 as if they did not exist; wrong/no
+token → 401; rate limit 60 requests / 10 min / IP, wrong tries included → 429; `Cache-Control: no-store`):
+- `GET /api/admin/ai-reviews[?limit=50&since=<ms>]` → `{ ok, reviews: [{ id, createdAt, date, room, model, cost, summary, mistakes, high, medium, low }] }` (newest first).
+- `GET /api/admin/ai-reviews/:id` → `{ ok, review: { id, date, room, model, cost, review: {…}, record: {…} } }`.
+
+**Developer script** `scripts/ai-reviews.js` (not used by the server): reads `ADMIN_TOKEN` and `REVIEW_URL` (the deployed site, e.g. `https://vampir-koylu.onrender.com`) from the
+environment or the git-ignored `.env.local` (never printed), downloads the reviews it has not seen yet and writes, under `ai-eval-out/reviews/` (git-ignored):
+one readable `<date>-<room>-<id>.md` per review, `json/<id>.json` (raw, with the record) and `scenario-drafts.md`: similar mistakes grouped (word overlap of the rule and
+the suggested change), most frequent first, each group with the suggested rule change, up to three scenario drafts and example quotes. Options: `--all` (refetch everything),
+`--rebuild` (only rewrite the drafts), `--out DIR`, and `--local FILE` (review a local game record with `ANTHROPIC_API_KEY`).
+`scripts/ai-eval.js --selfplay` now also writes `selfplay-record.json` (the same record) and with `--review` reviews it right away into `<out>/reviews/`.
+
+**Cost:** one review of a 9-bot game ≈ 40 K input tokens (rule book + instructions ≈ 13 K, the 55 K-character record ≈ 28 K; no prompt caching: reviews are minutes apart, so a cache write would only add a 25 % surcharge) and ≈ 4–5 K output tokens
+incl. thinking at Sonnet 5.5 prices ($2 / $10 per M) → ≈ $0.13 per game (measured, see V2-PLAN §19). At the default limit of 30 per day that is at most ≈ $4 per day, usually far less. A 9-bot selfplay game on Haiku costs ≈ $0.05, so the review roughly triples the per-game cost; use `AI_REVIEW_DAILY_LIMIT` or `AI_REVIEW=off` to cap or stop it.
+
+First real run (9-bot selfplay, 2026-11-17, with a prompt cache on the rule book that was dropped afterwards): 27 955 input + 12 900 cache-write + 4 603 output tokens = $0.1342, i.e. ≈ $0.128 without the cache write surcharge;
+the review found 10 mistakes (3 high), e.g. a Gardiyan voting for the Gözcü whose sighting named the vampire at the victim's house, and voting "uyu" with 3 players alive and 1 vampire.
+
+Workflow: `node scripts/ai-reviews.js` → read `scenario-drafts.md` → for each group worth keeping add the rule to `rules.js` and the scenario to `ai-scenarios.js`
+→ `node scripts/ai-eval.js --n 5 --only <id>`.
 
 ## Testing
 
@@ -153,7 +207,9 @@ no hidden role next to a name, no evil-team info for non-evil bots, no other pla
 direct address, persuasion/vote change, memory, short pick stage with hanging/slow/failing model, budgets, room setting, typing,
 `/healthz`), `test/ai-facts.test.js` (real `Room` scenarios: timeline order and markers, OUT annotations, night outcomes, unaccounted
 roles incl. the 3-player endgame and the random-mode pool, what the village lost, framed teammates, own nights, two games in one
-room, late answer from an old game, vote timing) and `test/ai-eval.test.js` (the dev harness) use `test/ai-mock.js`, a fake
+room, late answer from an old game, vote timing) and `test/ai-eval.test.js` (the dev harness) and `test/ai-review.test.js` (game record: bounded, no human private info, bot notes/think/memory; reviewer with a fake
+transport: request, cost, one log line, daily limit, `AI_REVIEW=off`, failures never throw; review storage in the JSON and pg-mem stores incl. the 200 cap; admin endpoints: no token / wrong token / right
+token / unset token / rate limit; `scripts/ai-reviews.js` against a running server; grouping) use `test/ai-mock.js`, a fake
 transport – no network in tests.
 
 ## Dev harness: `scripts/ai-eval.js`

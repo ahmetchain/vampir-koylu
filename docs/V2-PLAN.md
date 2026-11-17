@@ -616,3 +616,20 @@ someone, and did not change their vote for a sound argument. Fixes (design bindi
   suspect or "uyu"), random fallback no earlier than 92 %.
 - **Dev harness** `scripts/ai-eval.js` (not used by the server): 20 scenarios on real `Room` objects with
   automatic checks, `--selfplay`; see `docs/AI-BOTS.md`.
+
+## 19. Automatic post-game review of the smart bots (owner request 2026-11-17)
+
+Goal: find the bots' mistakes without reading every game, and turn them into rules (`lib/ai/rules.js`) and scenarios (`scripts/ai-scenarios.js`).
+
+- When a game that had smart bots (at least one successful model call) ends, the server builds a **game record** (public timeline, votes with voters,
+  public chat in order, every bot's night picks/outcomes, private results, last turns with `think`/`memory`; no human private info; ≈ 60 K characters max, oldest
+  chat dropped first) and, asynchronously and never blocking the game, sends it to a stronger model (`AI_REVIEW_MODEL`, default `claude-sonnet-5-5`) together with the
+  bots' rule book. The model returns structured JSON: `summary`, `mistakes[]` (bot, when, quote, what was wrong, rule violated or missing, severity, suggested rule change,
+  suggested scenario) and `good_moves[]`.
+- Own budget: `AI_REVIEW_DAILY_LIMIT` (default 30 / day); off with `AI_REVIEW=off`, without a key, or with `AI_BOTS=off`. Any failure logs one line; the game never notices.
+- Stored in the existing store (table `vk_ai_reviews` / file `ai-reviews.json`), latest 200 kept. Read through `GET /api/admin/ai-reviews` and `/:id`, protected by
+  `ADMIN_TOKEN` (Bearer, constant-time compare, rate-limited, 404 when unset). Developer script `scripts/ai-reviews.js` writes markdown plus `scenario-drafts.md`
+  (similar mistakes grouped, most frequent first) into the git-ignored `ai-eval-out/reviews/`; `scripts/ai-eval.js --selfplay --review` does the same locally.
+- One log line per review (`[ai-review] oda=… model=… hata=N (yüksek=…) maliyet≈$…`), no chat text, no names.
+- The lobby note now also says that finished games may be reviewed by the AI service to improve the bots.
+- Measured: ≈ $0.13 per review of a 9-bot game (details and a first real review in `docs/AI-BOTS.md`).

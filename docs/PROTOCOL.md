@@ -858,7 +858,8 @@ accepted, the finished game is written to no account's stats and does not affect
 - Server environment: `PORT` (default 3000), `DATA_DIR` (JSON store folder, default `./data`),
   `DATABASE_URL` (use Postgres instead), `DATABASE_SSL` (`off`|`on`|`no-verify`, default automatic),
   `CLIENT_ORIGIN`, `TRUST_PROXY`; smart bots: `ANTHROPIC_API_KEY`, `AI_BOTS`, `AI_BOT_MODEL`, `AI_BOT_EFFORT`,
-  `AI_MAX_TOKENS`, `AI_DAILY_CALL_LIMIT`, `AI_GAME_CALL_LIMIT`, `AI_BOT_CALL_LIMIT`, `AI_CONCURRENCY`, `AI_TIMEOUT_MS`
+  `AI_MAX_TOKENS`, `AI_DAILY_CALL_LIMIT`, `AI_GAME_CALL_LIMIT`, `AI_BOT_CALL_LIMIT`, `AI_CONCURRENCY`, `AI_TIMEOUT_MS`;
+  post-game review: `AI_REVIEW`, `AI_REVIEW_MODEL`, `AI_REVIEW_DAILY_LIMIT`, `AI_REVIEW_EFFORT`, `ADMIN_TOKEN` (enables `GET /api/admin/ai-reviews[/:id]`, Bearer)
   (defaults in `docs/AI-BOTS.md`).
 
 ## 15. Client recipes
