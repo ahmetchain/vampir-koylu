@@ -135,7 +135,7 @@ why the feature is off (`ANTHROPIC_API_KEY yok` / `AI_BOTS=off`).
 | `AI_GAME_CALL_LIMIT` | 300 | per game |
 | `AI_BOT_CALL_LIMIT` | 45 | per bot per game |
 | `AI_CONCURRENCY` | 6 | simultaneous requests (all rooms) |
-| `AI_TIMEOUT_MS` | 8000 | day turns (night turns are bounded by the pick stage) |
+| `AI_TIMEOUT_MS` | 15000 | day turns (night turns are bounded by the pick stage) |
 
 An authentication error pauses the feature for 10 minutes, a rate-limit error for 20 s.
 

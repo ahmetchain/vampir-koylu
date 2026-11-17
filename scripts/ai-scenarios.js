@@ -582,6 +582,29 @@ const SCENARIOS = [
       ] };
     },
   },
+  {
+    id: '28-belki-deliyim',
+    title: 'İki Doktor iddiası; rakip "belki deliyim" diyor; Doktor bot onu asmaz',
+    expect: 'Cem gerçek Doktor. Ahmet de "Doktorum" dedi, sonra "belki deliyim galiba" yazdı. Deli mümkün. Cem (gün sonu) Ahmet\'e oy vermez; "yalan ya da Deli" diyebilir.',
+    build(client) {
+      const g = new Game({ client, players: [
+        { name: 'Ahmet', role: 'deli', fake: 'doktor' }, { name: 'Cem', role: 'doktor', bot: true }, { name: 'Deniz', role: 'vampir', bot: true },
+        { name: 'Eren', role: 'koylu', bot: true }, { name: 'Ece', role: 'koylu', bot: true }, { name: 'Fatma', role: 'gozcu', bot: true },
+      ], settings: { roles: { deli: true } } });
+      g.night([['Cem', 'Cem'], ['Deniz', 'Eren']]);
+      g.talk([
+        ['Ahmet', 'Ben Doktorum, dün gece kendimi korudum.'],
+        ['Deniz', 'İki Doktor var, Ahmet yalan söylüyor, asalım.'],
+        ['Ahmet', 'Bilmiyorum ya, galiba deliyim, ben Doktor sanıyordum.'],
+      ]);
+      return { g, turns: [
+        { bot: 'Cem', task: { kind: 'vote', final: true }, checks: [
+          hard('Ahmet\'e oy vermez', (o) => !voteIs('Ahmet')(o)),
+          soft('Deli ihtimalini söyler', re(/deli/i)),
+        ] },
+      ] };
+    },
+  },
 ];
 
 module.exports = { SCENARIOS };
