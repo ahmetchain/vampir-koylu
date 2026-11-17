@@ -457,6 +457,48 @@ const SCENARIOS = [
       ] };
     },
   },
+  {
+    id: '23-sessiz-gece-doktor-tutarli',
+    title: 'Sessiz gece; tek Doktor iddiası "saldırı oldu, kendimi korudum" tutarlı; vampir onu suçluyor',
+    expect: '2. gece kimse ölmedi. Ahmet "Doktorum, vampir geldi, kendimi korudum, ölmedim" diyor; başka Doktor iddiası yok. Deniz Ahmet\'i suçluyor. Cem bunun sessiz geceyle tutarlı olduğunu söyler, Ahmet\'e oy vermez.',
+    build(client) {
+      const g = new Game({ client, players: [
+        { name: 'Ahmet', role: 'doktor' }, { name: 'Cem', role: 'koylu', bot: true }, { name: 'Deniz', role: 'vampir', bot: true },
+        { name: 'Eren', role: 'koylu', bot: true }, { name: 'Ece', role: 'koylu', bot: true }, { name: 'Fatma', role: 'koylu', bot: true },
+      ] });
+      g.night([['Ahmet', 'Ahmet'], ['Deniz', 'Fatma']]);
+      everyoneVotes(g, 'uyu', ['Ahmet', 'Cem', 'Deniz', 'Eren', 'Ece']);
+      g.night([['Ahmet', 'Ahmet'], ['Deniz', 'Ahmet']]);
+      g.talk([
+        ['Ahmet', 'Doktorum, dün gece vampir bana geldi, kendimi korudum, ölmedim. O yüzden kimse ölmedi.'],
+        ['Deniz', 'Bence Ahmet uyduruyor, kanıtı yok. Ahmet\'e oy verelim.'],
+      ]);
+      g.vote('Deniz', 'Ahmet');
+      return { g, turns: [
+        { bot: 'Cem', task: { kind: 'react', trigger: g.lastChat('Cem') }, checks: [
+          hard('Ahmet\'e oy vermez', (o) => !voteIs('Ahmet')(o)),
+          soft('tutarlı/olabilir der', re(/tutarl|uyuyor|mantıkl|olabilir|kimse ölmedi|sessiz gece/i)),
+        ] },
+        { bot: 'Cem', task: { kind: 'vote', final: true }, checks: [hard('son oy Ahmet değil', (o) => !voteIs('Ahmet')(o))] },
+      ] };
+    },
+  },
+  {
+    id: '24-gozcu-kendiliginden-paylasir',
+    title: 'Gözcü bot kurbanın evinde birini gördü; kimse sormadan günü açarken paylaşır',
+    expect: 'Gözcü Eren 1. gece Fatma\'nın evini izledi ve Deniz\'i gördü; Fatma öldü. Gün açılışında (kimse sormadan) Eren bunu adlarla söyler.',
+    build(client) {
+      const g = new Game({ client, players: [
+        { name: 'Ahmet', role: 'koylu' }, { name: 'Cem', role: 'koylu', bot: true }, { name: 'Deniz', role: 'vampir', bot: true },
+        { name: 'Eren', role: 'gozcu', bot: true }, { name: 'Ece', role: 'koylu', bot: true }, { name: 'Fatma', role: 'koylu', bot: true },
+      ] });
+      g.night([['Eren', 'Fatma'], ['Deniz', 'Fatma']]);
+      return { g, turns: [{
+        bot: 'Eren', task: { kind: 'open' },
+        checks: [hard('Deniz\'i adıyla söyler', re(/Deniz/)), soft('Gözcü olduğunu söyler', re(/gözcü/i))],
+      }] };
+    },
+  },
 ];
 
 module.exports = { SCENARIOS };
