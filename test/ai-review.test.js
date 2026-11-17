@@ -106,7 +106,7 @@ test('oyun kaydı: botlu oyun bitince bir kez kurulur; insanın özel bilgisi yo
   const human = rec.players.find((p) => p.name === 'İrem');
   assert.ok(human && human.role && human.bot === false, 'insan oyuncu yalnızca rolüyle (oyun sonu açık)');
   assert.equal(rec.players.length, 9);
-  assert.equal(rec.game.model, 'claude-sonnet-5-5');
+  assert.equal(rec.game.model, 'claude-haiku-5-5');
   assert.ok(rec.timeline.length > 5);
   assert.ok(rec.timeline.some((x) => /gece başladı/.test(x.text)) && rec.timeline.some((x) => /Kazandı|kazandı/.test(x.text)), 'günlükte gece ve sonuç satırları');
   assert.ok(rec.chat.some((c) => c.bot === 1), 'bot sohbeti');
