@@ -499,6 +499,89 @@ const SCENARIOS = [
       }] };
     },
   },
+  {
+    id: '25-cadi-iddiasi-tutarli',
+    title: 'Cadı: 1. gece Cem\'i iyileştirdi, 2. gece Fatma\'yı zehirledi; Cem saldırıyı doğruluyor',
+    expect: 'Ahmet iki geceyi de anlatıyor; Fatma "zehirlenerek öldü" duyurusu ve Cem\'in "bana saldırı oldu, kurtuldum" demesi iddiayı tutarlı yapar. Ece "gece neredeydin" diye sormaz, Ahmet\'e oy vermez.',
+    build(client) {
+      const g = new Game({ client, players: [
+        { name: 'Ahmet', role: 'cadi' }, { name: 'Cem', role: 'koylu', bot: true }, { name: 'Deniz', role: 'vampir', bot: true },
+        { name: 'Eren', role: 'koylu', bot: true }, { name: 'Ece', role: 'koylu', bot: true }, { name: 'Fatma', role: 'koylu', bot: true },
+        { name: 'Gül', role: 'koylu', bot: true },
+      ] });
+      g.night([['Deniz', 'Cem'], ['Ahmet', 'Cem', 'heal']]);
+      everyoneVotes(g, 'uyu', ['Ahmet', 'Cem', 'Deniz', 'Eren', 'Ece', 'Fatma', 'Gül']);
+      g.night([['Deniz', 'Eren'], ['Ahmet', 'Fatma', 'poison']]);
+      g.talk([
+        ['Ahmet', 'Cadıyım. 1. gece Cem\'i iyileştirdim, Cem sana saldırı oldu değil mi? 2. gece de Fatma\'yı zehirledim.'],
+        ['Cem', 'Evet, 1. gece bana saldırı oldu ama kurtuldum.'],
+        ['Deniz', 'Ahmet masum birini zehirledi, bence Ahmet\'i asalım.'],
+      ]);
+      g.vote('Deniz', 'Ahmet');
+      return { g, turns: [
+        { bot: 'Ece', task: { kind: 'react', trigger: g.lastChat('Ece') }, checks: [
+          hard('"neredeydin" diye sormaz', notRe(/neredeydin|nerede idin|nereye gittin/i)),
+          hard('Ahmet\'e oy vermez', (o) => !voteIs('Ahmet')(o)),
+          soft('tutarlı bulur', re(/tutarl|uyuyor|doğrul|zehirlen|mantıkl/i)),
+        ] },
+        { bot: 'Ece', task: { kind: 'vote', final: true }, checks: [hard('son oy Ahmet değil', (o) => !voteIs('Ahmet')(o))] },
+      ] };
+    },
+  },
+  {
+    id: '26-kurtarilan-koylu',
+    title: 'Ahmet (Köylü) saldırıya uğradı, Doktor bot onu korudu; kimse ölmedi; Deniz "çelişki" diyerek Ahmet\'e oy topluyor',
+    expect: 'Köylü bot Cem "kimse ölmedi ama saldırıya uğradım" sözünü çelişki saymaz ve Ahmet\'e oy vermez. Doktor bot Ece oylar Ahmet\'e yığılırken onu korudu­ğunu doğrulayabilir ve Ahmet\'e oy vermez.',
+    build(client) {
+      const g = new Game({ client, players: [
+        { name: 'Ahmet', role: 'koylu' }, { name: 'Cem', role: 'koylu', bot: true }, { name: 'Deniz', role: 'vampir', bot: true },
+        { name: 'Eren', role: 'koylu', bot: true }, { name: 'Ece', role: 'doktor', bot: true }, { name: 'Fatma', role: 'koylu', bot: true },
+      ] });
+      g.night([['Deniz', 'Ahmet'], ['Ece', 'Ahmet']]);
+      g.talk([
+        ['Ahmet', 'Dün gece bana saldırı oldu ama biri beni korudu, kurtuldum.'],
+        ['Deniz', 'Kimse ölmedi ama sen saldırıya uğradığını söylüyorsun, bu çelişki. Ahmet\'i asalım.'],
+      ]);
+      g.vote('Deniz', 'Ahmet');
+      g.vote('Fatma', 'Ahmet');
+      return { g, turns: [
+        { bot: 'Cem', task: { kind: 'react', trigger: g.lastChat('Cem') }, checks: [
+          hard('Ahmet\'e oy vermez', (o) => !voteIs('Ahmet')(o)),
+          soft('çelişki olmadığını söyler', re(/çelişki değil|çelişmiyor|tutarl|uyuyor|kurtarılmış|korunmuş|doktor kurtar/i)),
+        ] },
+        { bot: 'Ece', task: { kind: 'vote', final: true }, checks: [
+          hard('Ahmet\'e oy vermez', (o) => !voteIs('Ahmet')(o)),
+          soft('korudu­ğunu doğrular', re(/korudum|ben korudum|doktorum/i)),
+        ] },
+      ] };
+    },
+  },
+  {
+    id: '27-sikisinca-rolunu-aciklar',
+    title: 'Gardiyan bot suçlanıyor, oylar ona yığılıyor, gün bitmek üzere: gerçek rolünü ve gece bilgisini açıklar',
+    expect: 'Cem Gardiyan; 1. gün Deniz\'in kapısını kilitledi, 2. gece kimse ölmedi. 2. gün Ahmet, Deniz ve Fatma Cem\'e oy verdi. Son kararda Cem "Gardiyanım" der ve kilidi anlatır; kendine oy vermez.',
+    build(client) {
+      const g = new Game({ client, players: [
+        { name: 'Ahmet', role: 'koylu' }, { name: 'Cem', role: 'gardiyan', bot: true }, { name: 'Deniz', role: 'vampir', bot: true },
+        { name: 'Eren', role: 'koylu', bot: true }, { name: 'Ece', role: 'koylu', bot: true }, { name: 'Fatma', role: 'koylu', bot: true },
+      ] });
+      g.night([['Deniz', 'Fatma']]);
+      g.lock('Cem', 'Deniz');
+      everyoneVotes(g, 'uyu', ['Ahmet', 'Cem', 'Deniz', 'Eren', 'Ece']);
+      g.night([]);   // Deniz kilitli: evden çıkamadı, kimse ölmedi
+      g.talk([
+        ['Ahmet', 'Cem çok sessiz, hiçbir şey söylemiyor. Cem\'i asalım.'],
+        ['Deniz', 'Katılıyorum, Cem şüpheli.'],
+      ]);
+      g.vote('Ahmet', 'Cem'); g.vote('Deniz', 'Cem'); g.vote('Ece', 'Cem');
+      return { g, turns: [
+        { bot: 'Cem', task: { kind: 'vote', final: true }, checks: [
+          hard('rolünü açıklar (Gardiyan)', re(/gardiyan/i)),
+          soft('kilidi anlatır (Deniz)', re(/Deniz/)),
+        ] },
+      ] };
+    },
+  },
 ];
 
 module.exports = { SCENARIOS };
