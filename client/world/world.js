@@ -1696,6 +1696,8 @@ export function create(container, handlers = {}) {
       return director.announce(msg);
     },
     skip() { director.skip(); },
+    // izleyici bu gece kendi ölümünü gösteride gördü mü (arayüz "öldürüldün" etiketini o ana kadar göstermez)
+    sawOwnDeath() { return nightShow.sawDeath(); },
     bubble(id, text, channel) {
       if (!text) return;
       overlay.bubble(id, String(text), channel);
