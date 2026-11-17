@@ -10,7 +10,7 @@ const { Server } = require('socket.io');
 const { Room } = require('./game');
 const { createStore } = require('./lib/store');
 const { Accounts } = require('./lib/auth');
-const { createAiClient } = require('./lib/ai');
+const { createAiClient, aiStatusLine } = require('./lib/ai');
 const { createApi } = require('./lib/api');
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -509,7 +509,7 @@ async function main() {
 
   console.log('Vampir Köylü sunucusu çalışıyor.');
   console.log(`  Hesap deposu:         ${store.kind === 'postgres' ? 'PostgreSQL (DATABASE_URL)' : `JSON dosyası (${store.file})`}`);
-  console.log(`  Akıllı botlar:        ${ai ? `açık (${ai.config.model}, günlük en fazla ${ai.config.dailyCalls} çağrı)` : 'kapalı (ANTHROPIC_API_KEY yok)'}`);
+  console.log(`  Akıllı botlar:        ${aiStatusLine(ai, process.env)}`);
   console.log(`  Bu bilgisayardan:     http://localhost:${PORT}`);
   for (const ip of lanAddresses()) {
     console.log(`  Aynı Wi-Fi'dakiler:   http://${ip}:${PORT}`);

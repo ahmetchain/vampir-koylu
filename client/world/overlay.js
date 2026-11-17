@@ -37,7 +37,8 @@ const CSS = `
 .vkw-plaque.picked::after{animation:none;opacity:1}
 .vkw-plaque.dead{filter:grayscale(.8);opacity:.6}
 @keyframes vkw-pulse{0%,100%{opacity:.9}50%{opacity:.15}}
-.vkw-bubble{max-width:180px;padding:5px 9px;border-radius:12px;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#f4e4c1;color:#2a1c10;font-size:12.5px;font-weight:600;line-height:1.3;box-shadow:0 3px 8px rgba(0,0,0,.35);opacity:0;transition:opacity .25s;word-break:break-word}
+.vkw-bubble{width:max-content;max-width:280px;padding:5px 9px;border-radius:12px;pointer-events:none;white-space:normal;background:#f4e4c1;color:#2a1c10;font-size:12.5px;font-weight:600;line-height:1.3;box-shadow:0 3px 8px rgba(0,0,0,.35);opacity:0;transition:opacity .25s;overflow-wrap:anywhere;text-align:left}
+.vkw-bubble>span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;line-clamp:4;overflow:hidden}
 .vkw-bubble::after{content:'';position:absolute;left:var(--tx,50%);bottom:-6px;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top-color:inherit;border-top-color:#f4e4c1}
 .vkw-bubble.show{opacity:1}
 .vkw-bubble[data-ch=vampir]{background:#5a1020;color:#ffe3e8}.vkw-bubble[data-ch=vampir]::after{border-top-color:#5a1020}
@@ -54,7 +55,7 @@ const CSS = `
 .vkw-tag.far .vkw-job{display:none}
 .vkw-tag.gone{visibility:hidden}
 .vkw-recenter:not(.show){pointer-events:none}
-@media (max-width:540px){.vkw-bubble{max-width:62vw;font-size:12px;padding:4px 8px}.vkw-job{font-size:9.5px}.vkw-tag.sel .vkw-name{padding:3px 8px 3px 5px;font-size:12.5px}.vkw-plaque.sel{font-size:11.5px;padding:3px 7px 3px 4px}.vkw-plaque span{max-width:64px}.vkw-plaque{font-size:10.5px}}
+@media (max-width:540px){.vkw-bubble{max-width:min(220px,66vw);font-size:12px;padding:4px 8px}.vkw-job{font-size:9.5px}.vkw-tag.sel .vkw-name{padding:3px 8px 3px 5px;font-size:12.5px}.vkw-plaque.sel{font-size:11.5px;padding:3px 7px 3px 4px}.vkw-plaque span{max-width:64px}.vkw-plaque{font-size:10.5px}}
 @media (min-width:900px){.vkw-name{font-size:13px}.vkw-plaque{font-size:12px}}
 `;
 
@@ -194,8 +195,8 @@ export function createOverlay(root, handlers) {
     for (const [id, x] of map) if (!keep.has(id)) { x.el.remove(); map.delete(id); }
   }
 
-  // Konuşma balonu: kısa (telefonda ~40 harf, kelime sınırında "…"), tek satır, birkaç saniyede solar.
-  // Tam metin sohbet akışındadır; balon yalnız "kim konuşuyor" ipucudur.
+  // Konuşma balonu: tam metin, birkaç satıra sarılır (en çok 4 satır; çok uzun mesajda baştan bir parça, tam metin
+  // sohbet akışındadır). Görünme süresi metin uzunluğuyla artar. Boyut yalnız metin değişince bir kez ölçülür.
   function clip(text, max) {
     const t = String(text).replace(/\s+/g, ' ').trim();
     if (t.length <= max) return t;
@@ -214,11 +215,13 @@ export function createOverlay(root, handlers) {
       bubbles.set(id, b);
     }
     const phone = W < 540;
-    const shown = clip(text, phone ? 40 : 64);
-    b.el.textContent = shown;
+    const shown = clip(text, 190);
+    if (!b.span) { b.span = document.createElement('span'); b.el.appendChild(b.span); }
+    b.span.textContent = shown;
     b.el.dataset.ch = channel || 'genel';
     b.el.classList.add('show');
-    b.until = performance.now() + (phone ? 2600 : 3000) + Math.min(phone ? 1800 : 2600, shown.length * 45);
+    // okuma süresi: ~16 harf/sn, en az ~2,6 sn, en çok ~10 sn
+    b.until = performance.now() + 2400 + Math.min(7600, shown.length * 62);
     b.h = 0;
     b.seq = ++bubbleSeq;
   }

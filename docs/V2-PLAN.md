@@ -449,8 +449,12 @@ Deferred to round 5: Bombacı, vasiyet (last will), Âşıklar, Hızlı Köy mod
   pick. New `night:pass {}` for a player who may act but chooses not to tonight (Hırsız, Cadı, or
   anyone). When every living, unlocked player who can act has picked or passed, the pick stage ends
   early (after a 1.5 s grace). Nothing moves in the village during this stage.
-- **show** (`NIGHT_SHOW_MS` = 14000): the server resolves the night at the start of this stage and
-  everything that happened is played back. No picks. Then dawn (public announce), as today.
+- **show** (`NIGHT_SHOW_MS` = 20000; was 14000 until 2026-11-17): the server resolves the night at the start of this stage and
+  everything that happened is played back. Every walk is shown end to end (out of the door → the real route →
+  in / knock at a locked door / peek at the back window → back home and in); times come from the path length at a
+  natural pace (walk / brisk, a run for far houses; the way out never vanishes — `window.__vkwTeleports` stays 0).
+  The outbound walk and the moment at the target get the time first; if the walk home does not fit, the character
+  may fade into mist near the end of the return leg (`window.__vkwReturnVanish`) instead of a very fast run. No picks. Then dawn (public announce), as today.
 
 **Resolution order** (replaces "everything at once"):
 1. Gardiyan's lock (chosen by day) holds all night: the locked-in owner does nothing; visitors bounce.
@@ -477,7 +481,7 @@ show: {
 ```
 Private result announces (kahin, gözcü report, steal, stealfail, bounced, lockreport, plus new
 `saved` for the protector, `attacked` for a saved victim, `killed` for a dying victim) are emitted
-by the server 9 s into the show stage, so they appear after the walking. The Gözcü no longer has a
+by the server 14 s into the show stage (`NIGHT_RESULT_MS`), so they appear after the relevant scenes. The Gözcü no longer has a
 live panel during pick; arrivals are shown during show. Deli fakes follow the same shapes.
 
 **What each player sees in the show stage (world):** always the village from outside. Their own
@@ -559,7 +563,7 @@ behaviour — a game never waits on the API.
 - **One "turn" call** returns structured output: optional chat line, optional action (night pick /
   pass, day vote / Hızlı Uyu, hunter shot, gardiyan lock, cadı heal/poison), and a short private
   memory note carried to its next call (suspicions, claims it made, lies it told).
-- **Chat behaviour**: Turkish, casual, one short line (<= ~90 chars), no markdown, never says it is
+- **Chat behaviour**: Turkish, casual, one short sentence (≈ 60, never > 100 chars; no "…" cuts), no markdown, never says it is
   an AI or model (the UI already marks bots). Plays to win for its real team: villagers reason and
   can be convinced by good arguments (and change their vote); evil bots bluff, deflect, defend
   team-mates subtly; all of them may ask questions of specific players. The prompt tells the bot
@@ -568,8 +572,11 @@ behaviour — a game never waits on the API.
 - **When a bot speaks**: (1) always when addressed by name (with or without the "Bot " prefix) —
   this bypasses crowd limits; (2) a few bots open each day; (3) up to two bots may react to a
   message addressed to nobody; (4) when voted for or accused; (5) bot-to-bot chains are short and
-  cooled down so bots never talk only among themselves at length. Human-like delays (2–6 s) and a
-  "yazıyor…" indicator.
+  cooled down so bots never talk only among themselves at length. Human-like pacing: a short
+  reading delay, then typing time proportional to the line (≈ 90–130 ms per character, 2.5–10 s,
+  model latency included) with a "yazıyor…" indicator; bot lines in a channel are queued and go out
+  one at a time, 3–5 s apart; stale non-direct lines are dropped, direct replies never (owner
+  feedback 2026-11-17, docs/AI-BOTS.md).
 - **Cost and safety rails**: small `max_tokens`, low effort, prompt caching of the static prefix
   where it qualifies, bounded concurrency, per-bot and per-game call caps, a global daily call cap
   from the environment, usage logging with a running cost estimate. Room setting `smartBots`

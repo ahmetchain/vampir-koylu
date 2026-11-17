@@ -7,6 +7,27 @@ import { TAU } from './constants.js';
 
 const NO_VIS = new Map();
 
+// Gece gösterisi zaman modeli (sn, m/sn). nightshow.js varış/ayrılış/eve dönüş zamanlarını gerçek yol uzunluğundan
+// bunlarla çıkarır; budgetWalk da aynı modelle adım hızını seçer (hedef: yürü / tempolu yürü, gerekirse kısa koşu).
+export const PACE = { walk: 2.8, brisk: 3.75, sneak: 2.4, sprint: 5.4 };   // character.js SPEEDS ile aynı
+export const EFF = 0.88;        // köşe dönüşü, hızlanma ve son noktada yavaşlama payı: ortalama hız ≈ EFF × adım hızı
+export const RUN_MAX = 7.6;     // sise "ışınlanmadan" önce denenecek en hızlı koşu (m/sn)
+export const DOOR_OUT = 1.1;    // içeride -> kapıyı aç -> kapı önündeki noktaya çık
+export const DOOR_IN = 1.15;    // kapı önünden -> kapıyı aç -> içeri gir
+// hata ayıklama: gösteride sise ışınlanma sayısı (hedef 0) ve en büyük gecikme (sn)
+function countTeleport(kind, info) {
+  if (typeof window === 'undefined') return;
+  if (info) { const l = window.__vkwTpLog || (window.__vkwTpLog = []); if (l.length < 20) l.push(kind + ' ' + info); }
+  if (kind === 'entry') window.__vkwEntryTeleports = (window.__vkwEntryTeleports || 0) + 1;
+  else if (kind === 'return') window.__vkwReturnVanish = (window.__vkwReturnVanish || 0) + 1;
+  else window.__vkwTeleports = (window.__vkwTeleports || 0) + 1;
+}
+function noteLate(s) {
+  if (typeof window === 'undefined') return;
+  if (!(s <= (window.__vkwShowLate || 0))) window.__vkwShowLate = +s.toFixed(2);
+}
+if (typeof window !== 'undefined') { window.__vkwTeleports = window.__vkwTeleports || 0; window.__vkwReturnVanish = window.__vkwReturnVanish || 0; window.__vkwShowLate = window.__vkwShowLate || 0; }
+
 export function createChoreo(world) {
   const goals = new Map(); // id -> key
   let lastPhase = null;
@@ -149,7 +170,9 @@ export function createChoreo(world) {
           const need = len / avail;
           const m2 = need < 2.4 ? 'walk' : need < 3.4 ? 'brisk' : 'sprint';
           if (need <= 5.0) steps.push({ walk: pts, mode: goal.mode || m2 });
+          else if (need <= RUN_MAX * EFF) steps.push({ walk: pts, mode: 'sprint', speed: Math.min(RUN_MAX, need / EFF) });
           else {
+            countTeleport('entry');
             // yolun başını koş, sonra sis bulutunda kaybol ve kapının önünde belir
             const runFor = Math.max(0.5, avail - 0.5) * 5.0;
             let acc = 0, p0 = start;
@@ -191,58 +214,92 @@ export function createChoreo(world) {
     return l;
   }
 
-  // Süreye sığan yürüyüş: yetişiyorsa yürü/koş, yetmiyorsa yolun başını koş, sisin içinde kaybolup varış
-  // noktasında (end) belir. Uzak evler 14 sn'lik gece gösterisine böyle sığar.
-  function budgetWalk(steps, start, pts, avail, end, face) {
+  // Süreye sığan yürüyüş: adım hızı gereken ortalama hıza göre seçilir (yürü < tempolu < koş < hızlı koşu).
+  // Yalnızca en hızlı koşu da yetmiyorsa (pratikte olmaz) yolun başını koşup sisin içinde varış noktasında (end)
+  // belirir; bu durum window.__vkwTeleports ile sayılır.
+  // ret: eve dönüş bacağı — süre yetmezse çok hızlı koşmak yerine yolun sonuna doğru sise karışıp evinin önünde
+  // belirir (kullanıcı tercihi: gidiş ve hedefteki an tam görünsün, dönüşün sonu kısalabilir); __vkwReturnVanish
+  function budgetWalk(steps, start, pts, avail, end, face, ret) {
     if (!pts.length) return;
     avail = Math.max(0.5, avail);
     const len = pathLen(start, pts);
     const need = len / avail;
-    if (need <= 5.0) { steps.push({ walk: pts, mode: need < 2.4 ? 'walk' : need < 3.4 ? 'brisk' : 'sprint' }); return; }
-    const runFor = Math.max(0.4, avail - 0.45) * 5.0;
+    if (need < PACE.walk * EFF * 0.94) { steps.push({ walk: pts, mode: 'walk' }); return; }
+    if (need < PACE.brisk * EFF * 0.95) { steps.push({ walk: pts, mode: 'brisk' }); return; }
+    if (need < PACE.sprint * EFF * 0.96) { steps.push({ walk: pts, mode: 'sprint' }); return; }
+    if (!ret && need <= RUN_MAX * EFF) { steps.push({ walk: pts, mode: 'sprint', speed: Math.min(RUN_MAX, need / EFF * 1.02) }); return; }
+    const runV = ret ? PACE.sprint : RUN_MAX;
+    countTeleport(ret ? 'return' : 'show', `len=${len.toFixed(1)} avail=${avail.toFixed(2)}`);
+    const runFor = Math.max(0.4, avail - 0.45) * runV * EFF;
     let acc = 0, p0 = start;
     const head = [];
     for (const q of pts) { const l = Math.hypot(q.x - p0.x, q.z - p0.z); if (acc + l > runFor) break; acc += l; head.push(q); p0 = q; }
-    if (head.length) steps.push({ walk: head, mode: 'sprint' });
+    if (head.length) steps.push({ walk: head, mode: 'sprint', speed: runV });
     steps.push({ call: (c) => { world.fx.emit('mist', c.pos.x, 0.6, c.pos.z, '#c9c2d3', 12); }, hide: true }, { wait: 0.2 },
       { at: end, face, snapFace: true, show: true, call: () => world.fx.emit('mist', end.x, 0.6, end.z, '#c9c2d3', 12) });
   }
 
-  // Gece gösterisi yolculuğu (§15.1): evden çık, hedef eve yürü; içeri gir, bekle, çık (ya da kilitli kapıdan dön,
-  // ya da gözcü gibi arka pencerede dur) ve evine dön. Zamanlar gösteri saatine göre (o.clock(), sn).
-  // o: { home, to, peek, bounced, clock, tArrive, tLeave, tHome, mode, onInside(c), onOut(c), knock }
-  function tripSteps(o) {
+  // Yolculuğun yolları: ev kapısı -> hedef (gözcüde arka pencereye son iki nokta sinsice: tail) ve dönüş.
+  function tripPaths(home, to, peek) {
     const V = world.village;
     const L = V.layout;
-    const aH = world.houseAnchors(o.home), hH = V.house(o.home);
-    const aT = world.houseAnchors(o.to), hT = V.house(o.to);
+    const aH = world.houseAnchors(home), hH = V.house(home);
+    const aT = world.houseAnchors(to), hT = V.house(to);
+    if (!L || !aH || !hH || !aT || !hT) return null;
+    const pts = detourObstacles(planPath(L, aH.approach, { house: aT, angle: hT.angle, peek: !!peek, halfWidth: hT.info.hx }, hH.angle), world.obstacles);
+    pts.shift();
+    let tail = [], end = aT.approach;
+    if (peek) {
+      tail = pts.splice(Math.max(0, pts.length - 2));
+      end = pts.length ? pts[pts.length - 1] : aH.approach;
+    }
+    const back = peek ? end : aT.approach;
+    const pts2 = detourObstacles(planPath(L, back, { house: aH, angle: hH.angle, halfWidth: hH.info.hx }, peek ? null : hT.angle), world.obstacles);
+    pts2.shift();
+    return { L, aH, hH, aT, hT, pts, tail, end, back, pts2 };
+  }
+
+  // Yol uzunlukları (m): out = kapı önünden hedefe (gözcüde sinsi kuyruk hariç), tail = sinsi kuyruk, back = dönüş.
+  // nightshow.js zamanları bunlardan çıkarır (sabit varış saatleri yok).
+  function tripRoute(home, to, peek) {
+    const P = tripPaths(home, to, peek);
+    if (!P) return null;
+    const out = pathLen(P.aH.approach, P.pts);
+    const tail = P.tail.length ? pathLen(P.pts.length ? P.pts[P.pts.length - 1] : P.aH.approach, P.tail) : 0;
+    return { out, tail, back: pathLen(P.back, P.pts2) };
+  }
+
+  // Gece gösterisi yolculuğu (§15.1): evden kapıdan çık, gerçek yoldan hedef eve yürü; içeri gir, bekle, çık (ya da
+  // kilitli kapıyı tıklatıp dön, ya da gözcü gibi arka pencerede dur) ve evine yürüyüp kapıdan gir. Zamanlar
+  // gösteri saatine göre (o.clock(), sn): tArrive = hedefin kapı önüne (gözcüde pencereye) varış, tLeave = çıkış
+  // (kilitli kapıda geri dönüş), tHome = evine girmiş olma. Her bacağın hızı yürüme anında kalan süreden seçilir.
+  // o: { home, to, peek, bounced, clock, delay, tArrive, tLeave, tHome, onInside(c), onOut(c), onBounce(c), onHome(c) }
+  function tripSteps(o) {
+    const P = tripPaths(o.home, o.to, o.peek);
     const steps = [];
-    if (!L || !aH || !hH || !aT || !hT) return steps;
+    if (!P) return steps;
+    const { aH, aT, pts, tail, end, back, pts2 } = P;
     const now = o.clock();
+    const late = (t) => ({ call: () => noteLate(o.clock() - t) });
     // 1) evden çık
     if (o.delay) steps.push({ wait: o.delay });
     steps.push({ at: aH.inside, face: aH.rotY, snapFace: true }, { call: () => door(o.home) }, { wait: 0.12 },
       { show: true, call: (c) => { c.inside = null; } }, { walk: [aH.approach], mode: 'brisk' });
     // 2) hedefe
-    const tgt = { house: aT, angle: hT.angle, peek: !!o.peek, halfWidth: hT.info.hx };
-    const pts = detourObstacles(planPath(L, aH.approach, tgt, hH.angle), world.obstacles);
-    pts.shift();
-    const outAvail = o.tArrive - now - (o.delay || 0) - 0.7;
-    let back = aT.approach;
+    const outAvail = o.tArrive - now - (o.delay || 0) - DOOR_OUT;
     if (o.peek) {
-      const tail = pts.splice(Math.max(0, pts.length - 2));
-      const end = pts.length ? pts[pts.length - 1] : aH.approach;
-      budgetWalk(steps, aH.approach, pts, outAvail - 0.9, end, Math.atan2((tail[0] || end).x - end.x, (tail[0] || end).z - end.z));
-      steps.push({ walk: tail, mode: 'sneak' }, { faceTo: aT.backWin }, { pose: 'peek', call: (c) => { c.peeking = o.to; } },
+      const tailT = pathLen(end, tail) / (PACE.sneak * EFF);
+      budgetWalk(steps, aH.approach, pts, outAvail - tailT, end, Math.atan2((tail[0] || end).x - end.x, (tail[0] || end).z - end.z));
+      steps.push({ walk: tail, mode: 'sneak' }, late(o.tArrive), { faceTo: aT.backWin }, { pose: 'peek', call: (c) => { c.peeking = o.to; } },
         { until: () => o.clock() >= o.tLeave }, { pose: 'idle', fade: 0.2, call: (c) => { c.peeking = null; } }, { walk: tail.slice(0, -1).reverse().concat([end]), mode: 'sneak' });
-      back = end;
     } else {
       budgetWalk(steps, aH.approach, pts, outAvail, aT.approach, Math.atan2(aT.door.x - aT.approach.x, aT.door.z - aT.approach.z));
-      steps.push({ faceTo: aT.door }, { wait: 0.05 });
+      steps.push(late(o.tArrive), { faceTo: aT.door }, { wait: 0.05 });
       if (o.bounced) {
         // kapı kilitli: açılmaz; tıklatır, bekler, geri döner
-        steps.push({ until: () => o.clock() >= o.tArrive - 0.3 }, { once: 'interact-right', opts: { timeScale: 1.2 } }, { wait: 0.35 },
-          { call: (c) => { world.fx.emit('poof', aT.door.x, 1.2, aT.door.z, '#9fb3d1', 5); if (o.onBounce) o.onBounce(c); } }, { once: 'emote-no', opts: { timeScale: 1.3 }, part: 0.7 });
+        steps.push({ once: 'interact-right', opts: { timeScale: 1.1 } }, { wait: 0.3 },
+          { call: (c) => { world.fx.emit('poof', aT.door.x, 1.2, aT.door.z, '#9fb3d1', 5); world.sfxThrottled('door', 0.25); if (o.onBounce) o.onBounce(c); } }, { once: 'emote-no', opts: { timeScale: 1.2 }, part: 0.75 });
+        if (o.tLeave != null) steps.push({ until: () => o.clock() >= o.tLeave });
       } else {
         steps.push({ call: () => door(o.to) }, { wait: 0.15 }, { walk: [aT.inside], mode: 'brisk' },
           { hide: true, call: (c) => { c.inside = o.to; litUntil.set(o.to, world.time + 5); if (o.onInside) o.onInside(c); } },
@@ -252,19 +309,26 @@ export function createChoreo(world) {
       }
     }
     // 3) eve dönüş (süre gösteri saatine göre yürüme anında hesaplanır: önceki adımlar gecikse de yetişir)
-    const pts2 = detourObstacles(planPath(L, back, { house: aH, angle: hH.angle, halfWidth: hH.info.hx }, o.peek ? null : hT.angle), world.obstacles);
-    pts2.shift();
     steps.push({
       call: (c) => {
         const rest = [];
-        budgetWalk(rest, back, pts2, o.tHome - o.clock() - 0.7, aH.approach, Math.atan2(aH.door.x - aH.approach.x, aH.door.z - aH.approach.z));
-        rest.push({ faceTo: aH.door }, { call: () => door(o.home) }, { wait: 0.12 }, { walk: [aH.inside], mode: 'brisk' },
+        budgetWalk(rest, back, pts2, o.tHome - o.clock() - DOOR_IN, aH.approach, Math.atan2(aH.door.x - aH.approach.x, aH.door.z - aH.approach.z), true);
+        rest.push(late(o.tHome - DOOR_IN), { faceTo: aH.door }, { call: () => door(o.home) }, { wait: 0.12 }, { walk: [aH.inside], mode: 'brisk' },
           { hide: true, call: (cc) => { cc.inside = o.home; if (o.onHome) o.onHome(cc); } });
         // kalan adımların başına ekle (bu adım bitince sıradakiler bunlar olur)
         c.steps.splice(1, 0, ...rest);
       },
     });
     return steps;
+  }
+
+  // Bir yol üzerinde (meydandaki bir noktadan bir evin kapısına) noktalar — kimliksiz gölgeler için
+  function pathTo(from, hid) {
+    const V = world.village;
+    const L = V.layout;
+    const a = world.houseAnchors(hid), h = V.house(hid);
+    if (!L || !a || !h) return null;
+    return detourObstacles(planPath(L, from, { house: a, angle: h.angle, halfWidth: h.info.hx }, null), world.obstacles);
   }
 
   // state'ten hedefleri hesapla
@@ -426,7 +490,7 @@ export function createChoreo(world) {
   }
 
   return {
-    apply, tick, tripSteps,
+    apply, tick, tripSteps, tripRoute, pathTo,
     lit(id, s) { litUntil.set(id, world.time + s); },
     reset() { goals.clear(); lastPhase = null; litUntil = new Map(); },
     forget(id) { goals.delete(id); goals.delete('g' + id); },

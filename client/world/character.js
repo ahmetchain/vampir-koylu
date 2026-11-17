@@ -196,7 +196,8 @@ export class Character {
   run(steps) { this.steps = steps.slice(); this.stepT = 0; this.path = null; this.stepStarted = false; }
   get busy() { return this.steps.length > 0; }
 
-  walkTo(points, mode = 'walk') { this.path = points.slice(); this.mode = mode; }
+  // speed: isteğe bağlı hız (m/sn) — gece gösterisi uzak yolları kesmeden (sise ışınlamadan) sığdırmak için koşu hızı
+  walkTo(points, mode = 'walk', speed = 0) { this.path = points.slice(); this.mode = mode; this.walkSpeed = speed || 0; }
 
   setVisible(v) {
     this.visible = v;
@@ -257,7 +258,7 @@ export class Character {
         this.bestD = null; this.stuckT = 0;
         if (!this.path.length) this.path = null;
       } else {
-        targetSpeed = SPEEDS[this.mode] || WALK_SPEED;
+        targetSpeed = this.walkSpeed || SPEEDS[this.mode] || WALK_SPEED;
         // son noktada yavaşla; ama hedef az önce güncellendiyse (sunucudan akan konum) yavaşlama, yoksa kesik kesik yürür
         if (last && !(this.retargetAt != null && this.world.time - this.retargetAt < 0.5)) targetSpeed = Math.min(targetSpeed, 0.9 + d * 3.2);
         // köşelerde sonraki noktaya doğru yumuşak dönüş
@@ -301,7 +302,7 @@ export class Character {
     }
     // yürüme hızına göre adım temposu (ayak kayması olmasın)
     if (this.actions.walk) this.actions.walk.timeScale = moving ? clamp(this.speed / STRIDE, 0.5, 1.9) * (this.base === 'sneak' ? 1.1 : 1) : 1;
-    if (this.actions.sprint) this.actions.sprint.timeScale = moving ? clamp(this.speed / 3.6, 0.6, 1.6) : 1;
+    if (this.actions.sprint) this.actions.sprint.timeScale = moving ? clamp(this.speed / 3.6, 0.6, 2.2) : 1;
     if (moving && this.isMe && this.visible && this.world.sfxStep) {
       this.stepPhase += dt * this.speed / 1.4;
       if (this.stepPhase > 1) { this.stepPhase -= 1; this.world.sfxStep(); }
@@ -389,7 +390,7 @@ export class Character {
       if (!this.stepStarted) {
         this.stepStarted = true;
         this.stepT = 0;
-        if (s.walk) { this.walkTo(s.walk, s.mode || 'walk'); this.faceYaw = null; this.restPose = null; if (this.base === 'sit' || this.base === 'peek' || this.base === 'cheer' || this.base === 'sad') this.setBase('idle', 0.2); }
+        if (s.walk) { this.walkTo(s.walk, s.mode || 'walk', s.speed); this.faceYaw = null; this.restPose = null; if (this.base === 'sit' || this.base === 'peek' || this.base === 'cheer' || this.base === 'sad') this.setBase('idle', 0.2); }
         if (s.at) { this.pos.x = s.at.x; this.pos.z = s.at.z; this.path = null; this.speed = 0; }
         if (s.face != null) this.faceYaw = s.face;
         if (s.faceTo) this.faceYaw = Math.atan2(s.faceTo.x - this.pos.x, s.faceTo.z - this.pos.z);
