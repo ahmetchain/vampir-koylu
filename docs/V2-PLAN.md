@@ -583,3 +583,36 @@ behaviour — a game never waits on the API.
   (default on when the server has a key); `room.aiAvailable` tells the UI whether the option
   exists. The lobby states that with smart bots on, chat messages and player names are sent to an
   AI service.
+
+## 18. Smart bots understand the rules (owner feedback 2026-11-17, after playing with them)
+
+Problems seen in play: bots did not know what a shown role means for the rest of the game, asked a
+claimed Doktor "what did you see?", treated yesterday's lines as today's, answered "who is the Kahin?"
+with "is it you?" and voted for the asker, questioned dead players, did not count roles in a 3-player
+endgame, accepted "the vampire came to my house and I survived" on a night when the vampires killed
+someone, and did not change their vote for a sound argument. Fixes (design binding, details in
+`docs/AI-BOTS.md`; every rule statement matches `game.js`):
+
+- **Turn data computed by code, from the bot's own seat only** (`viewFor`, chat delivered to its seat, its own
+  notes): one chronological `<timeline>` (night/day headers with the current one marked `(NOW)`, public
+  events in place, chat lines, the line being answered marked `>>`, speakers who are out tagged
+  `[OUT · shown Vampir · evil team]` / `[OUT · role hidden]`); `<players>` split into living and OUT;
+  `<facts>` with each night's public outcome (a night with a vampire death had exactly one vampire
+  attack; a quiet night lists its possible reasons, Tipi included), what the village lost with each shown
+  role (true caveats for Hırsız, İftiracı, hidden roles, Deli), the **roles still unaccounted for among the
+  living** (lobby `distribution` + `rolePool` minus own role, shown roles and, for evil bots, team-mates),
+  the evil count and how many wrong hangs the village can afford, earlier vote history, and the bot's own
+  nights. A new record is built for every game; lobby and end-screen chat never enter a game turn.
+- **Rules knowledge in the (cached, identical) system prompt** (≈ 7 K tokens): per role what it does, learns
+  and can never know; the private announce kinds; what each public outcome can and cannot mean; counting
+  roles by elimination; what to ask a claimed role and how to check a claim; an evidence scale (asking
+  questions, asking who the Kahin is, jokes, jobs are not evidence); voting rules; re-reading a player's
+  lines after his role is shown (including a broken claim: A claimed Gözcü, B is later shown as Gözcü →
+  A lied, or is evil, or is the Deli if Deli is possible); answering an accusation on the substance; no
+  pile-on votes; varied human-like talk; short Turkish bad → good examples.
+- **Decisions**: `think` (private scratchpad, written first) and a 700-character `memory` in the shape
+  `claims | results | suspects | trusted | my story`. Day votes: an optional early turn (about half the bots,
+  30–55 % of the day; an empty vote is normal), a binding turn for every bot at 78–86 % (best-supported
+  suspect or "uyu"), random fallback no earlier than 92 %.
+- **Dev harness** `scripts/ai-eval.js` (not used by the server): 20 scenarios on real `Room` objects with
+  automatic checks, `--selfplay`; see `docs/AI-BOTS.md`.

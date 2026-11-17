@@ -17,7 +17,7 @@ test('parseTurn: geçerli JSON temizlenir; bozuk çıktı null', () => {
   const ok = parseTurn(JSON.stringify({ say: '**Bence** `Ali`\nvampir!', vote: ' Bot Ayşe ', target: '', poison: '', memory: 'x'.repeat(900) }));
   assert.equal(ok.say, 'Bence Ali vampir!');
   assert.equal(ok.vote, 'Bot Ayşe');
-  assert.equal(ok.memory.length, 400);
+  assert.equal(ok.memory.length, 800);
   assert.equal(parseTurn('Tabii, işte cevabım'), null);
   assert.equal(parseTurn(''), null);
   assert.equal(parseTurn(JSON.stringify({ say: 5 })), null);
@@ -119,7 +119,7 @@ test('istek: Haiku, düşük efor, küçük max_tokens, JSON şeması, önbellek
   assert.equal(res.data.target, 'Ali');
   const p = tr.calls[0].params;
   assert.equal(p.model, 'claude-haiku-5-5');
-  assert.equal(p.max_tokens, 1024);
+  assert.equal(p.max_tokens, 1536);
   assert.deepEqual(p.output_config.effort, 'low');
   assert.equal(p.output_config.format.type, 'json_schema');
   assert.equal(p.output_config.format.schema.additionalProperties, false);

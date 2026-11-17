@@ -36,10 +36,26 @@ async function playOut(t, room, ev, { maxMs = 30 * 60 * 1000, humanLines = [], r
 
 // ---------- bilgi sınırı ----------
 
-// Her istem, kurulduğu anda: (a) oyuncu listesindeki roller tam olarak botun görünümündeki roller;
-// sohbet dışı satırlarda bilinmeyen bir oyuncunun gerçek rolü adıyla birlikte geçmez, (b) kötü takımın
-// gece bilgisi yalnızca kötü takıma, (c) başka oyuncuların özel notları (kahin/gözcü sonuçları…) asla,
-// (d) sohbet bloğunda yalnızca bu koltuğa gerçekten gelen mesajlar.
+// Her istem, kurulduğu anda: (a) oyuncu listesindeki roller tam olarak botun görünümündeki roller ve doğru
+// listede (yaşayan / dışarıda); sohbet dışı satırlarda bilinmeyen bir oyuncunun gerçek rolü adıyla birlikte
+// geçmez, (b) kötü takımın gece bilgisi yalnızca kötü takıma, (c) başka oyuncuların özel notları
+// (kahin/gözcü sonuçları…) asla, (d) zaman çizelgesinde yalnızca bu koltuğa gerçekten gelen mesajlar.
+// Sabit ifadeler ("framed by the İftiracı" gibi) ve oy listeleri (kimin kime oy verdiği herkese açık) rol
+// kontrolünden önce ayıklanır; botun kendi geceleri (özel) ayrı denetlenir.
+const STATIC_PHRASES = [
+  /framed by the İftiracı/g, /the Temizlikçi cleaned/g, /the Hırsız/g, /killed by the vampires/g, /by the vampires/g,
+  /by the Avcı/g, /by the Cadı/g, /one vampire victim/gi, /\(or Köylü\)/g, /the Avcı \(announced\)/g, /the Avcı is gone/g,
+  /the Soytarı/g, /İftiracı or Temizlikçi/g, /Hırsız died before it stole/g,
+];
+function scrubLine(line) {
+  let l = line;
+  l = l.replace(/ by [^→·\n]*?(?= →| ·|$)/g, ' by (voters)');   // asılanın oyları: "hanged with 3 votes by A, B"
+  l = l.replace(/ ← [^|\n]*/g, ' ← (voters)');                   // oy listeleri
+  l = l.replace(/(?:no vote|uyu): [^|\n]*/g, '');
+  for (const re of STATIC_PHRASES) l = l.replace(re, '');
+  return l;
+}
+
 function auditPrompt(room, ev, botId, user, problems) {
   const view = room.viewFor(botId);
   const me = room.players.get(botId);
@@ -50,32 +66,39 @@ function auditPrompt(room, ev, botId, user, problems) {
     if (p.role === 'avci' && !known.get(p.id) && room.log.some((l) => l.text.startsWith(`${p.name} bir avcıydı`))) known.set(p.id, 'avci');
   }
   const playersBlock = section(user, 'players').split('\n');
+  const outAt = playersBlock.findIndex((l) => l.startsWith('OUT of the game'));
   for (const p of room.players.values()) {
     const line = playersBlock.find((l) => l.startsWith(`- ${p.name}${p.id === botId ? ' (you)' : ''}${p.bot ? ' [bot]' : ''} ·`) || l.startsWith(`- ${p.name} `));
     if (!line) { problems.push(`${where}: ${p.name} listede yok`); continue; }
     const shown = (line.match(/role: (.+)$/) || [])[1];
     const want = view.players.find((x) => x.id === p.id).role ? ROLE_LABEL[view.players.find((x) => x.id === p.id).role] : '?';
     if (shown !== want) problems.push(`${where}: ${p.name} rolü "${shown}" gösterildi, görünümde "${want}"`);
+    if ((playersBlock.indexOf(line) < outAt) !== (p.alive && !p.left)) problems.push(`${where}: ${p.name} yanlış listede (yaşayan/ölü)`);
   }
-  // Sohbet ve özel notlar dışındaki satırlar (oyuncular, gece, oylar, günlük, görev, ben).
-  const outside = user.replace(/<chat>[\s\S]*?<\/chat>/, '').replace(/<private_notes>[\s\S]*?<\/private_notes>/, '')
-    .replace(/<memory>[\s\S]*?<\/memory>/, '')
-    .replace(/ said: "[^"\n]*"/g, ' said: (sohbet)')   // görevdeki alıntı da sohbettir (yukarıda ayrıca denetlenir)
-    .split('\n');
+  // Sohbet ve özel bölümler (kendi geceleri, hafıza) dışındaki satırlar.
+  const factsText = section(user, 'facts');
+  const ownIdx = factsText.indexOf('Your own nights');
+  const factsPublic = ownIdx >= 0 ? factsText.slice(0, ownIdx) : factsText;
+  const timeline = section(user, 'timeline').split('\n');
+  const chatRe = /^(?:>> )?(?:\[(\w+)\] )?(.*?)( \(you\)| \[OUT[^\]]*\])?: (.*)$/;
+  const isEvent = (l) => /^(\* |== |\(… )/.test(l);
+  const outside = [
+    section(user, 'me'), section(user, 'game'), section(user, 'players'), factsPublic, section(user, 'votes'), section(user, 'night'),
+    ...timeline.filter(isEvent),
+  ].join('\n').split('\n').map(scrubLine);
   for (const p of room.players.values()) {
     if (p.id === botId || !p.role || known.get(p.id) === p.role) continue;
     const lbl = ROLE_LABEL[p.role].toLocaleLowerCase('tr');
     for (const l of outside) {
       const low = l.toLocaleLowerCase('tr');
       // "Bot Ali" ile "Bot Ali 2" karışmasın: ad tam kelime olarak.
-      if (new RegExp(`(^|[^\\p{L}])${p.name.toLocaleLowerCase('tr')}([^\\p{L}0-9]|$)`, 'u').test(low) && low.includes(lbl)
-        && !/^- \d+\. gece .* vampir tarafından öldürüldü/.test(low)) {
+      if (new RegExp(`(^|[^\\p{L}])${p.name.toLocaleLowerCase('tr')}([^\\p{L}0-9]|$)`, 'u').test(low) && low.includes(lbl) && !/role: \?$/.test(l)) {
         problems.push(`${where}: ${p.name} gizli rolü ${p.role} satırda: ${l}`);
       }
     }
   }
   if (!isEvil(view.me.role)) {
-    for (const w of ['Team target', 'İftiracı frames', 'Temizlikçi cleans', 'Living vampires', 'evil team-mates']) {
+    for (const w of ['Team target', 'İftiracı frames', 'Temizlikçi cleans', 'Living vampires', 'evil team-mates', 'team victim', 'your team-mate']) {
       if (user.includes(w)) problems.push(`${where}: kötü takım bilgisi: ${w}`);
     }
   }
@@ -87,12 +110,12 @@ function auditPrompt(room, ev, botId, user, problems) {
     }
   }
   const received = new Set(ev.chats.filter((c) => c.recipients.includes(botId)).map((c) => `${c.message.from}: ${c.message.text}`));
-  for (const l of section(user, 'chat').split('\n')) {
-    if (l === '(no messages yet)') continue;
-    const m = l.match(/^(?:>> )?\[(\w+)\] (.*?)( \(you\))?: (.*)$/);
+  for (const l of timeline) {
+    if (isEvent(l)) continue;
+    const m = l.match(chatRe);
     if (!m || !received.has(`${m[2]}: ${m[4]}`)) problems.push(`${where}: koltuğa gelmeyen sohbet: ${l}`);
   }
-  // Deli kendini inandığı rolle bilir: rolü açılmadıkça istemde "Deli" geçmez.
+  // Deli kendini inandığı rolle bilir: rolü açılmadıkça oyuncu listesinde ve kendi bölümünde "Deli" geçmez.
   if (me.role === 'deli' && view.me.role !== 'deli' && /\bDeli\b/.test(section(user, 'me') + section(user, 'players'))) problems.push(`${where}: deli olduğunu öğrendi`);
 }
 
@@ -181,7 +204,7 @@ test('ikna: köylü bot iyi bir argümanla oyunu değiştirir; oylar gün boyunc
   const decide = ({ user, out }) => {
     if (!section(user, 'votes')) return;
     // Sahte model: sohbette "kanıt" varsa o kişiye, yoksa ilk düşündüğü kişiye oy verir.
-    const m = section(user, 'chat').match(/kanıtım var: ([^.]+)\./);
+    const m = section(user, 'timeline').match(/kanıtım var: ([^.]+)\./);
     out.vote = (m ? m[1] : first) || '';
   };
   const client = makeClient(mockTransport({ seed: 'ikna', latency: 600, decide, spare: 'İrem' }));
@@ -192,7 +215,7 @@ test('ikna: köylü bot iyi bir argümanla oyunu değiştirir; oylar gün boyunc
   const pool = alive.filter((p) => p.id !== bot.id && p.id !== 'h1');
   first = pool[0].name;
   suspect = pool[1];
-  await advance(t, 200 * 1000 * 0.6);
+  await advance(t, 200 * 1000 * 0.9);
   assert.equal(room.dayVotes.get(bot.id), pool[0].id, 'önce ilk şüphelisine oy verdi');
   humanSay(room, ev, 'h1', `${bot.name} bak kanıtım var: ${suspect.name}.`);
   await advance(t, 9000);
