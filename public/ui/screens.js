@@ -4,7 +4,7 @@ import { ctx, send, on, emitLocal } from './ctx.js';
 import { Api, auth } from './api.js';
 import { openSheet, promptBox, toast, confirmBox } from './kit.js';
 import { $, $$, esc, sfx, store, session } from './util.js';
-import { icon, emblem, logoMark } from './icons.js';
+import { icon, emblem, logoMark, roleIcon } from './icons.js';
 import { ROLES, ROLE_LIST, COLORS, inkOn, levelOf, checkUsername, checkPassword, TEAM_NAME, EVENTS, EVENTS_UI, ROLE_GROUPS, ROLE_GUIDE } from './data.js';
 import { preview, W, prefers2D, setPrefers2D, isFallback } from './world-host.js';
 import { openLookEditor } from './look.js';
@@ -17,27 +17,153 @@ export function fillLogos(root = document) {
 }
 
 // ======================= GİRİŞ / KAYIT =======================
+// Alanlar yazarken değil, bir kez dokunulup bırakıldıktan (ya da gönderildikten) sonra uyarır;
+// sunucu hataları formun altında okunur bir kutuda, ilgili alan da kırmızı işaretlenir.
+const LAST_USER_KEY = 'vk.lastUser';
+const USER_IC = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c.8-3.9 3.8-6 7.5-6s6.7 2.1 7.5 6"/></svg>';
+const AUTH_TEXT = {
+  login: { h: 'Tekrar hoş geldin', sub: 'Köy seni bekliyor. Kaldığın yerden devam et.', submit: 'Giriş Yap', busy: 'Giriş yapılıyor…',
+    sw: 'Hesabın yok mu? <button type="button" class="link" data-mode="register">Hemen kayıt ol</button>' },
+  register: { h: 'Köye katıl', sub: 'Bir ad seç, şifreni belirle. Hepsi bu kadar.', submit: 'Hesap Oluştur', busy: 'Hesap oluşturuluyor…',
+    sw: 'Zaten hesabın var mı? <button type="button" class="link" data-mode="login">Giriş yap</button>' },
+};
+const finePointer = () => !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches);
+
 let authMode = 'login';
-export function initAuth(onLoggedIn) {
-  $('#auth-eye').innerHTML = icon('eye');
-  const setMode = (m) => {
-    authMode = m;
-    $$('#screen-auth .seg-btn').forEach((b) => { b.classList.toggle('on', b.dataset.mode === m); b.setAttribute('aria-selected', String(b.dataset.mode === m)); });
-    const reg = m === 'register';
-    $('#auth-pass2-wrap').hidden = !reg;
-    $('#auth-user-hint').hidden = !reg;
-    $('#auth-pass').autocomplete = reg ? 'new-password' : 'current-password';
-    $('#auth-submit').textContent = reg ? 'Hesap Oluştur' : 'Giriş Yap';
-    $('#auth-switch').innerHTML = reg
-      ? 'Zaten hesabın var mı? <button type="button" class="link" data-mode="login">Giriş yap</button>'
-      : 'Hesabın yok mu? <button type="button" class="link" data-mode="register">Hemen kayıt ol</button>';
-    $('#auth-error').textContent = '';
-    $$('#auth-form .input').forEach((i) => i.removeAttribute('aria-invalid'));
-  };
-  $('#screen-auth').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-mode]');
-    if (b) { sfx('click'); setMode(b.dataset.mode); }
+let authBusy = false;
+const touched = new Set();
+
+function fieldEl(f) { return $(`#auth-form .af-field[data-f="${f}"]`); }
+function setFieldMsg(f, state, text) {
+  const wrap = fieldEl(f);
+  const input = wrap.querySelector('.af-input');
+  const msg = wrap.querySelector('.af-msg');
+  if (state) wrap.dataset.state = state; else delete wrap.dataset.state;
+  if (state === 'error') input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
+  const ic = state === 'error' ? icon('info') : state === 'ok' ? icon('check') : '';
+  msg.innerHTML = text ? `${ic}<span>${esc(text)}</span>` : '';
+}
+
+// Tek bir alanı doğrular; hata metnini (ya da null) döner. show=false ise sadece sonucu verir.
+function validateField(f, show = true) {
+  const reg = authMode === 'register';
+  let err = null; let ok = null; let hint = null;
+  if (f === 'user') {
+    const raw = $('#auth-user').value;
+    const u = checkUsername(raw);
+    if (!u.v) err = reg ? 'Bir kullanıcı adı seç.' : 'Kullanıcı adını yaz.';
+    else if (u.error) err = u.error;
+    if (reg) {
+      const c = $('#auth-user-count');
+      c.textContent = `${u.v.length}/16`;
+      hint = '3–16 karakter: harf, rakam, boşluk ve _ - . olabilir.';
+    }
+  } else if (f === 'pass') {
+    const v = $('#auth-pass').value;
+    if (!v) err = reg ? 'Bir şifre belirle.' : 'Şifreni yaz.';
+    else if (reg) err = checkPassword(v);
+    if (reg) hint = 'En az 6 karakter.';
+    if (reg && !err) ok = 'Şifre uygun.';
+  } else if (f === 'pass2') {
+    if (!reg) return null;
+    const a = $('#auth-pass').value; const b = $('#auth-pass2').value;
+    if (!b) err = 'Şifreni bir kez daha yaz.';
+    else if (a !== b) err = 'Şifreler aynı değil.';
+    else ok = 'Şifreler eşleşiyor.';
+  }
+  if (show) {
+    if (err && touched.has(f)) setFieldMsg(f, 'error', err);
+    else if (!err && ok && touched.has(f)) setFieldMsg(f, 'ok', ok);
+    else setFieldMsg(f, null, hint);
+  }
+  return err;
+}
+function visibleFields() { return authMode === 'register' ? ['user', 'pass', 'pass2'] : ['user', 'pass']; }
+function setAuthAlert(html) { $('#auth-error').innerHTML = html ? `${icon('info')}<span>${html}</span>` : ''; }
+
+function setAuthMode(m, { focus = false } = {}) {
+  authMode = m;
+  const reg = m === 'register';
+  const t = AUTH_TEXT[m];
+  $('.auth-seg').dataset.mode = m;
+  $$('#screen-auth .auth-tab').forEach((b) => {
+    const on = b.dataset.mode === m;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+    b.tabIndex = on ? 0 : -1;
   });
+  $('#auth-form').setAttribute('aria-labelledby', `auth-tab-${m}`);
+  $('#auth-pass2-wrap').hidden = !reg;
+  $('#auth-pass2').disabled = !reg;
+  $('#auth-user-count').hidden = !reg;
+  $('#auth-pass').autocomplete = reg ? 'new-password' : 'current-password';
+  $('#auth-pass').placeholder = reg ? 'En az 6 karakter' : 'Şifren';
+  $('#auth-pass').enterKeyHint = reg ? 'next' : 'go';
+  $('#auth-h').textContent = t.h;
+  $('#auth-sub').textContent = t.sub;
+  $('#auth-submit .as-label').textContent = t.submit;
+  $('#auth-switch').innerHTML = t.sw;
+  // Kayda geçerken hatırlanan (kendi) adını öneride bırakma: yeni hesap için yeni ad gerekir.
+  const last = store.get(LAST_USER_KEY);
+  if (reg && last && $('#auth-user').value === last) $('#auth-user').value = '';
+  if (!reg && !$('#auth-user').value && last) $('#auth-user').value = last;
+  $('#auth-pass2').value = '';
+  touched.clear();
+  setAuthAlert('');
+  ['user', 'pass', 'pass2'].forEach((f) => validateField(f));
+  if (focus) focusFirstAuthField();
+}
+
+function focusFirstAuthField() {
+  const u = $('#auth-user');
+  const target = u.value && authMode === 'login' ? $('#auth-pass') : u;
+  try { target.focus({ preventScroll: true }); } catch { target.focus(); }
+}
+
+// Telefonda klavye açılınca: odaktaki alanla birlikte "gönder" düğmesi de görünsün.
+function keepSubmitVisible() {
+  const scr = $('#screen-auth');
+  if (scr.hidden) return;
+  const a = document.activeElement;
+  if (!a || !a.closest || !a.closest('#auth-form')) return;
+  const box = scr.getBoundingClientRect();
+  const field = (a.closest('.af-field') || a).getBoundingClientRect();
+  const btn = $('#auth-submit').getBoundingClientRect();
+  const pad = 12;
+  if (btn.bottom + pad > box.bottom && btn.bottom - field.top + pad * 2 <= box.height) {
+    scr.scrollBy({ top: btn.bottom + pad - box.bottom, behavior: 'auto' });
+  } else if (field.top < box.top + pad) {
+    scr.scrollBy({ top: field.top - box.top - pad, behavior: 'auto' });
+  }
+}
+
+export function initAuth(onLoggedIn) {
+  $$('#screen-auth [data-ic]').forEach((el) => {
+    const n = el.dataset.ic;
+    el.innerHTML = n === 'user' ? USER_IC : n === 'vampir' ? roleIcon('vampir') : icon(n);
+  });
+  $('#auth-eye').innerHTML = icon('eye');
+  const scr = $('#screen-auth');
+
+  scr.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-mode]');
+    if (b && !authBusy) {
+      sfx('click');
+      if (b.dataset.mode !== authMode) setAuthMode(b.dataset.mode, { focus: finePointer() || !b.classList.contains('auth-tab') });
+      return;
+    }
+    if (e.target.closest('[data-howto]')) { sfx('click'); openHowto(); }
+  });
+  // Sekmeler arasında ok tuşlarıyla geçiş (WAI-ARIA sekme kalıbı).
+  $('.auth-seg').addEventListener('keydown', (e) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key) || authBusy) return;
+    e.preventDefault();
+    const next = authMode === 'login' ? 'register' : 'login';
+    const m = e.key === 'Home' ? 'login' : e.key === 'End' ? 'register' : next;
+    if (m !== authMode) setAuthMode(m);
+    $(`#auth-tab-${m}`).focus();
+  });
+
   $('#auth-eye').addEventListener('click', () => {
     const p = $('#auth-pass');
     const show = p.type === 'password';
@@ -45,48 +171,131 @@ export function initAuth(onLoggedIn) {
     $('#auth-pass2').type = p.type;
     $('#auth-eye').innerHTML = icon(show ? 'eyeOff' : 'eye');
     $('#auth-eye').setAttribute('aria-label', show ? 'Şifreyi gizle' : 'Şifreyi göster');
+    $('#auth-eye').setAttribute('aria-pressed', String(show));
   });
+
+  const map = { 'auth-user': 'user', 'auth-pass': 'pass', 'auth-pass2': 'pass2' };
+  Object.entries(map).forEach(([id, f]) => {
+    const el = $(`#${id}`);
+    el.addEventListener('input', () => {
+      if ($('#auth-error').innerHTML) setAuthAlert('');
+      validateField(f);
+      if (f === 'pass' && touched.has('pass2')) validateField('pass2');
+      // "Şifreler eşleşiyor" onayı, ikinci şifre ilkinin uzunluğuna ulaşınca hemen görünsün.
+      if (f === 'pass2' && el.value.length >= $('#auth-pass').value.length) { touched.add('pass2'); validateField('pass2'); }
+    });
+    el.addEventListener('blur', () => {
+      if (authBusy) return;
+      if (el.value) touched.add(f);
+      validateField(f);
+    });
+  });
+  // Caps Lock uyarısı (şifre alanlarında).
+  const caps = (e) => { if (e.getModifierState) $('#auth-caps').hidden = !e.getModifierState('CapsLock'); };
+  ['#auth-pass', '#auth-pass2'].forEach((s) => { $(s).addEventListener('keyup', caps); $(s).addEventListener('keydown', caps); });
+  $('#auth-pass').addEventListener('blur', () => { $('#auth-caps').hidden = true; });
+
+  // Enter: sonraki alan boşsa ona geç, değilse gönder.
+  $('#auth-form').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing || !e.target.classList.contains('af-input')) return;
+    const fields = visibleFields().map((f) => fieldEl(f).querySelector('.af-input'));
+    const i = fields.indexOf(e.target);
+    const next = fields[i + 1];
+    if (next && !next.value) { e.preventDefault(); next.focus(); }
+  });
+
+  scr.addEventListener('focusin', () => setTimeout(keepSubmitVisible, 320));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', () => setTimeout(keepSubmitVisible, 60));
+
   $('#auth-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const err = $('#auth-error');
-    const userEl = $('#auth-user'); const passEl = $('#auth-pass');
-    $$('#auth-form .input').forEach((i) => i.removeAttribute('aria-invalid'));
-    err.textContent = '';
-    const u = checkUsername(userEl.value);
-    if (authMode === 'register' && u.error) { err.textContent = u.error; userEl.setAttribute('aria-invalid', 'true'); userEl.focus(); return; }
-    if (authMode === 'login' && !u.v) { err.textContent = 'Kullanıcı adını yaz.'; userEl.setAttribute('aria-invalid', 'true'); userEl.focus(); return; }
-    const pe = checkPassword(passEl.value);
-    if (authMode === 'register' && pe) { err.textContent = pe; passEl.setAttribute('aria-invalid', 'true'); passEl.focus(); return; }
-    if (authMode === 'login' && !passEl.value) { err.textContent = 'Şifreni yaz.'; passEl.setAttribute('aria-invalid', 'true'); passEl.focus(); return; }
-    if (authMode === 'register' && passEl.value !== $('#auth-pass2').value) {
-      err.textContent = 'Şifreler aynı değil.'; $('#auth-pass2').setAttribute('aria-invalid', 'true'); $('#auth-pass2').focus(); return;
+    if (authBusy) return;
+    setAuthAlert('');
+    const fields = visibleFields();
+    fields.forEach((f) => touched.add(f));
+    const bad = fields.filter((f) => validateField(f));
+    if (bad.length) {
+      fieldEl(bad[0]).querySelector('.af-input').focus();
+      sfx('error');
+      return;
     }
+    const mode = authMode;
+    const userEl = $('#auth-user'); const passEl = $('#auth-pass');
+    const name = checkUsername(userEl.value).v;
     const btn = $('#auth-submit');
-    btn.disabled = true;
+    authBusy = true;
+    btn.classList.add('is-busy');
+    btn.setAttribute('aria-disabled', 'true');
+    $('#auth-form').setAttribute('aria-busy', 'true');
+    $('#auth-submit .as-label').textContent = AUTH_TEXT[mode].busy;
+    $$('#auth-form .af-input').forEach((i) => { i.readOnly = true; });
     try {
-      const res = authMode === 'register' ? await Api.register(u.v, passEl.value) : await Api.login(u.v, passEl.value);
+      const res = mode === 'register' ? await Api.register(name, passEl.value) : await Api.login(name, passEl.value);
       auth.token = res.token;
       ctx.user = res.user;
+      store.set(LAST_USER_KEY, res.user.username);
       passEl.value = ''; $('#auth-pass2').value = '';
+      touched.clear();
+      ['user', 'pass', 'pass2'].forEach((f) => setFieldMsg(f, null, ''));
       sfx('join');
-      if (authMode === 'register') toast(`Hoş geldin ${res.user.username}! Köye yeni bir yüz katıldı.`, 'ok');
+      if (mode === 'register') toast(`Hoş geldin ${res.user.username}! Köye yeni bir yüz katıldı.`, 'ok');
       onLoggedIn();
     } catch (ex) {
-      err.textContent = ex.message;
-      if (ex.code === 'username_taken' || ex.code === 'invalid_username') userEl.setAttribute('aria-invalid', 'true');
-      if (ex.code === 'invalid_password' || ex.code === 'wrong_credentials') passEl.setAttribute('aria-invalid', 'true');
+      showAuthError(ex);
     } finally {
-      btn.disabled = false;
+      authBusy = false;
+      btn.classList.remove('is-busy');
+      btn.removeAttribute('aria-disabled');
+      $('#auth-form').removeAttribute('aria-busy');
+      $('#auth-submit .as-label').textContent = AUTH_TEXT[authMode].submit;
+      $$('#auth-form .af-input').forEach((i) => { i.readOnly = false; });
     }
   });
-  setMode('login');
+
+  setAuthMode('login');
 }
 
+function showAuthError(ex) {
+  const code = ex && ex.code;
+  const msg = esc((ex && ex.message) || 'Bir şeyler ters gitti, tekrar dene.');
+  sfx('error');
+  if (code === 'username_taken') {
+    setFieldMsg('user', 'error', 'Bu ad alınmış.');
+    setAuthAlert(`${msg} Bu ad senin mi? <button type="button" class="link" data-mode="login">Giriş yap</button>`);
+    $('#auth-user').focus();
+    $('#auth-user').select();
+  } else if (code === 'invalid_username') {
+    setFieldMsg('user', 'error', ex.message);
+    $('#auth-user').focus();
+  } else if (code === 'invalid_password') {
+    setFieldMsg('pass', 'error', ex.message);
+    $('#auth-pass').focus();
+  } else if (code === 'wrong_credentials') {
+    setFieldMsg('pass', 'error', 'Şifreyi kontrol et.');
+    setAuthAlert(`${msg} Hesabın yoksa <button type="button" class="link" data-mode="register">kayıt ol</button>.`);
+    $('#auth-pass').focus();
+    $('#auth-pass').select();
+  } else {
+    setAuthAlert(msg);
+  }
+}
+
+// Giriş ekranı her açıldığında: davet bandı, son kullanıcı adı ve (fareli cihazlarda) ilk alana odak.
 export function renderAuthInvite() {
   const inv = session.get('vk.invite');
   const el = $('#auth-invite');
   el.hidden = !inv;
-  if (inv) el.innerHTML = `${icon('link')}<span><b>${esc(inv)}</b> odasına davet edildin. Giriş yap ya da kayıt ol, seni doğrudan odaya götürelim.</span>`;
+  if (inv) {
+    el.innerHTML = `<span class="ai-ic">${icon('link')}</span><span><b><code>${esc(inv)}</code> odasına davet edildin</b>`
+      + '<small>Giriş yap ya da kayıt ol, seni doğrudan odaya götürelim.</small></span>';
+  }
+  // Bu cihazda daha önce giriş yapılmışsa giriş sekmesi (ad hazır), davetle gelen yeni biri için kayıt sekmesi.
+  const last = store.get(LAST_USER_KEY);
+  if (last) $('#auth-user').value = last;
+  $('#auth-pass').value = '';
+  setAuthMode(last ? 'login' : inv ? 'register' : authMode);
+  $('#screen-auth').scrollTop = 0;
+  if (finePointer()) requestAnimationFrame(focusFirstAuthField);
 }
 
 // ======================= ANA MENÜ =======================
