@@ -181,7 +181,7 @@ test('giriş fanfarı: sahip hesap ilk girişte bir kez; başkası girince, yeni
   assert.equal(own.entrances.length, 1);
   assert.equal(own.entrances[0].manual, true);
   assert.match(own.room.playEntrance('h0'), /bekle/, 'çalarken ikinci basış reddedilir');
-  tick(t, 30000);
+  tick(t, 32000);
   const first = mc(own.chats.slice(n0));
   assert.ok(first.length >= 2 && first.length <= 3, `tepki ${first.length}`);
   const n1 = own.chats.length;
@@ -210,6 +210,25 @@ test('giriş fanfarı: sahip hesap ilk girişte bir kez; başkası girince, yeni
   other.room.start('h1');
   assert.match(other.room.playEntrance('h1'), /lobide/);
   other.room.destroy();
+  // Müziği kapatma: sahibin "tamam artık kapatabiliriz" yazısı; çalmıyorsa ya da başkası yazarsa işlemez.
+  const stops = [];
+  const off = setup({ humans: ['ahmetchain', 'burak'], bots: 4, seed: 'kapat' });
+  off.room.hooks.entranceStop = () => stops.push(Date.now());
+  off.say('h0', 'tamam artık kapatabiliriz');
+  assert.equal(stops.length, 0, 'müzik çalmıyorken kapatma işlemez');
+  off.room.playEntrance('h0');
+  tick(t, 5000);
+  off.say('h1', 'tamam artık kapatabiliriz');
+  assert.equal(stops.length, 0, 'başkasının yazdığı işlemez');
+  const m0 = off.chats.length;
+  off.say('h0', 'Tamam artık kapatabiliriz');
+  assert.equal(stops.length, 1, 'sahibin komutu müziği kapatır');
+  tick(t, 10000);
+  assert.ok(texts(off.chats.slice(m0)).length >= 1, 'bir bot kapattık der');
+  off.say('h0', 'tamam artık kapatabiliriz');
+  assert.equal(stops.length, 1, 'ikinci kez kapatılmaz');
+  assert.equal(off.room.playEntrance('h0'), null, 'kapatıldıktan sonra yeniden çaldırılabilir');
+  off.room.destroy();
   // Oyun başladıktan sonra sohbetten komut da işlemez.
   const inGame = setup({ humans: ['ahmetchain', 'burak'], bots: 4, seed: 'oyunda' });
   inGame.room.start('h0');

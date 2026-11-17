@@ -672,6 +672,14 @@ class Room {
     return err;
   }
 
+  // Oda sahibi hesap müziği kapattı (düğme ya da sohbet komutu).
+  stopEntrance(byId) {
+    if (!this.isOwnerPlayer(byId)) return 'Bu düğmeyi sen kullanamazsın.';
+    let err = null;
+    this.banterDo((b) => { err = b.stopMusic(byId); });
+    return err;
+  }
+
   // Sahip hesabın (lib/banter.js) odadaki koltuğu mu: güçlü bot zekâsı ayarını yalnızca o seçebilir.
   isOwnerPlayer(id) {
     const p = this.players.get(id);

@@ -78,7 +78,7 @@
     whoosh:  { files: takes('whoosh', 2), vol: 0.6,  pitch: 0.08, max: 3, gap: 60, prio: 2 },
     bell:    { files: takes('bell', 1),   vol: 0.8,  max: 1, gap: 600, duck: 0.7, prio: 2 },
     // oda sahibi hesabı odaya girince çalan özgün, 10 sn'lik güreş girişi tarzı tören müziği
-    entrance: { files: takes('entrance', 1), vol: 0.95, max: 1, gap: 25000, duck: 0.2, prio: 3 }
+    entrance: { files: takes('entrance', 1), vol: 0.95, max: 1, gap: 31000, duck: 0.2, prio: 3, fade: 3 }
   };
   // gece rastgele baykuş (iç efekt, genel sfx listesinde değil)
   var OWL = { files: ['sfx/owl.mp3'] };
@@ -429,6 +429,14 @@
         voices.push(v);
         s.onended = function () { remove(v); };
         s.start(0);
+        // Uzun parçalar sonda yavaşça kısılır (def.fade sn): ani kesilme olmasın.
+        if (def.fade) {
+          var dur = buf.duration / (s.playbackRate.value || 1), t0 = ctx.currentTime;
+          if (dur > def.fade) {
+            g.gain.setValueAtTime(vol, t0 + dur - def.fade);
+            g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+          }
+        }
         stats.sfxPlayed++; stats.lastSfx = name;
         if (def.duck) duck(def.duck, buf.duration / (s.playbackRate.value || 1));
       } catch (e) { logErr('sfx ' + name, e); }
@@ -510,6 +518,22 @@
         if (v <= 0) return;
         play(def, name, def.vol * v, nodes.sfx, def.pitch || 0, false);
       } catch (e) { logErr('sfx', e); }
+    },
+    // Çalan bir efekti yumuşakça kapatır (varsayılan 1,5 sn'de azalır), örn. VKAudio.stopSfx('entrance').
+    stopSfx: function (name, fade) {
+      try {
+        if (!ctx) return;
+        var f = fade != null ? Math.max(0.05, Number(fade) || 1.5) : 1.5, t = ctx.currentTime;
+        voices.filter(function (v) { return v.name === name; }).forEach(function (v) {
+          try {
+            v.gain.gain.cancelScheduledValues(t);
+            v.gain.gain.setValueAtTime(v.gain.gain.value, t);
+            v.gain.gain.linearRampToValueAtTime(0.0001, t + f);
+            v.src.stop(t + f + 0.05);
+          } catch (e) { }
+        });
+        duckUntil = 0;
+      } catch (e) { logErr('stopSfx', e); }
     },
     setVolume: function (o) {
       try {

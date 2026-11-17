@@ -52,7 +52,7 @@ export function initRoom() {
   $('#lobby-card').addEventListener('click', (e) => {
     const b = e.target.closest('[data-l="music"]');
     if (!b || b.disabled) return;
-    send('music:play', {});
+    send(Date.now() < (ctx.musicUntil || 0) ? 'music:stop' : 'music:play', {});
   });
   $('#overlay').addEventListener('click', onOverlayClick);
   setInterval(tick, 250);
@@ -730,7 +730,7 @@ function renderLobby(s) {
     ${ib('look', 'palette', 'Görünüm')}
     ${ib('roles', host ? 'gear' : 'scroll', host ? 'Ayarlar' : 'Roller', `aria-label="${host ? 'Roller ve oda ayarları' : 'Roller ve kurallar'} (${total}/${room.maxPlayers} oyuncu)"`)}
     ${host ? ib('bot', 'bot', 'Bot', `${full ? 'disabled' : ''} aria-label="Bot ekle${full ? ' (oda dolu)' : ''}"`) : ''}
-    ${s.me && s.me.canChooseBotModel ? ib('music', 'music', 'Müzik', 'aria-label="Giriş müziğini çal"') : ''}
+    ${s.me && s.me.canChooseBotModel ? ib('music', 'music', Date.now() < (ctx.musicUntil || 0) ? 'Durdur' : 'Müzik', 'aria-label="Giriş müziğini çal ya da durdur"') : ''}
     ${main}
   </div>`);
 }

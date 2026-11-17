@@ -189,6 +189,11 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
       if (closing) return;
       sendToPlayers(room, room.players.keys(), 'entrance', { call: info.call });
     },
+    // Sahip müziği kapattı: herkesin tarayıcısı çalan müziği yumuşakça kısıp durdurur.
+    entranceStop(room) {
+      if (closing) return;
+      sendToPlayers(room, room.players.keys(), 'entrance:stop', {});
+    },
     // Botların sohbet mesajları (insan mesajlarıyla aynı alıcı kuralları).
     chat(room, recipients, message) {
       if (closing) return;
@@ -428,6 +433,13 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
       const c = ctx(socket);
       if (!c) return reply({ ok: false, error: 'Bir odada değilsin.' });
       const error = c.room.playEntrance(c.player.id);
+      reply(error ? { ok: false, error } : { ok: true });
+    });
+
+    handle('music:stop', (data, reply) => {
+      const c = ctx(socket);
+      if (!c) return reply({ ok: false, error: 'Bir odada değilsin.' });
+      const error = c.room.stopEntrance(c.player.id);
       reply(error ? { ok: false, error } : { ok: true });
     });
 

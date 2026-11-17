@@ -57,7 +57,7 @@ Sources:
 | `amb/fire.mp3` | Generated (Mirelo) | Campfire crackle loop |
 | `amb/night.mp3` | Generated (Mirelo) | Night bed, crickets and light wind |
 | `amb/day.mp3` | Generated (Mirelo) | Day bed, distant birds and breeze |
-| `sfx/entrance.mp3` | Provided by the game owner (his own music, file `kendimüzik.mp3`); first 20 s | Lobby entrance music, played for everyone when the owner account joins a room. |
+| `sfx/entrance.mp3` | Provided by the game owner (his own music, file `kendimüzik.mp3`); first 30 s, faded out by the audio module | Lobby entrance music, played for everyone when the owner account joins a room. |
 | `sfx/hunter.mp3` | Generated (Mirelo) | Short hunting-horn call, trimmed |
 | `sfx/shot.mp3` | Generated (Mirelo) | Soft musket pop, trimmed and low-passed |
 | `sfx/step.mp3`, `step-2..5.mp3` | Kenney Impact Sounds (CC0) | `footstep_grass_000..004` |

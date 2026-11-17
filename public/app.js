@@ -155,10 +155,15 @@ function connectSocket() {
   });
   socket.on('chat', (m) => { if (m) appendChat(m); });
   // Sahip hesap odaya girdi: giriş fanfarı + küçük bildirim (büyük kart yok).
+  // Düğme etiketi: çalarken "Durdur".
+  const musicLabel = (txt) => { const l = document.querySelector('#lobby-card [data-l="music"] span'); if (l) l.textContent = txt; };
   socket.on('entrance', (e) => {
     sfx('entrance');
+    ctx.musicUntil = Date.now() + 31000; musicLabel('Durdur');
+    setTimeout(() => { if (Date.now() >= (ctx.musicUntil || 0)) musicLabel('Müzik'); }, 31500);
     toast(`🎺 ${String((e && e.call) || 'Ahmet hocam').slice(0, 40)} geldi!`, 'info', 4000);
   });
+  socket.on('entrance:stop', () => { ctx.musicUntil = 0; musicLabel('Müzik'); try { window.VKAudio && window.VKAudio.stopSfx && window.VKAudio.stopSfx('entrance', 1.5); } catch (e) { /* ses yoksa sessiz */ } });
   socket.on('kicked', (message) => {
     exitRoom();
     toast(message || 'Odadan çıkarıldın.', 'error', 5000);
