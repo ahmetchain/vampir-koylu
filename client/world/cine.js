@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import * as A from './assets.js';
 import { easeInOut, easeOut } from './director.js';
 import { makeFlame } from './fx.js';
-import { COLOR_HEX, TAU, clamp, HAT_NODES } from './constants.js';
+import { COLOR_HEX, TAU, clamp } from './constants.js';
+import { makeHat } from './hats.js';
 import { toWorld } from './layout.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -295,10 +296,17 @@ export function registerCinematics(director, world) {
       // kimse çıkmaz: açık kapı, sis ve kapı önünde bir şapka
       await ctx.wait(0.4 * speed);
       for (let i = 0; i < 3; i++) { world.fx.emit('mist', a.door.x, 0.4 + i * 0.3, a.door.z, '#9b7bff', 8); await ctx.wait(0.22 * speed); }
-      const hatNode = look ? HAT_NODES[look.hat | 0] : null;
-      const tpl = hatNode && A.has('hats/hats.glb') ? A.get('hats/hats.glb').scene.getObjectByName(hatNode) : null;
-      let hat = null;
-      if (tpl) { hat = tpl.clone(); hat.scale.multiplyScalar(4.5); }
+      let hat = look ? makeHat(look.hat, look.skin) : null;
+      if (hat) {
+        // şapka kafa-yerel koordinatlı: tabanı yere değsin diye bir grubun içine indirilir
+        hat.scale.multiplyScalar(4.5);
+        hat.position.set(0, 0, 0);
+        const lift = -new THREE.Box3().setFromObject(hat).min.y;
+        hat.position.y = lift;
+        const g = new THREE.Group();
+        g.add(hat);
+        hat = g;
+      }
       else { const t2 = A.prop('furniture', 'pillow'); if (t2) { hat = t2.clone(); hat.scale.setScalar(0.6); } }
       if (hat) { hat.position.set(fall.x, 0.02, fall.z); hat.rotation.set(0, Math.random() * TAU, 0.25); ctx.add(hat); world.fx.emit('poof', fall.x, 0.2, fall.z, '#b8a890', 6); }
       ctx.sfx('whoosh');

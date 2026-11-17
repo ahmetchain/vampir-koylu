@@ -2,7 +2,7 @@
 import { create, supported } from './world.js';
 import { preview } from './preview.js';
 import { setBase } from './assets.js';
-import { COLORS, HATS, SKINS } from './constants.js';
+import { COLORS, HATS, SKINS, ACCS } from './constants.js';
 
 // Varlık yolunu betiğin konumuna göre çöz (build/world.js -> ../assets/models/)
 try {
@@ -18,5 +18,5 @@ export const QUALITIES = [
   { id: 'medium', label: 'Orta', desc: 'Gölgeler ve bulutlar' },
   { id: 'high', label: 'Yüksek', desc: 'Tam çözünürlük, karakter gölgeleri' },
 ];
-export { create, supported, preview, COLORS, HATS, SKINS };
+export { create, supported, preview, COLORS, HATS, SKINS, ACCS };
 export function setAssetBase(url) { setBase(url); }

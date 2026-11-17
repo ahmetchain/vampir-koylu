@@ -10,10 +10,13 @@ export const COLOR_NAMES = [
   'Camgöbeği', 'Fıstık', 'Bordo', 'Gül', 'Lacivert', 'Gri', 'Bej', 'Mercan', 'Zeytin', 'Lavanta',
 ];
 
-// look.hat 0 = şapkasız; 1..8 hats.glb düğümleri
+// look.hat 0 = şapkasız; 1..8 hats.glb düğümleri; 9..18 kodla üretilir (hats.js)
 export const HAT_NODES = [null, 'hat-1-hasir', 'hat-2-bere', 'hat-3-cicek', 'hat-4-silindir',
   'hat-5-bandana', 'hat-6-filiz', 'hat-7-kasket', 'hat-8-kulaklik'];
-export const HAT_NAMES = ['Şapkasız', 'Hasır şapka', 'Bere', 'Çiçek', 'Silindir', 'Bandana', 'Filiz', 'Kasket', 'Kulaklık'];
+export const HAT_NAMES = ['Şapkasız', 'Hasır şapka', 'Bere', 'Çiçek', 'Silindir', 'Bandana', 'Filiz', 'Kasket', 'Kulaklık',
+  'Takke', 'Örgü takke', 'Fes', 'Yemeni', 'Keçe külah', 'Kalpak', 'Ponponlu bere', 'Çiçek tacı', 'Aşçı başlığı', 'Taç'];
+// look.acc 0 = aksesuarsız (eski kayıtlarda alan yoksa 0 sayılır)
+export const ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon', 'Nazarlık'];
 
 // look.skin 0..11 (manifest.characters.skins sırası)
 export const SKIN_NAMES = [
@@ -29,7 +32,8 @@ export const HAT_Y_OFFSET = [0, 0.052, -0.01, 0.105, 0, 0.105, 0, 0.045, 0.051, 
 
 // Dışa açık meta veriler (görünüm düzenleyici için)
 export const COLORS = COLOR_HEX.map((hex, i) => ({ id: i, hex, name: COLOR_NAMES[i] }));
-export const HATS = HAT_NAMES.map((name, i) => ({ id: i, name, node: HAT_NODES[i] }));
+export const HATS = HAT_NAMES.map((name, i) => ({ id: i, name, node: HAT_NODES[i] || null }));
+export const ACCS = ACC_NAMES.map((name, i) => ({ id: i, name }));
 export const SKINS = SKIN_NAMES.map((name, i) => ({ id: i, name, desc: SKIN_DESC[i] }));
 
 // Sanat yönetimi paleti (§4)

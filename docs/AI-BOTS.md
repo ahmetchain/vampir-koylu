@@ -142,7 +142,7 @@ An authentication error pauses the feature for 10 minutes, a rate-limit error fo
 ## Privacy
 
 With smart bots on, chat messages and player names of that room are sent to the Anthropic API (the lobby and
-the room settings say so); finished games with smart bots may also be reviewed by a stronger model (see "Automatic game review"; the lobby note says so). Prompts, chat content and model output are never logged; logs and `/healthz` carry
+the room settings say so); finished games with smart bots may also be reviewed by a stronger model (see "Automatic game review"; the lobby note says so). Every game's full history, human chat included, is stored (`docs/GAME-LOGS.md`; the lobby note says so too). Prompts, chat content and model output are never logged; logs and `/healthz` carry
 only counts, token sums, cost estimates and failure reasons. Model output goes nowhere but into the game.
 
 ## Automatic game review (post-game, developer feedback loop)
@@ -150,7 +150,7 @@ only counts, token sums, cost estimates and failure reasons. Model output goes n
 Every mistake a smart bot makes should become a rule in `lib/ai/rules.js` and a scenario in `scripts/ai-scenarios.js`.
 To find the mistakes without reading every game, a game that had smart bots is reviewed automatically after it ends:
 
-1. **Record** (`lib/ai/gamerec.js`, only if at least one smart-bot model call succeeded in that game): players with final roles/teams;
+1. **Record** (a *view* of the game log, `reviewView()` in `lib/ai/gamerec.js`; the log itself is kept for every game, see `docs/GAME-LOGS.md`; the review runs only if at least one smart-bot model call succeeded in that game): players with final roles/teams;
    the public timeline (dawn results, hangings, reveals, hunter shots, events; story/rumor flavour lines are left out); per day who voted for
    whom (counts only on Sis days); public chat in order with seconds-since-start and phase tag (`gün 2`, `gece 1`…), bot lines flagged; for each
    bot its role, its night picks and what happened to them, its private results (the notes: Kahin pairs, Gözcü reports, saved / attacked
@@ -166,7 +166,7 @@ To find the mistakes without reading every game, a game that had smart bots is r
    asking a role for information it cannot have, ignoring facts, contradicting its role, voting without reason, pile-ons, not sharing key
    results, unnatural Turkish) and to skip style nitpicks and hindsight-only mistakes.
 3. **Storage**: the store keeps the latest 200 reviews (`vk_ai_reviews` table in PostgreSQL; `ai-reviews.json` next to `accounts.json` in the JSON store):
-   id, created_at, room, model, cost, summary, mistake counts, the record (gzip + base64) and the review JSON.
+   id, created_at, room, model, cost, summary, mistake counts, the record (gzip + base64), the review JSON and `game_log_id` (the full game history this review belongs to; the log row points back with `review_id`).
 4. **Log** (one line, numbers only, no chat, no names): `[ai-review] oda=ABCDE model=claude-sonnet-5-5 hata=7 (yüksek=2) maliyet≈$0.1034`;
    failures: `[ai-review] oda=ABCDE atlandı: timeout` (`daily_limit`, `refusal`, `max_tokens`, `malformed`, `rate_limit`…). `/healthz` gets `aiReview` (counts, cost).
 

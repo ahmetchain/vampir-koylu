@@ -66,6 +66,7 @@ export function preview(el, look, opts = {}) {
   let swayT = 0;
   const baseYaw = opts.yaw != null ? opts.yaw : 0;
   let dragging = false, lastX = 0, spinV = 0;
+  let zoom = opts.focus === 'head' ? 1 : 0, zoomTo = zoom; // 0 tüm boy, 1 baş yakın plan
   const turn = opts.turntable !== false;
   const fakeWorld = { sfxStep: null, sfx() {} };
 
@@ -104,8 +105,15 @@ export function preview(el, look, opts = {}) {
       r.setScissor(0, rs.y - chh, cw, chh);
       r.setScissorTest(true);
       cam.aspect = w / h;
-      // dar kutularda karakter sığsın
-      cam.position.z = cam.aspect < 0.8 ? 7.8 / Math.max(0.55, cam.aspect / 0.8) : 7.8;
+      // dar kutularda karakter sığsın; şapka/aksesuar seçerken baş ve şapka kadraja yumuşakça yaklaşır
+      zoom += (zoomTo - zoom) * Math.min(1, dt * 6);
+      // yakın plan: omuzlardan (atkı, nazarlık görünsün) şapkanın tepesine kadar, kadrajın ~%80'i
+      const top = (ch.headY || 1.93) + 0.06, bottom = 0.72;
+      const fitZ = cam.aspect < 0.8 ? 1 / Math.max(0.55, cam.aspect / 0.8) : 1;
+      const lookY = 1.22 + ((bottom + top) / 2 - 1.22) * zoom;
+      const dist = 7.8 + ((top - bottom) * 0.5 / Math.tan(THREE.MathUtils.degToRad(15)) / 0.8 - 7.8) * zoom;
+      cam.position.set(0, lookY + 0.5 - 0.15 * zoom, dist * fitZ);
+      cam.lookAt(0, lookY, 0);
       cam.updateProjectionMatrix();
       // yüzü hep kameraya dönük: hafif salınım; sürükleyince döner, bırakınca yavaşça geri gelir
       if (!dragging) {
@@ -128,6 +136,8 @@ export function preview(el, look, opts = {}) {
 
   return {
     setLook(l) { cur = { ...cur, ...l }; build(); },
+    // 'head': baş ve şapka yakın plan (şapka/aksesuar seçimi), 'body': tüm boy
+    setFocus(f) { zoomTo = f === 'head' ? 1 : 0; },
     dispose() {
       if (disposed) return;
       disposed = true;

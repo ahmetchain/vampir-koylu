@@ -11,6 +11,7 @@ const ROOT = path.join(__dirname, '..');
 
 function loadEnvLocal(env = process.env, { main = false } = {}) {
   const out = { ...env };
+  if (env.VK_NO_ENV_LOCAL) return out;   // testler: gerçek anahtarlar kazara kullanılmasın
   const candidates = [path.join(ROOT, '.env.local'), ...(main ? [path.resolve(ROOT, '..', '..', '..', '.env.local')] : [])];
   for (const file of candidates) {
     if (!fs.existsSync(file)) continue;

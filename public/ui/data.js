@@ -9,7 +9,10 @@ export const COLOR_NAMES = [
   'Kırmızı', 'Mavi', 'Yeşil', 'Pembe', 'Turuncu', 'Sarı', 'Siyah', 'Beyaz', 'Mor', 'Kahverengi',
   'Camgöbeği', 'Fıstık', 'Bordo', 'Gül', 'Lacivert', 'Gri', 'Bej', 'Mercan', 'Zeytin', 'Lavanta',
 ];
-export const HAT_NAMES = ['Şapkasız', 'Hasır şapka', 'Bere', 'Çiçek', 'Silindir', 'Bandana', 'Filiz', 'Kasket', 'Kulaklık'];
+export const HAT_NAMES = ['Şapkasız', 'Hasır şapka', 'Bere', 'Çiçek', 'Silindir', 'Bandana', 'Filiz', 'Kasket', 'Kulaklık',
+  'Takke', 'Örgü takke', 'Fes', 'Yemeni', 'Keçe külah', 'Kalpak', 'Ponponlu bere', 'Çiçek tacı', 'Aşçı başlığı', 'Taç'];
+// look.acc (isteğe bağlı; yoksa 0)
+export const ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon', 'Nazarlık'];
 export const SKIN_NAMES = [
   'Pamuk', 'Fındık', 'Kestane', 'Papatya', 'Ceviz', 'Şeftali',
   'Kakao', 'Tarçın', 'Lale', 'Badem', 'Kömür', 'Gümüş',

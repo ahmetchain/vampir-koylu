@@ -13,6 +13,7 @@ const { Accounts } = require('./lib/auth');
 const { createAiClient, aiStatusLine } = require('./lib/ai');
 const { createReviewer, reviewStatusLine } = require('./lib/ai/review');
 const { createApi } = require('./lib/api');
+const { packAsync } = require('./lib/ai/gamerec');
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MOVE_FLUSH_MS = 100;   // konum değişiklikleri en fazla bu sıklıkla yayınlanır
@@ -58,11 +59,13 @@ function cacheHeaders(res, filePath) {
 // options: store (init edilmiş depo), origins, trustProxy, authOptions, limits
 // ai: akıllı botların API istemcisi (lib/ai) ya da null. Testler ve anahtarsız sunucu: null (yalnızca rastgele botlar).
 // reviewer: oyun sonu bot incelemesi (lib/ai/review.js Reviewer) ya da null. adminToken: ADMIN_TOKEN (boşsa yönetici adresleri kapalı).
-function createGameServer({ store, origins = [], trustProxy = false, authOptions = {}, limits = {}, port = 0, ai = null, reviewer = null, adminToken = '' } = {}) {
+// gameLogs: her oyunun geçmişi depoya yazılsın mı (GAME_LOGS=off ile kapatılır; docs/GAME-LOGS.md).
+function createGameServer({ store, origins = [], trustProxy = false, authOptions = {}, limits = {}, port = 0, ai = null, reviewer = null, adminToken = '', gameLogs = true } = {}) {
   const accounts = new Accounts(store, authOptions);
   const rooms = new Map();
   const moveTimers = new Map();
   const pending = new Set();
+  const logSaves = new Map();   // oyun geçmişi kimliği -> yazma sözü (incelemenin bağlanması için)
   let listTimer = null;
   let closing = false;
   let listenPort = port;
@@ -184,9 +187,34 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
       sendToPlayers(room, recipients, 'chat', message);
     },
     // Akıllı botlu oyun bitti: oyun kaydı asenkron incelenir (oyunu beklemez; hata yalnızca tek satır log).
-    reviewReady(room, record) {
+    // info.logId: aynı oyunun tam geçmişi (gameLog); inceleme bittiğinde ona bağlanır.
+    reviewReady(room, record, info = {}) {
       if (closing || !reviewer) return;
-      track(reviewer.process(record, room.id, store), `Oyun incelemesi (${room.id})`);
+      const saved = info.logId ? logSaves.get(info.logId) : null;
+      track(reviewer.process(record, room.id, store, { logId: info.logId }).then(async (res) => {
+        if (res && res.ok && res.id && info.logId && typeof store.linkGameLogReview === 'function') {
+          if (saved) await saved.catch(() => {});
+          await store.linkGameLogReview(info.logId, res.id);
+        }
+      }), `Oyun incelemesi (${room.id})`);
+    },
+    // Oyun bitti (ya da en az bir gece sonra herkes çıktı): tam geçmiş sıkıştırılıp depoya yazılır. Oyunu beklemez;
+    // hata yalnızca tek satır log. Satırda yalnızca sayılar var (içerik, isim yok).
+    gameLog(room, record) {
+      if (closing || !gameLogs || typeof store.saveGameLog !== 'function') return;
+      const p = (async () => {
+        const packed = await packAsync(record);
+        const g = record.game || {};
+        await store.saveGameLog({
+          id: record.id, createdAt: Date.now(), room: String(room.id), startedAt: Date.parse(record.startedAt), endedAt: Date.parse(record.endedAt),
+          end: record.end, winner: record.winner || '', players: g.players || 0, humans: g.humans || 0, bots: g.bots || 0, smart: g.smartBots || 0,
+          rounds: record.rounds || 0, size: packed.length, reviewId: null, record: packed,
+        });
+        console.log(`[game-log] oda=${room.id} oyun=${record.id} ${record.end} oyuncu=${g.players} tur=${record.rounds} olay=${(record.events || []).length} boyut=${(packed.length / 1024).toFixed(1)}KB`);
+      })();
+      logSaves.set(record.id, p);
+      p.catch(() => {}).finally(() => setTimeout(() => logSaves.delete(record.id), 60000).unref());
+      track(p, `Oyun geçmişi kaydedilemedi (${room.id})`);
     },
     finished(room, { results, ranked }) {
       // Botlu oyunlar istatistiğe ve liderlik tablosuna yazılmaz.
@@ -509,11 +537,13 @@ async function main() {
   const ai = createAiClient(process.env);
   const reviewer = ai ? createReviewer(process.env, { store }) : null;
   const adminToken = String(process.env.ADMIN_TOKEN || '').trim();
+  const gameLogs = !['off', '0', 'false', 'no'].includes(String(process.env.GAME_LOGS || '').toLowerCase());
   const game = createGameServer({
     store,
     ai,
     reviewer,
     adminToken,
+    gameLogs,
     origins: parseOrigins(process.env.CLIENT_ORIGIN),
     trustProxy: trustProxySetting(),
     port: PORT,
@@ -524,6 +554,7 @@ async function main() {
   console.log(`  Hesap deposu:         ${store.kind === 'postgres' ? 'PostgreSQL (DATABASE_URL)' : `JSON dosyası (${store.file})`}`);
   console.log(`  Akıllı botlar:        ${aiStatusLine(ai, process.env)}`);
   console.log(`  Oyun incelemesi:      ${ai ? reviewStatusLine(reviewer, process.env) : 'kapalı (akıllı botlar kapalı)'}${adminToken ? '; yönetici adresleri açık (ADMIN_TOKEN)' : ''}`);
+  console.log(`  Oyun geçmişi:         ${gameLogs ? 'açık (her oyun saklanır; en yeni 500 oyun ya da ~200 MB)' : 'kapalı (GAME_LOGS=off)'}`);
   console.log(`  Bu bilgisayardan:     http://localhost:${PORT}`);
   for (const ip of lanAddresses()) {
     console.log(`  Aynı Wi-Fi'dakiler:   http://${ip}:${PORT}`);

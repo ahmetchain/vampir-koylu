@@ -4,7 +4,8 @@ import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import * as A from './assets.js';
 import { addOutlines } from './style.js';
-import { COLOR_HEX, HAT_NODES, HAT_Y_OFFSET, clamp, damp, wrapAngle } from './constants.js';
+import { COLOR_HEX, clamp, damp, wrapAngle } from './constants.js';
+import { makeHat, makeAcc, fitHair } from './hats.js';
 
 export const SCALE = 1.12;
 // Yürüme hızları (3. tur: ~1.6 kat). STRIDE: yürüme klibinin doğal hızı (adım temposu buna göre ölçeklenir)
@@ -52,7 +53,7 @@ export class Character {
   }
 
   setLook(look) {
-    const key = this.isGhost ? 'ghost|' + look.color : `${look.skin}|${look.color}|${look.hat}`;
+    const key = this.isGhost ? 'ghost|' + look.color : `${look.skin}|${look.color}|${look.hat}|${look.acc | 0}`;
     if (this.lookKey === key) return;
     this.lookKey = key;
     this.look = { ...look };
@@ -86,15 +87,17 @@ export class Character {
       } else o.frustumCulled = false;
     });
     const head = model.getObjectByName('head');
-    const hatNode = HAT_NODES[look.hat | 0];
-    if (head && hatNode && A.has('hats/hats.glb')) {
-      const tpl = A.get('hats/hats.glb').scene.getObjectByName(hatNode);
-      if (tpl) {
-        const hat = tpl.clone();
-        hat.position.set(0, HAT_Y_OFFSET[skin] || 0, 0);
-        hat.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
-        head.add(hat);
-      }
+    const hat = head ? makeHat(look.hat, skin) : null;
+    if (hat) {
+      if (hat.userData.cap) fitHair(model, look.hat, skin); // başa oturan şapka: saç şapkanın içinde kalsın
+      hat.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+      head.add(hat);
+    }
+    const acc = makeAcc(look.acc);
+    const accBone = acc && model.getObjectByName(acc.bone);
+    if (accBone) {
+      acc.obj.castShadow = true; acc.obj.frustumCulled = false;
+      accBone.add(acc.obj);
     }
     model.scale.multiplyScalar(SCALE);
     if (this.world.toon) addOutlines(model, 0.012);
@@ -107,7 +110,8 @@ export class Character {
     this.headAnimQ = null;
     this.armR = model.getObjectByName('arm-right');
     this.armL = model.getObjectByName('arm-left');
-    this.headY = (1.72 + (look.hat ? 0.18 : 0)) * SCALE;
+    // ad etiketi / balon yüksekliği: şapkanın tepesine göre (kafa kemiği bind pozunda ≈0.86 m, kafa-yerel birim ×2.5)
+    this.headY = Math.max(1.72, hat ? 0.86 + 2.5 * hat.userData.top : 0) * SCALE;
   }
 
   buildGhost(look) {

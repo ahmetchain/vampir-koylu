@@ -54,7 +54,8 @@ connection · 7 Client → server events · 8 Server → client events · 9 The 
 | `EMPTY_ROOM_MS` | 600000 | room is deleted after 10 min with nobody connected (immediately when it has no players) |
 | `daySec` | 30–300, default 120 | room setting |
 | `COLOR_COUNT` | 20 | `look.color` ∈ 0..19 (unique per room) |
-| `HAT_COUNT` | 9 | `look.hat` ∈ 0..8 (0 = no hat) |
+| `HAT_COUNT` | 19 | `look.hat` ∈ 0..18 (0 = no hat; 9..18 are the procedural hats, 9 = Takke) |
+| `ACC_COUNT` | 7 | `look.acc` ∈ 0..6 (optional; missing = 0 = no accessory; 0 is never stored) |
 | `SKIN_COUNT` | 12 | `look.skin` ∈ 0..11 (character model) |
 | plaza center | (0.5, 0.5) | campfire, normalized plaza coordinates |
 | plaza ring | 0.10 ≤ dist(center) ≤ 0.48 | every `pos` is clamped to this ring |
@@ -308,7 +309,7 @@ player is marked `left`, dies (announce `left`) and their seat stays in the list
 | `hunter:shoot` | `{ targetId }` | the dying hunter, phase `hunter` | "Şu an atış zamanı değil.", "Sadece avcı ateş edebilir.", "Kendini vuramazsın.", "Bu oyuncu vurulamaz." |
 | `day:vote` | `{ targetId }` = player id, `null` (withdraw) or `'sleep'` | alive, day (and the mahkeme re-vote) | "Oylama sadece gündüz yapılır.", "Ölüler oy veremez.", "Bu oyuncuya oy verilemez.", "Kendine oy veremezsin."; re-vote only: "Savunmalar bitmeden oy verilemez.", "Mahkemede Hızlı Uyu yok; iki sanıktan birini seç.", "Mahkemede yalnızca iki sanıktan birine oy verebilirsin." Voting the same value again withdraws it. |
 | `day:lock` | `{ targetId }` = player id or `null` (clear) | the Gardiyan, alive, day (incl. a mahkeme) | "Kilitlenecek kapı sadece gündüz seçilir.", "Ölüler kapı kilitleyemez.", "Sadece gardiyan kapı kilitleyebilir.", "Bu kapı kilitlenemez.", "Kendi kapını kilitleyemezsin.", "Aynı kapıyı iki gece üst üste kilitleyemezsin." Changeable until the day ends; secret (only in the Gardiyan's `day.lock`). §12.7 |
-| `player:look` | `{ color?, hat?, skin? }` | lobby or ended | "Görünüm sadece lobide değiştirilebilir.", "Bu renk başka bir oyuncuda." Values are parsed as integers and clamped to range (unparsable → unchanged). On success the full look is also saved to the account profile (background, failures only logged). |
+| `player:look` | `{ color?, hat?, skin?, acc? }` | lobby or ended | "Görünüm sadece lobide değiştirilebilir.", "Bu renk başka bir oyuncuda." Values are parsed as integers and clamped to range (unparsable → unchanged). On success the full look is also saved to the account profile (background, failures only logged). |
 | `player:move` | `{ x, y }` | living players: `lobby` and `ended` only; **dead players (ghosts): every phase of a running game** (`night` all stages, `day`, `trial`, `hunter`) and `ended` | "Şu an meydanda dolaşamazsın." for a living player outside `lobby`/`ended` (the UI need not show it), "Geçersiz konum." Every move is applied (clamped to the ring, §12.1); the resulting `state` broadcast is coalesced (≤ 1 per 100 ms per room). A ghost's position is visible only to dead viewers until the game ends (§9 `pos`). |
 | `chat:send` | `{ text }` | see §11 | "Biraz yavaş yaz :)", "Boş mesaj gönderilemez.", "Gece köy uyur, konuşamazsın." |
 
@@ -859,8 +860,8 @@ accepted, the finished game is written to no account's stats and does not affect
   `DATABASE_URL` (use Postgres instead), `DATABASE_SSL` (`off`|`on`|`no-verify`, default automatic),
   `CLIENT_ORIGIN`, `TRUST_PROXY`; smart bots: `ANTHROPIC_API_KEY`, `AI_BOTS`, `AI_BOT_MODEL`, `AI_BOT_EFFORT`,
   `AI_MAX_TOKENS`, `AI_DAILY_CALL_LIMIT`, `AI_GAME_CALL_LIMIT`, `AI_BOT_CALL_LIMIT`, `AI_CONCURRENCY`, `AI_TIMEOUT_MS`;
-  post-game review: `AI_REVIEW`, `AI_REVIEW_MODEL`, `AI_REVIEW_DAILY_LIMIT`, `AI_REVIEW_EFFORT`, `ADMIN_TOKEN` (enables `GET /api/admin/ai-reviews[/:id]`, Bearer)
-  (defaults in `docs/AI-BOTS.md`).
+  post-game review: `AI_REVIEW`, `AI_REVIEW_MODEL`, `AI_REVIEW_DAILY_LIMIT`, `AI_REVIEW_EFFORT`, `ADMIN_TOKEN` (enables `GET /api/admin/ai-reviews[/:id]` and `GET /api/admin/game-logs[/:id]`, Bearer; see `docs/GAME-LOGS.md`);
+  `GAME_LOGS=off` stops saving game histories (defaults in `docs/AI-BOTS.md`).
 
 ## 15. Client recipes
 

@@ -8,7 +8,9 @@
     '#15aabf', '#94d82d', '#862e3c', '#ffa8c5', '#1c2e6e', '#868e96', '#d9b99b', '#ff8364', '#6b7a2a', '#b197fc'];
   var COLOR_NAMES = ['Kırmızı', 'Mavi', 'Yeşil', 'Pembe', 'Turuncu', 'Sarı', 'Siyah', 'Beyaz', 'Mor', 'Kahverengi',
     'Camgöbeği', 'Fıstık', 'Bordo', 'Gül', 'Lacivert', 'Gri', 'Bej', 'Mercan', 'Zeytin', 'Lavanta'];
-  var HAT_NAMES = ['Şapkasız', 'Hasır şapka', 'Bere', 'Çiçek', 'Silindir', 'Bandana', 'Filiz', 'Kasket', 'Kulaklık'];
+  var HAT_NAMES = ['Şapkasız', 'Hasır şapka', 'Bere', 'Çiçek', 'Silindir', 'Bandana', 'Filiz', 'Kasket', 'Kulaklık',
+    'Takke', 'Örgü takke', 'Fes', 'Yemeni', 'Keçe külah', 'Kalpak', 'Ponponlu bere', 'Çiçek tacı', 'Aşçı başlığı', 'Taç'];
+  var ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon', 'Nazarlık'];
   // [ten rengi, saç rengi, saç biçimi]
   var SKINS = [
     ['Pamuk', '#f5cfa8', '#5a3a22', 0], ['Fındık', '#e8b48a', '#2b1d14', 1], ['Kestane', '#c98d5e', '#1d1512', 3],
@@ -95,6 +97,93 @@
         ctx.fillStyle = '#ff7a1a';
         rr(ctx, hx - hr * 1.28, hy - hr * 0.35, hr * 0.42, hr * 0.7, hr * 0.15); ctx.fill();
         rr(ctx, hx + hr * 0.86, hy - hr * 0.35, hr * 0.42, hr * 0.7, hr * 0.15); ctx.fill();
+        break;
+      case 9: case 10: // takke (beyaz / krem örgü)
+        ctx.fillStyle = hat === 9 ? '#f7f5ef' : '#ece0c2';
+        ctx.beginPath(); ctx.ellipse(hx, hy - hr * 0.5, hr * 1.04, hr * 0.78, 0, Math.PI, TAU); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = hat === 9 ? '#e3ddcf' : '#d2bd8f';
+        for (var q = 0; q < 6; q++) ctx.fillRect(hx - hr * 0.95 + q * hr * 0.33, hy - hr * 0.68, hr * 0.16, hr * 0.14);
+        break;
+      case 11: // fes
+        ctx.fillStyle = '#b3222e';
+        ctx.beginPath(); ctx.moveTo(hx - hr * 1.0, hy - hr * 0.5); ctx.lineTo(hx - hr * 0.8, hy - hr * 1.65); ctx.lineTo(hx + hr * 0.8, hy - hr * 1.65); ctx.lineTo(hx + hr * 1.0, hy - hr * 0.5); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = '#1f1a26'; ctx.lineWidth = Math.max(1, hr * 0.1);
+        ctx.beginPath(); ctx.moveTo(hx, hy - hr * 1.65); ctx.lineTo(hx + hr * 0.75, hy - hr * 1.5); ctx.lineTo(hx + hr * 0.82, hy - hr * 0.95); ctx.stroke();
+        ctx.fillStyle = '#1f1a26'; ctx.fillRect(hx + hr * 0.74, hy - hr * 1.0, hr * 0.18, hr * 0.3);
+        break;
+      case 12: // yemeni (oyalı)
+        ctx.fillStyle = '#f6efe2';
+        ctx.beginPath(); ctx.ellipse(hx, hy - hr * 0.1, hr * 1.25, hr * 1.2, 0, Math.PI * 0.82, Math.PI * 2.18); ctx.lineTo(hx + hr * 1.15, hy + hr * 0.95); ctx.lineTo(hx - hr * 1.15, hy + hr * 0.95); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#e7d9bf'; ctx.beginPath(); ctx.ellipse(hx, hy + hr * 0.1, hr * 0.82, hr * 0.85, 0, Math.PI, TAU); ctx.fill();
+        var oya = ['#e63946', '#f2c12e', '#2f9e44', '#f06595', '#2b59c3'];
+        for (var o = 0; o < 7; o++) { var oa = Math.PI + (o + 0.5) * Math.PI / 7; ctx.fillStyle = oya[o % 5]; ctx.beginPath(); ctx.arc(hx + Math.cos(oa) * hr * 0.9, hy + hr * 0.1 + Math.sin(oa) * hr * 0.92, hr * 0.1, 0, TAU); ctx.fill(); }
+        break;
+      case 13: // keçe külah
+        ctx.fillStyle = '#b08a5f';
+        ctx.beginPath(); ctx.moveTo(hx - hr * 1.05, hy - hr * 0.5); ctx.quadraticCurveTo(hx - hr * 0.2, hy - hr * 2.4, hx, hy - hr * 2.5); ctx.quadraticCurveTo(hx + hr * 0.2, hy - hr * 2.4, hx + hr * 1.05, hy - hr * 0.5); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#8a6744'; rr(ctx, hx - hr * 1.12, hy - hr * 0.75, hr * 2.24, hr * 0.3, hr * 0.12); ctx.fill(); ctx.stroke();
+        break;
+      case 14: // kalpak
+        ctx.fillStyle = '#55494a'; rr(ctx, hx - hr * 1.08, hy - hr * 1.8, hr * 2.16, hr * 1.3, hr * 0.25); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,.12)';
+        for (var f = 0; f < 6; f++) { ctx.beginPath(); ctx.arc(hx - hr * 0.7 + (f % 3) * hr * 0.7, hy - hr * (1.45 - Math.floor(f / 3) * 0.5), hr * 0.14, 0, TAU); ctx.fill(); }
+        break;
+      case 15: // ponponlu bere
+        ctx.fillStyle = '#c94343';
+        ctx.beginPath(); ctx.ellipse(hx, hy - hr * 0.6, hr * 1.02, hr * 0.9, 0, Math.PI, TAU); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#a83535'; rr(ctx, hx - hr * 1.06, hy - hr * 0.72, hr * 2.12, hr * 0.36, hr * 0.12); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#f3e9d2'; ctx.beginPath(); ctx.arc(hx, hy - hr * 1.58, hr * 0.3, 0, TAU); ctx.fill(); ctx.stroke();
+        break;
+      case 16: // çiçek tacı
+        ctx.strokeStyle = '#4f8f3a'; ctx.lineWidth = Math.max(1.2, hr * 0.14);
+        ctx.beginPath(); ctx.ellipse(hx, hy - hr * 0.78, hr * 1.05, hr * 0.3, 0, Math.PI, TAU); ctx.stroke();
+        var fl = ['#ff6f91', '#ffffff', '#ffd23f', '#9b7bff', '#ff8c42'];
+        for (var k = 0; k < 5; k++) { var fa = Math.PI + (k + 0.5) * Math.PI / 5; ctx.fillStyle = fl[k]; ctx.beginPath(); ctx.arc(hx + Math.cos(fa) * hr * 1.0, hy - hr * 0.78 + Math.sin(fa) * hr * 0.32, hr * 0.2, 0, TAU); ctx.fill(); }
+        break;
+      case 17: // aşçı başlığı
+        ctx.fillStyle = '#fbfaf5';
+        rr(ctx, hx - hr * 0.85, hy - hr * 1.15, hr * 1.7, hr * 0.62, hr * 0.1); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(hx - hr * 0.55, hy - hr * 1.45, hr * 0.5, 0, TAU); ctx.arc(hx + hr * 0.55, hy - hr * 1.45, hr * 0.5, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(hx, hy - hr * 1.75, hr * 0.62, 0, TAU); ctx.fill(); ctx.stroke();
+        break;
+      case 18: // taç
+        ctx.fillStyle = '#f2c12e';
+        ctx.beginPath(); ctx.moveTo(hx - hr * 0.75, hy - hr * 0.8);
+        for (var c = 0; c <= 4; c++) { ctx.lineTo(hx - hr * 0.75 + c * hr * 0.375, hy - hr * (c % 2 ? 1.25 : 1.6)); }
+        ctx.lineTo(hx + hr * 0.75, hy - hr * 0.8); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#d7263d'; ctx.beginPath(); ctx.arc(hx, hy - hr * 1.0, hr * 0.12, 0, TAU); ctx.fill();
+        break;
+      default: break;
+    }
+  }
+
+  // Aksesuarlar (look.acc): yüz ve göğüs üzerinde basit çizimler
+  function drawAcc(ctx, acc, hx, hy, hr, x, by, bw) {
+    ctx.lineWidth = Math.max(1, hr * 0.1);
+    switch (acc) {
+      case 1: case 3: // bıyık (sakalda da var)
+        if (acc === 3) { ctx.fillStyle = '#4a2f1f'; ctx.beginPath(); ctx.ellipse(hx, hy + hr * 0.62, hr * 0.78, hr * 0.5, 0, 0, Math.PI); ctx.fill(); }
+        ctx.fillStyle = '#3a2417';
+        ctx.beginPath(); ctx.ellipse(hx - hr * 0.22, hy + hr * 0.45, hr * 0.26, hr * 0.1, -0.25, 0, TAU); ctx.ellipse(hx + hr * 0.22, hy + hr * 0.45, hr * 0.26, hr * 0.1, 0.25, 0, TAU); ctx.fill();
+        break;
+      case 2: // gözlük
+        ctx.strokeStyle = '#2a2333';
+        ctx.beginPath(); ctx.arc(hx - hr * 0.33, hy + hr * 0.1, hr * 0.25, 0, TAU); ctx.moveTo(hx + hr * 0.58, hy + hr * 0.1); ctx.arc(hx + hr * 0.33, hy + hr * 0.1, hr * 0.25, 0, TAU);
+        ctx.moveTo(hx - hr * 0.08, hy + hr * 0.05); ctx.lineTo(hx + hr * 0.08, hy + hr * 0.05); ctx.stroke();
+        break;
+      case 4: // atkı
+        ctx.fillStyle = '#e0a526'; rr(ctx, x - bw * 0.42, by + bw * 0.02, bw * 0.84, bw * 0.16, bw * 0.06); ctx.fill();
+        ctx.fillRect(x + bw * 0.1, by + bw * 0.1, bw * 0.14, bw * 0.34);
+        ctx.fillStyle = '#9c2f2f'; ctx.fillRect(x + bw * 0.1, by + bw * 0.26, bw * 0.14, bw * 0.05);
+        break;
+      case 5: // papyon
+        ctx.fillStyle = '#b3222e';
+        ctx.beginPath(); ctx.moveTo(x, by + bw * 0.1); ctx.lineTo(x - bw * 0.14, by + bw * 0.02); ctx.lineTo(x - bw * 0.14, by + bw * 0.18); ctx.closePath();
+        ctx.moveTo(x, by + bw * 0.1); ctx.lineTo(x + bw * 0.14, by + bw * 0.02); ctx.lineTo(x + bw * 0.14, by + bw * 0.18); ctx.closePath(); ctx.fill();
+        break;
+      case 6: // nazarlık
+        var nx = x + bw * 0.2, ny = by + bw * 0.3;
+        [['#1f4fb5', 0.1], ['#ffffff', 0.07], ['#7fc8ff', 0.045], ['#141022', 0.022]].forEach(function (d) { ctx.fillStyle = d[0]; ctx.beginPath(); ctx.arc(nx, ny, bw * d[1], 0, TAU); ctx.fill(); });
         break;
       default: break;
     }
@@ -198,6 +287,7 @@
     }
     ctx.fillStyle = 'rgba(255,120,130,.45)';
     ctx.beginPath(); ctx.arc(hx - hr * 0.58, hy + hr * 0.42, hr * 0.15, 0, TAU); ctx.arc(hx + hr * 0.58, hy + hr * 0.42, hr * 0.15, 0, TAU); ctx.fill();
+    drawAcc(ctx, (look && look.acc) || 0, hx, hy, hr, x, by, bw);
     drawHat(ctx, (look && look.hat) || 0, hx, hy, hr);
     ctx.restore();
   }
@@ -926,6 +1016,7 @@
     drawFigure: drawFigure,
     COLORS: COLORS.map(function (hex, i) { return { name: COLOR_NAMES[i], hex: hex }; }),
     HATS: HAT_NAMES.map(function (name) { return { name: name }; }),
+    ACCS: ACC_NAMES.map(function (name) { return { name: name }; }),
     SKINS: SKINS.map(function (s) { return { name: s[0] }; }),
   };
 })();

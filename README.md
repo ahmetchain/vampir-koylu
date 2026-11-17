@@ -103,10 +103,14 @@ oyun başına 300, bot başına oyun başına 45 çağrı.
 | `AI_REVIEW` | – | `off` yazılırsa biten oyunların otomatik incelemesi kapalı (anahtar yoksa da kapalı). |
 | `AI_REVIEW_MODEL` | `claude-sonnet-5-5` | İnceleyen model (oyun başına ≈ $0.13). |
 | `AI_REVIEW_DAILY_LIMIT` | `30` | Günlük (UTC) inceleme sayısı. |
-| `ADMIN_TOKEN` | – | `GET /api/admin/ai-reviews` için `Authorization: Bearer …` anahtarı; tanımsızsa bu adresler kapalıdır. |
+| `ADMIN_TOKEN` | – | `GET /api/admin/ai-reviews` ve `GET /api/admin/game-logs` için `Authorization: Bearer …` anahtarı; tanımsızsa bu adresler kapalıdır. |
+| `GAME_LOGS` | – | `off` yazılırsa oyun geçmişleri saklanmaz (varsayılan: her oyunun geçmişi, sohbet dahil, saklanır). |
 
 Akıllı botlu bir oyun bitince sunucu oyun kaydını daha güçlü bir modele inceletir ve bot hatalarını depoya yazar; geliştirici
 `node scripts/ai-reviews.js` ile bunları okur (`REVIEW_URL` + `ADMIN_TOKEN`, `.env.local`). Ayrıntılar: `docs/AI-BOTS.md`.
+
+Bitmiş (ya da herkes çıkınca yarıda kalmış) her oyunun tam geçmişi (sohbet, oylar, gece seçimleri, alıcıya özel sonuçlar, botların notları) sunucuda saklanır; `node scripts/game-logs.js`
+onları okunur dökümlere çevirir, `--analyze` ile güçlü bir modele çözümlettirir. Ayrıntılar: `docs/GAME-LOGS.md`.
 
 ## İnternette yayınlama (farklı evlerden oynamak için)
 

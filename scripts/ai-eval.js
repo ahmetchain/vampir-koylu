@@ -169,6 +169,7 @@ async function selfplay(args, lib, env) {
   }
   const transcript = [];
   let record = null;
+  let gameLog = null;
   const room = new Room({
     id: 'KENDI', name: 'Kendi kendine', settings: { nightSec: 15, daySec: 120, revealRoles: true, roleMode: 'random', events: 'some', roles: { gozcu: true, gardiyan: true, cadi: true, avci: true, muhtar: true, soytari: true, deli: true, hirsiz: true, iftiraci: true, temizlikci: true } },
     ai: client,
@@ -176,6 +177,8 @@ async function selfplay(args, lib, env) {
       update() {}, empty() {}, finished() {},
       // Oyun sonu kaydı (lib/ai/gamerec.js): sunucudaki incelemeyle aynı kayıt.
       reviewReady: (r, rec) => { record = rec; },
+      // Her oyunun tam geçmişi (docs/GAME-LOGS.md): sunucunun sakladığıyla aynı; scripts/game-logs.js --local ile okunur/çözümlenir.
+      gameLog: (r, rec) => { gameLog = rec; },
       announce: (r, a, to) => { if (!to) transcript.push(`[${new Date().toISOString().slice(11, 19)}] * ${a.title}: ${a.text}`); },
       chat: (r, rec, m) => { if (m.channel === 'genel') transcript.push(`[${new Date().toISOString().slice(11, 19)}] ${m.from}: ${m.text}`); },
     },
@@ -209,6 +212,11 @@ async function selfplay(args, lib, env) {
   room.destroy();
   if (mockT) mockT.mock.timers.reset();
   console.log(`Döküm yazıldı: ${file}`);
+  if (gameLog) {
+    const logFile = path.join(args.out, args.mock ? 'selfplay-gamelog-mock.json' : 'selfplay-gamelog.json');
+    write(logFile, JSON.stringify(gameLog));
+    console.log(`Oyun geçmişi yazıldı: ${logFile} (okunur döküm için: node scripts/game-logs.js --local ${path.relative(process.cwd(), logFile)})`);
+  }
   if (record) {
     const recFile = path.join(args.out, args.mock ? 'selfplay-record-mock.json' : 'selfplay-record.json');
     write(recFile, JSON.stringify(record));

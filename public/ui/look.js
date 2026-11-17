@@ -1,11 +1,11 @@
-// Görünüm düzenleyici: karakter (12), renk (20), şapka (9).
+// Görünüm düzenleyici: karakter (12), renk (20), şapka (19), aksesuar (7).
 // Menüde profile kaydeder (PATCH /api/me), odada `player:look` gönderir (alınmış renkler kapalı).
 import { ctx, send, on, emitLocal } from './ctx.js';
 import { Api } from './api.js';
 import { openSheet, toast } from './kit.js';
 import { esc, sfx } from './util.js';
-import { icon, hatIcon } from './icons.js';
-import { COLORS, COLOR_NAMES, HAT_NAMES, SKIN_NAMES } from './data.js';
+import { icon, hatIcon, accIcon } from './icons.js';
+import { COLORS, COLOR_NAMES, HAT_NAMES, SKIN_NAMES, ACC_NAMES } from './data.js';
 import { preview, isFallback, lookNames } from './world-host.js';
 
 let open = null;
@@ -22,10 +22,11 @@ export function openLookEditor() {
     toast('Oyun sırasında görünüm değiştirilemez.', 'error');
     return;
   }
-  let look = { ...(roomMode ? ctx.state.me.look : ctx.user.look) };
+  let look = { acc: 0, ...(roomMode ? ctx.state.me.look : ctx.user.look) }; // eski kayıtlarda acc yok
   let tab = 'skin';
   const skins = lookNames('SKINS', SKIN_NAMES);
   const hats = lookNames('HATS', HAT_NAMES);
+  const accs = lookNames('ACCS', ACC_NAMES);
 
   const body = document.createElement('div');
   body.className = 'look';
@@ -35,6 +36,7 @@ export function openLookEditor() {
       <button type="button" class="seg-btn" data-tab="skin">Karakter</button>
       <button type="button" class="seg-btn" data-tab="color">Renk</button>
       <button type="button" class="seg-btn" data-tab="hat">Şapka</button>
+      <button type="button" class="seg-btn" data-tab="acc">Aksesuar</button>
     </div>
     <div class="opt-grid" role="listbox"></div>
     ${roomMode ? '<p class="muted small" style="margin:0">Seçimin profiline de kaydedilir. Başka oyuncunun rengini seçemezsin.</p>' : '<p class="muted small" style="margin:0">Görünümün profiline kaydedilir ve katıldığın odalarda kullanılır.</p>'}`;
@@ -52,7 +54,9 @@ export function openLookEditor() {
 
   function render() {
     body.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
-    nameEl.textContent = `${skins[look.skin]} · ${COLOR_NAMES[look.color]}${look.hat ? ` · ${hats[look.hat]}` : ''}`;
+    nameEl.textContent = `${skins[look.skin]} · ${COLOR_NAMES[look.color]}${look.hat ? ` · ${hats[look.hat]}` : ''}${look.acc ? ` · ${accs[look.acc]}` : ''}`;
+    // şapka ve aksesuar seçerken önizleme yüze yaklaşır
+    if (pv.setFocus) pv.setFocus(tab === 'hat' || tab === 'acc' ? 'head' : 'body');
     thumbs.length = 0;
     if (tab === 'color') {
       const t = taken();
@@ -63,6 +67,8 @@ export function openLookEditor() {
           <span class="opt-sw" style="background:${c}"></span>${COLOR_NAMES[i]}
           ${owner ? `${icon('lock', 'taken')}<small>${esc(owner)}</small>` : ''}</button>`;
       }).join('');
+    } else if (tab === 'acc') {
+      grid.innerHTML = accs.map((a, i) => `<button type="button" class="opt${(look.acc | 0) === i ? ' on' : ''}" data-v="${i}" aria-selected="${(look.acc | 0) === i}">${accIcon(i)}${esc(a)}</button>`).join('');
     } else if (tab === 'hat') {
       grid.innerHTML = hats.map((h, i) => `<button type="button" class="opt${look.hat === i ? ' on' : ''}" data-v="${i}" aria-selected="${look.hat === i}">${hatIcon(i)}${esc(h)}</button>`).join('');
     } else {
@@ -81,7 +87,7 @@ export function openLookEditor() {
 
   let saveTimer = null;
   async function choose(field, v) {
-    if (look[field] === v) return;
+    if ((look[field] | 0) === v) return;
     const prev = look[field];
     look = { ...look, [field]: v };
     pv.setLook(look);
@@ -114,7 +120,7 @@ export function openLookEditor() {
   const unsub = on('state', () => {
     if (!open) return;
     if (!inRoom()) { open.close(); return; }
-    look = { ...ctx.state.me.look };
+    look = { acc: 0, ...ctx.state.me.look };
     pv.setLook(look);
     render();
   });
