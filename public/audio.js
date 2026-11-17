@@ -78,7 +78,7 @@
     whoosh:  { files: takes('whoosh', 2), vol: 0.6,  pitch: 0.08, max: 3, gap: 60, prio: 2 },
     bell:    { files: takes('bell', 1),   vol: 0.8,  max: 1, gap: 600, duck: 0.7, prio: 2 },
     // oda sahibi hesabı odaya girince çalan özgün, 10 sn'lik güreş girişi tarzı tören müziği
-    entrance: { files: takes('entrance', 1), vol: 0.95, max: 1, gap: 15000, duck: 0.2, prio: 3 }
+    entrance: { files: takes('entrance', 1), vol: 0.95, max: 1, gap: 25000, duck: 0.2, prio: 3 }
   };
   // gece rastgele baykuş (iç efekt, genel sfx listesinde değil)
   var OWL = { files: ['sfx/owl.mp3'] };
