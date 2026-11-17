@@ -3,3 +3,8 @@ CANLI-ADRES.md
 # Hesap deposu (JSON) ve geçici dosyaları
 data/
 *.tmp
+
+# Yerel gizli ayarlar (API anahtarı) ve değerlendirme çıktıları (scripts/ai-eval.js)
+.env
+.env.*
+ai-eval-out/

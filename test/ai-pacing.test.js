@@ -224,11 +224,12 @@ test('istem: açıklanan ölünün rolü takımıyla yazılır (köy rolü = mas
   const user = buildUser({ view, task: { kind: 'open' } });
   const players = section(user, 'players').split('\n');
   const line = (n) => players.find((l) => l.startsWith(`- ${n} `));
-  assert.match(line('Ahmet'), /dead · revealed: village team \(was innocent\) · role: Gardiyan$/);
+  assert.match(line('Ahmet'), /OUT · shown Gardiyan · village team, was innocent · role: Gardiyan$/);
   assert.equal(players[0], '(job = village profession, flavour only: never a role, a claim or evidence)');
+  assert.ok(players.includes('Living (2):') && players.some((l) => l.startsWith('OUT of the game (3)')), 'yaşayan ve dışarıdaki oyuncular ayrı listelenir');
   assert.match(line('Ahmet'), /job: Fırıncı \(flavour\)/);
-  assert.match(line('Bot Ayşe'), /revealed: evil team \(or a villager framed by the İftiracı\) · role: Vampir$/);
-  assert.match(line('Bot Ali'), /role not revealed · role: \?$/);
+  assert.match(line('Bot Ayşe'), /OUT · shown Vampir · evil team, or a villager framed by the İftiracı · role: Vampir$/);
+  assert.match(line('Bot Ali'), /OUT · role hidden · role: \?$/);
   assert.match(line('Bot Can'), /job: Terzi \(flavour\) · alive · role: \?$/);
   assert.match(line('Bot Cem (you)'), /your team: village team · role: Köylü$/);
   assert.match(section(user, 'me'), /village job: Saatçi, flavour only, not your role/);

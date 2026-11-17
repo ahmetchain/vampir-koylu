@@ -57,9 +57,9 @@ function mockTransport({ seed = 'mock', latency = 400, mode = 'ok', decide = nul
         const task = section(user, 'task');
         const names = allowedNames(task).filter((n) => !(spare && /^NIGHT/.test(task) && n === spare));
         const pick = names.length ? names[Math.floor(rng() * names.length)] : '';
-        const out = { say: '', vote: '', target: '', poison: '', memory: '' };
+        const out = { think: '', say: '', vote: '', target: '', poison: '', memory: '' };
         if (/^NIGHT/.test(task)) out.target = pick;
-        else if (/Decide your vote|COURT re-vote/.test(task)) { out.vote = pick; out.target = /door to lock/.test(task) ? pick : ''; }
+        else if (/FINAL decision|EARLY check|COURT re-vote/.test(task)) { out.vote = pick; out.target = /door to lock/.test(task) ? pick : ''; }
         else if (/shoot one last arrow/.test(task)) out.target = pick;
         else {
           out.say = SAY[Math.floor(rng() * SAY.length)];
@@ -68,7 +68,7 @@ function mockTransport({ seed = 'mock', latency = 400, mode = 'ok', decide = nul
           if (alive.length && rng() < 0.5) out.vote = alive[Math.floor(rng() * alive.length)];
         }
         const prev = section(user, 'memory');
-        out.memory = `not${calls.length}${prev && prev !== '(empty)' ? ` | ${prev}` : ''}`.slice(0, 300);
+        out.memory = `not${calls.length}${prev && prev !== '(empty)' ? ` | ${prev}` : ''}`.slice(0, 700);
         if (decide) decide({ user, task, rng, out, params });
         let text = JSON.stringify(out);
         let stop = 'end_turn';
