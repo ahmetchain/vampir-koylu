@@ -62,6 +62,9 @@ function formHTML(s, editable, withRoomFields, sampleN) {
     <div class="set-row"><label for="rf-reveal">Ölenlerin rolü açıklansın</label>
       <span class="switch"><input type="checkbox" id="rf-reveal" name="revealRoles" ${s.revealRoles ? 'checked' : ''} ${dis}><i></i></span>
       <small>Kapalıysa ölen oyuncuların rolü oyun bitene kadar gizli kalır (Soytarı asılırsa yine açıklanır).</small></div>
+    <div class="set-row"><label for="rf-weather">Hava olayları</label>
+      <span class="switch"><input type="checkbox" id="rf-weather" name="weather" ${s.weather !== false ? 'checked' : ''} ${dis}><i></i></span>
+      <small>Ara sıra yağmur ve gök gürültülü fırtına olur. Yalnızca görüntü ve sestir; oyunun kurallarını değiştirmez.</small></div>
     <div class="set-row"><label for="rf-random">Rastgele roller</label>
       <span class="switch"><input type="checkbox" id="rf-random" name="roleMode" ${s.roleMode !== 'all' ? 'checked' : ''} ${dis}><i></i></span>
       <small>Açıkken açık roller arasından her oyunda rastgele bir kısmı çıkar; kimse neyle karşılaşacağını tam bilemez. Kapalıysa açık rollerin hepsi (sığdığı kadar) dağıtılır.</small></div>
@@ -181,6 +184,7 @@ function bindForm(root, s, onChange) {
     }
   });
   root.querySelector('[name=revealRoles]').addEventListener('change', (e) => { s.revealRoles = e.target.checked; onChange && onChange(); });
+  root.querySelector('[name=weather]').addEventListener('change', (e) => { s.weather = e.target.checked; onChange && onChange(); });
   root.querySelector('[name=roleMode]').addEventListener('change', (e) => { s.roleMode = e.target.checked ? 'random' : 'all'; update(); });
   const smart = root.querySelector('[name=smartBots]');
   if (smart) smart.addEventListener('change', (e) => { s.smartBots = e.target.checked; onChange && onChange(); });
@@ -194,6 +198,7 @@ export function openCreateRoom() {
     roomName: `${ctx.user.username} Köyü`.slice(0, 24),
     nightSec: Math.min(60, last.nightSec || 20), daySec: last.daySec || 120, roleMode: last.roleMode || 'random', vampires: vampOf(last.vampires),
     revealRoles: last.revealRoles !== undefined ? last.revealRoles : true,
+    weather: last.weather !== false,
     events: EVENTS_UI ? (last.events || 'some') : 'off',
     roles: { ...DEFAULT_ROLES, ...(last.roles || {}) },
     smartBots: last.smartBots !== false,
@@ -216,7 +221,7 @@ export function openCreateRoom() {
     const btn = sheet.foot.querySelector('[data-create]');
     btn.disabled = true;
     err.textContent = '';
-    const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, vampires: vampOf(s.vampires), roles: s.roles, smartBots: s.smartBots };
+    const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, weather: s.weather !== false, events: s.events, roleMode: s.roleMode, vampires: vampOf(s.vampires), roles: s.roles, smartBots: s.smartBots };
     store.set(LAST_KEY, settings);
     // Bot zekâsı kayıtlı son ayarlara yazılmaz (pahalı seçenek her odada kendiliğinden açılmasın).
     const res = await send('room:create', { roomName, password: form.password.value, settings: s.canChooseBotModel ? { ...settings, botModel: s.botModel } : settings }, { quiet: true });
@@ -237,7 +242,7 @@ export function openRoomSettings() {
   const host = iAmHost() && st.room.phase === 'lobby';
   const cur = st.room.settings;
   const s = {
-    nightSec: cur.nightSec, daySec: cur.daySec, revealRoles: cur.revealRoles, events: EVENTS_UI ? (cur.events || 'some') : 'off',
+    nightSec: cur.nightSec, daySec: cur.daySec, revealRoles: cur.revealRoles, weather: cur.weather !== false, events: EVENTS_UI ? (cur.events || 'some') : 'off',
     roleMode: cur.roleMode || 'random', vampires: vampOf(cur.vampires), roles: { ...cur.roles }, smartBots: cur.smartBots !== false, aiAvailable: Boolean(st.room.aiAvailable),
     canChooseBotModel: Boolean(st.me && st.me.canChooseBotModel), botModel: bmOf(cur.botModel),
   };
@@ -254,7 +259,7 @@ export function openRoomSettings() {
   bindForm(form, s);
   if (host) {
     sheet.foot.querySelector('[data-save]').addEventListener('click', async () => {
-      const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, vampires: vampOf(s.vampires), roles: s.roles, smartBots: s.smartBots };
+      const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, weather: s.weather !== false, events: s.events, roleMode: s.roleMode, vampires: vampOf(s.vampires), roles: s.roles, smartBots: s.smartBots };
       const res = await send('room:settings', { settings: s.canChooseBotModel ? { ...settings, botModel: s.botModel } : settings });
       if (res.ok) {
         store.set(LAST_KEY, settings);

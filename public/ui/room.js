@@ -2,7 +2,7 @@
 // lobi kartı, rol kartı (reveal), oyun sonu ekranı.
 import { ctx, send, playerById, iAmHost, emitLocal, on, serverNow } from './ctx.js';
 import { Api } from './api.js';
-import { $, esc, sfx, fmtClock, vibrate, audioScene, reducedMotion } from './util.js';
+import { $, esc, sfx, fmtClock, vibrate, audioScene, audioWeather, reducedMotion } from './util.js';
 import { icon, emblem, logoMark } from './icons.js';
 import { ROLES, ABILITIES, COLORS, inkOn, isEvil, WIN_TITLE, levelOf, countRoles, MIN_PLAYERS, EVENTS } from './data.js';
 import { W } from './world-host.js';
@@ -330,6 +330,7 @@ export function renderAll(s) {
   renderRail(s);
   renderChatState(s);
   renderOverlay(s);
+  audioWeather(s.room.weather, s.serverNow);
   W.update(s, { witchMode: ctx.witchMode });
   scheduleInsets();
   tick();

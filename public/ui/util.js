@@ -77,6 +77,10 @@ export const reducedMotion = () => window.matchMedia && window.matchMedia('(pref
 export function sfx(name, opts) {
   try { if (window.VKAudio) window.VKAudio.sfx(name, opts); } catch { /* ses yoksa sessiz */ }
 }
+// Sunucu havası (room.weather): ses motoruna iletilir (yağmur sesi, gök gürültüsü).
+export function audioWeather(w, serverNow) {
+  try { if (window.VKAudio && window.VKAudio.setWeather) window.VKAudio.setWeather(w, serverNow); } catch { /* yoksay */ }
+}
 export function audioScene(name) {
   try { if (window.VKAudio) window.VKAudio.setScene(name); } catch { /* yoksay */ }
 }
