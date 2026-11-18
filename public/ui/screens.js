@@ -348,7 +348,7 @@ export function leaveMenu() {
 export function renderProfile() {
   const u = ctx.user;
   if (!u) return;
-  const lv = levelOf(u.stats);
+  const lv = levelOf(u.stats, u.admin);
   const st = u.stats || { games: 0, wins: 0 };
   const rate = st.games ? Math.round((st.wins / st.games) * 100) : 0;
   const el = $('#profile');
@@ -372,7 +372,7 @@ export function renderProfile() {
   el.querySelector('.level-badge').textContent = lv.level;
   el.querySelector('.lv-title').textContent = lv.title;
   el.querySelector('.xp i').style.width = `${Math.round(lv.progress * 100)}%`;
-  el.querySelector('.xp-label').textContent = `${lv.xp} / ${lv.to} puan · sonraki seviyeye ${lv.to - lv.xp}`;
+  el.querySelector('.xp-label').textContent = lv.admin ? 'Sınırsız · seviye ulaşılamaz' : `${lv.xp} / ${lv.to} puan · sonraki seviyeye ${lv.to - lv.xp}`;
   el.querySelector('[data-s=games]').textContent = st.games;
   el.querySelector('[data-s=wins]').textContent = st.wins;
   el.querySelector('[data-s=rate]').textContent = `%${rate}`;
@@ -473,7 +473,7 @@ async function openLeaderboard() {
       const mine = ctx.user && p.username === ctx.user.username;
       const rate = p.stats.games ? Math.round(p.stats.wins / p.stats.games * 100) : 0;
       return `<div class="lb-row${mine ? ' me' : ''}"><span class="lb-rank">${i + 1}</span>
-        <span class="lb-name"><span class="swatch-dot" style="background:${c}"></span><span>${esc(p.username)}</span><small class="chip">Sv ${levelOf(p.stats).level}</small></span>
+        <span class="lb-name"><span class="swatch-dot" style="background:${c}"></span><span>${esc(p.username)}</span><small class="chip">${p.admin ? 'Ulaşılamaz' : 'Sv ' + levelOf(p.stats).level}</small></span>
         <span class="lb-num"><b>${p.stats.wins} galibiyet</b>${p.stats.games} oyun · %${rate}</span></div>`;
     }).join('')}</div>`;
   } catch (e) {

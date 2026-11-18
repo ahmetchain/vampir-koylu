@@ -283,3 +283,12 @@ test('depo: look_house kolonu (pg-mem) kaydedilir; eski tabloya ALTER ile ekleni
   assert.equal((await reloaded.getUser('j')).look.house, 3, 'dosyadan geri okunur');
   removeDir(dir);
 });
+
+test('admin (sahip) hesabı: puansız tüm evler açık, genel kayıtta admin işareti var', () => {
+  const { canUseHouse, HOUSE_COUNT } = require('../lib/houses');
+  const { publicUser } = require('../lib/auth');
+  for (let h = 0; h < HOUSE_COUNT; h++) assert.equal(canUseHouse(h, { username: 'ahmetchain', points: 0 }), true);
+  assert.equal(canUseHouse(5, { username: 'baskasi', points: 9999 }), false);
+  const u = publicUser({ id: 'x', username: 'ahmetchain', createdAt: Date.now(), look: { color: 0, hat: 0, skin: 0 }, stats: { games: 0, wins: 0 } });
+  assert.equal(u.admin, true);
+});

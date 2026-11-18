@@ -181,7 +181,8 @@ export function countRoles(list) {
 
 // İstatistiklerden basit seviye: oyun 20, galibiyet 30 puan.
 const TITLES = ['Çaylak Köylü', 'Meraklı Komşu', 'Fener Taşıyıcı', 'Köy Bekçisi', 'Sarımsak Ustası', 'Gece Avcısı', 'Dolunay Bilgesi', 'Köyün Efsanesi'];
-export function levelOf(stats) {
+export function levelOf(stats, admin = false) {
+  if (admin) return { xp: Infinity, level: '∞', from: 0, to: Infinity, progress: 1, title: 'Ulaşılamaz', admin: true };
   const games = (stats && stats.games) || 0;
   const wins = (stats && stats.wins) || 0;
   const xp = games * 20 + wins * 30;

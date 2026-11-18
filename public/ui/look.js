@@ -46,7 +46,7 @@ export function openLookEditor() {
   const nameEl = body.querySelector('.look-name');
   const thumbs = [];
   const owner = !!(ctx.user && ctx.user.ownerLooks);   // yalnızca gösterim; kilidi sunucu doğrular
-  const points = () => pointsOf(ctx.user && ctx.user.stats);
+  const points = () => (ctx.user && ctx.user.admin ? Infinity : pointsOf(ctx.user && ctx.user.stats));
 
   // Küçük ev önizlemesi: gerçek 3B modelden alınmış görüntü; 3B yoksa/hazır değilse basit SVG yedeği
   let thumbs3d = null;
@@ -92,7 +92,7 @@ export function openLookEditor() {
           ${owner ? `${icon('lock', 'taken')}<small>${esc(owner)}</small>` : ''}</button>`;
       }).join('');
     } else if (tab === 'house') {
-      grid.innerHTML = `<p class="house-points">Puanın: <b>${points()}</b> <span>oynanan oyun + 2 × galibiyet</span></p>`
+      grid.innerHTML = `<p class="house-points">Puanın: <b>${points() === Infinity ? '∞' : points()}</b> <span>oynanan oyun + 2 × galibiyet</span></p>`
         + HOUSES.map((h, i) => {
           const lock = houseLock(h);
           return `<button type="button" class="opt house-card${(look.house | 0) === i ? ' on' : ''}${lock ? ' locked' : ''}" data-v="${i}"

@@ -1013,15 +1013,16 @@ function statsDeltaHTML() {
   const after = ctx.statsAfter;
   if (!after) return '<div class="note note-moon">İstatistiklerin profiline işleniyor…</div>';
   const b = before || { games: after.games - 1, wins: after.wins };
-  const lb = levelOf(b); const la = levelOf(after);
+  const adm = Boolean(ctx.user && ctx.user.admin);
+  const lb = levelOf(b, adm); const la = levelOf(after, adm);
   const dg = after.games - b.games; const dw = after.wins - b.wins;
   return `<div><div class="section-title">Senin hesabın</div>
     <div class="end-delta">
       <div class="stat"><b>+${dg}</b><small>Oyun</small></div>
       <div class="stat"><b>+${dw}</b><small>Galibiyet</small></div>
-      <div class="stat"><b>+${la.xp - lb.xp}</b><small>Puan</small></div>
+      <div class="stat"><b>${adm ? '∞' : '+' + (la.xp - lb.xp)}</b><small>Puan</small></div>
     </div>
-    <div class="level-row" style="margin-top:8px"><span class="level-badge">${la.level}</span>${la.level > lb.level ? '<b>Seviye atladın!</b> ' : ''}${la.title}</div>
+    <div class="level-row" style="margin-top:8px"><span class="level-badge">${la.level}</span>${!adm && la.level > lb.level ? '<b>Seviye atladın!</b> ' : ''}${la.title}</div>
     <div class="xp" style="margin-top:6px"><i style="width:${Math.round(la.progress * 100)}%"></i></div></div>`;
 }
 
