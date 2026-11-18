@@ -21,6 +21,7 @@ try {
 const { BotBrain, botName } = require('./lib/bots');
 const { HOUSES, HOUSE_COUNT, canUseHouse, canUseAcc } = require('./lib/houses');   // ev görünümleri (look.house) ve sahibe özel görünüm
 const { Banter, isOwnerName } = require('./lib/banter');   // lobi/oyun sonu muhabbeti (şablonlu, modelsiz)
+const Weather = require('./public/weather-core');   // hava durumu (yalnızca görsel/ses): seçim ve şimşek tohumu
 const { GameRecorder } = require('./lib/ai/gamerec');   // oyun geçmişi kaydı (docs/GAME-LOGS.md)
 
 const ROLE = {
@@ -138,7 +139,7 @@ const DEFAULT_ROLES = {
 const EVENT_MODES = ['off', 'some', 'often'];
 const ROLE_MODES = ['random', 'all'];
 const VAMPIRE_SETTINGS = ['auto', 1, 2, 3, 4];   // oda ayarı: vampir sayısı ('auto' = oyuncu sayısına göre)
-const DEFAULT_SETTINGS = { nightSec: 20, daySec: 120, revealRoles: true, events: 'off', roleMode: 'random', vampires: 'auto', smartBots: true, botModel: 'haiku', roles: DEFAULT_ROLES };
+const DEFAULT_SETTINGS = { nightSec: 20, daySec: 120, revealRoles: true, events: 'off', roleMode: 'random', vampires: 'auto', smartBots: true, botModel: 'haiku', weather: true, roles: DEFAULT_ROLES };
 const BOT_MODELS = ['haiku', 'hybrid', 'sonnet'];   // 'hybrid' ve 'sonnet' yalnızca sahip hesap (lib/banter.js PEOPLE.owner) tarafından seçilebilir
 // 'hybrid' (Karma) odada Sonnet'e giden gerçek roller; diğer botlar Haiku ile çalışır.
 const HYBRID_SONNET_ROLES = new Set([ROLE.VAMPIRE, ROLE.WATCHER, ROLE.DOCTOR]);
@@ -206,6 +207,8 @@ function normalizeSettings(raw = {}) {
     // Akıllı botlar (sunucuda API anahtarı varsa; V2-PLAN §17). Varsayılan açık; anahtar yoksa etkisiz.
     smartBots: raw.smartBots === undefined ? DEFAULT_SETTINGS.smartBots : Boolean(raw.smartBots),
     botModel: BOT_MODELS.includes(raw.botModel) ? raw.botModel : DEFAULT_SETTINGS.botModel,
+    // Hava olayları (yağmur/fırtına): yalnızca görsel ve ses, oyun kuralını değiştirmez. Varsayılan açık.
+    weather: raw.weather === undefined ? DEFAULT_SETTINGS.weather : Boolean(raw.weather),
     roles,
   };
 }
@@ -434,10 +437,12 @@ class Room {
   // dealRng: testlerde rol dağıtımının tohumlu üreteci (crypto.randomInt gibi: n -> 0..n-1).
   // seerRng: testlerde kahinin şaşırtmaca rolünün tohumlu üreteci (Math.random gibi).
   constructor({
-    id, name, password, settings, hooks, storySeed = null, botRng = Math.random, eventRng = Math.random,
+    id, name, password, settings, hooks, storySeed = null, botRng = Math.random, eventRng = Math.random, weatherRng = Math.random,
     dealRng = crypto.randomInt, seerRng = null, ai = null, banterRng = Math.random, people = null,
   }) {
     this.dealRng = dealRng;
+    this.weatherRng = weatherRng;
+    this.weather = null;         // { kind: 'clear'|'rain'|'storm', seed, since }: faz başında sunucu seçer (null = açık)
     this.seerRng = seerRng || (() => this.rand());
     this.id = id;
     this.closed = false;
@@ -1117,6 +1122,16 @@ class Room {
     return Boolean(this.event && this.event.id === id);
   }
 
+  // Faz başında (gece/gündüz ayrı) hava seçer. Köy olayı sistemiyle karışmaz; tipi (kar fırtınası) varsa açık kalır.
+  rollWeather() {
+    const kind = Weather.choose({ enabled: this.settings.weather !== false, eventId: this.event && this.event.id, rng: this.weatherRng });
+    this.weather = kind === 'clear' ? null : { kind, seed: Math.floor(this.weatherRng() * 4294967296) >>> 0, since: Date.now() };
+  }
+
+  weatherView() {
+    return this.weather ? { ...this.weather } : { kind: 'clear', seed: 0, since: 0 };
+  }
+
   eventView() {
     return this.event ? { id: this.event.id, name: this.event.name, desc: this.event.desc, phase: this.event.phase } : null;
   }
@@ -1198,6 +1213,7 @@ class Room {
     if (planned && EVENTS[planned.id].phase === 'night') this.event = EVENTS[planned.id];
     else if (planned) this.pendingDayEvent = planned;
 
+    this.rollWeather();
     const nightMs = this.eventIs('kisa-gece') ? Math.round(this.settings.nightSec * 500) : this.settings.nightSec * 1000;
     // Gece üç aşamalıdır: yürüyüş (eve dönüş, seçimler açık) → seçim (nightSec) → gösterim (NIGHT_SHOW_MS).
     // Görünen sayaç (timerFrom) yürüyüş bitince başlar; deadline seçimin sonu, gösterimde gösterimin sonu.
@@ -2055,6 +2071,7 @@ class Room {
         this.event = EVENTS[pending.id];
       }
     }
+    this.rollWeather();
     const dayMs = this.eventIs('ayaz') ? Math.round(this.settings.daySec * 500) : this.settings.daySec * 1000;
     this.setPhase('day', dayMs, () => this.endDay());
     const n = this.narrate('day', { round: this.round },
@@ -2350,6 +2367,7 @@ class Room {
       p.ghostPos = null;
     }
     this.phase = 'ended';
+    this.weather = null;
     this.deadline = null;
     this.timerFrom = null;
     this.winner = winner;
@@ -2441,6 +2459,7 @@ class Room {
       }
     }
     this.phase = 'lobby';
+    this.weather = null;
     this.resetGame();
     this.addLog('Yeni oyun için lobiye dönüldü.', 'info');
     this.changed();
@@ -2579,6 +2598,7 @@ class Room {
         scenario: this.scenario,
         epilogue: this.phase === 'ended' ? this.epilogue : null,
         event: this.eventView(),
+        weather: this.weatherView(),
         trial: this.trial ? {
           step: this.trial.step, accused: [...this.trial.accused], counts: { ...this.trial.counts }, speaker: this.trial.speaker,
         } : null,
@@ -2697,7 +2717,7 @@ module.exports = {
   Room, ROLE, SLEEP, MIN_PLAYERS, MAX_PLAYERS, ABILITY_MIN_PLAYERS, ABILITY, ABILITIES, ABILITY_TOGGLE, SPECIAL_ROLES, OPTIONAL_ROLES,
   DEFAULT_ROLES, ROLE_LABEL, COLOR_COUNT, HAT_COUNT, SKIN_COUNT, ACC_COUNT, HOUSE_COUNT, PLAZA, MOVE_PHASES,
   HOST_GRACE_MS, REVEAL_MS, ALL_VOTED_MS, HUNTER_MS, NIGHT_WALK_MS, NIGHT_SHOW_MS, NIGHT_RESULT_MS, PICK_GRACE_MS, ROLE_MODES, TRIAL_TURN_MS, TRIAL_VOTE_MS, TRIAL_ALL_VOTED_MS,
-  EVENTS, EVENT_MODES, EVENT_GAP, EVENT_CHANCE, chooseEvent, LOBBY_GRACE_MS, EMPTY_ROOM_MS,
+  Weather, EVENTS, EVENT_MODES, EVENT_GAP, EVENT_CHANCE, chooseEvent, LOBBY_GRACE_MS, EMPTY_ROOM_MS,
   LOG_MAX, SCENES,
   THIEF_MIN_PLAYERS, MAD_FAKE_ROLES, DECOY_OPPOSITE_SHARE,
   vampireCount, dealAbilities, assignRoles, rolesFor, rolePlan, distributionFor, possibleRoles, winnerOf, tally, normalizeSettings, teamOf, isEvil, clampToPlaza,

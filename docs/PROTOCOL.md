@@ -150,6 +150,7 @@ settings = {
   daySec: 120,           // 30..300
   revealRoles: true,     // reveal the role of players who die / leave
   events: 'off',         // village events: 'off' | 'some' | 'often' (built, OFF by default and hidden in the UI; §12.10)
+  weather: true,         // weather events (rain / storm), purely visual + audio, never changes rules (§9 `room.weather`); false → always clear
   roleMode: 'random',    // 'random' | 'all' – how roles are dealt (§3); anything else → 'random'
   smartBots: true,       // bots driven by Claude when the server has an API key (§17); no effect without one
   botModel: 'haiku',     // 'haiku' | 'hybrid' | 'sonnet' (UI: Normal / Karma / Güçlü); 'hybrid' = Sonnet only for bots whose real role is vampir/gozcu/doktor (roughly a third of the bots), Haiku for the rest; only the owner account (lib/banter.js) may set 'hybrid' or 'sonnet' (others get an error; the field is hidden from their state); owner's `me.canChooseBotModel` is true
@@ -419,6 +420,11 @@ Sent per viewer. Full shape:
     scenario: null | { id, name, intro },    // theme of this game (§16); set at game:start, null again after game:lobby
     epilogue: null | { title, text, story }, // "Köy Günlüğü" recap (§16); only in phase 'ended' (null on fallback)
     event: null | { id, name, desc, phase },  // active village event (events only, §12.10)
+    weather: { kind: 'clear' | 'rain' | 'storm', seed: uint32, since: ms },   // same for every viewer. Rolled by the server at the start of each night and each day
+                                                // (~72% clear / 20% rain / 8% storm); always 'clear' when settings.weather is false, in the lobby/reveal/ended, and during the
+                                                // 'tipi' (snow storm) event. Visual/audio only. In a storm, lightning times are derived from (seed, since) by the shared pure
+                                                // function `strikes()` in public/weather-core.js (first strike 3–7 s after `since`, then every 5–17 s; each strike carries dist 0..1;
+                                                // thunder follows 0.3 + 2.2·dist s later) so every client flashes at the same server-clock instant with no extra network traffic.
     trial: null | { step: 'defense'|'vote', accused: [id, id], counts: { [id]: n }, speaker: id|null },  // mahkeme (§12.10)
   },
   me: {                                // null only if the viewer has no seat (should not happen)

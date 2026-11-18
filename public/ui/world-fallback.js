@@ -325,6 +325,52 @@
     var disposed = false;
     var geo = { cx: 0, cy: 0, S: 1, K: 0.8, r: 14 };
 
+    // Hava (yağmur/fırtına): 2B yedekte yalnızca CSS katmanı; şimşek zamanları 3B dünyayla aynı tohumdan (VKWeather).
+    var wxEl = null, wxFlash = null, wxKind = 'clear', wxTimer = 0, wxLast = 0, wxSeed = 0, wxSince = 0;
+    function wxSetup() {
+      if (wxEl) return;
+      if (!document.getElementById('vkw-wx-css')) {
+        var st = document.createElement('style'); st.id = 'vkw-wx-css';
+        st.textContent = '@keyframes vkwRain{from{background-position:0 0,0 0}to{background-position:-60px 260px,-30px 180px}}'
+          + '.vkw-wx{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity 2.5s;background-color:rgba(40,52,78,.28);background-image:'
+          + 'repeating-linear-gradient(104deg,transparent 0 17px,rgba(190,205,230,.34) 17px 18px,transparent 18px 41px),'
+          + 'repeating-linear-gradient(104deg,transparent 0 29px,rgba(190,205,230,.2) 29px 30px,transparent 30px 53px);background-size:60px 260px,60px 180px;animation:vkwRain .55s linear infinite}'
+          + '.vkw-wx.storm{background-color:rgba(30,40,66,.4)}'
+          + '.vkw-wxf{position:absolute;inset:0;pointer-events:none;opacity:0;background:#dbe6ff;mix-blend-mode:screen}'
+          + '@media (prefers-reduced-motion:reduce){.vkw-wx{animation:none}}';
+        document.head.appendChild(st);
+      }
+      wxEl = document.createElement('div'); wxEl.className = 'vkw-wx';
+      wxFlash = document.createElement('div'); wxFlash.className = 'vkw-wxf';
+      container.appendChild(wxEl); container.appendChild(wxFlash);
+    }
+    function wxSet(w) {
+      var core = window.VKWeather;
+      var n = core ? core.normalize(w) : { kind: 'clear', seed: 0, since: 0 };
+      if (view !== 'game') n = { kind: 'clear', seed: 0, since: 0 };
+      if (n.kind === wxKind && n.seed === wxSeed && n.since === wxSince) return;
+      wxKind = n.kind; wxSeed = n.seed; wxSince = n.since; wxLast = Date.now() + clockOffset;
+      if (wxKind === 'clear' && !wxEl) return;
+      wxSetup();
+      wxEl.className = 'vkw-wx' + (wxKind === 'storm' ? ' storm' : '');
+      wxEl.style.opacity = wxKind === 'clear' ? '0' : (wxKind === 'storm' ? '1' : '0.8');
+      clearInterval(wxTimer); wxTimer = 0;
+      if (wxKind === 'storm' && core) {
+        wxTimer = setInterval(function () {
+          if (disposed || document.hidden) return;
+          var now = Date.now() + clockOffset, list = core.strikes(wxSeed, wxSince, wxLast, now);
+          wxLast = now;
+          var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          list.forEach(function (s) {
+            if (now - s.t > 500) return;
+            wxFlash.style.transition = 'none'; wxFlash.style.opacity = reduce ? '0.15' : '0.55';
+            void wxFlash.offsetWidth;
+            wxFlash.style.transition = 'opacity .45s ease-out'; wxFlash.style.opacity = '0';
+          });
+        }, 120);
+      }
+    }
+
     function resize() {
       var r = container.getBoundingClientRect();
       W = Math.max(1, r.width); H = Math.max(1, r.height);
@@ -400,6 +446,7 @@
       if (disposed || !s || !s.room) return;
       state = s; ui = opts || {};
       clockOffset = s.serverNow - Date.now();
+      try { wxSet(s.room.weather); } catch (e) { /* hava yedeği hata vermesin */ }
       var ph = s.room.phase;
       targetNight = ph === 'night' ? 1 : ph === 'reveal' ? 0.7 : ph === 'hunter' ? 0.35 : ph === 'ended' ? 0.15 : 0;
       var ordered = seatOrder(s.players);
@@ -946,7 +993,7 @@
 
     function setView(v) {
       view = v === 'menu' ? 'menu' : 'game';
-      if (view === 'menu') { state = null; ents.clear(); houses = menuHouses(); bubbles.clear(); }
+      if (view === 'menu') { state = null; ents.clear(); houses = menuHouses(); bubbles.clear(); try { wxSet(null); } catch (e) { /* yoksay */ } }
       spin = 0;
       layout();
     }
@@ -962,7 +1009,7 @@
       // Arayüz katmanlarının kapladığı kenarlar: köy görünen alanın ortasına yerleşir.
       setInsets: function (o) { insets = { top: o.top || 0, bottom: o.bottom || 0, left: o.left || 0, right: o.right || 0 }; layout(); },
       reset: function () { ents.clear(); bubbles.clear(); effects = []; particles = []; state = null; houses = menuHouses(); },
-      dispose: function () { disposed = true; canvas.remove(); },
+      dispose: function () { disposed = true; clearInterval(wxTimer); if (wxEl) { wxEl.remove(); wxFlash.remove(); } canvas.remove(); },
       isFallback: true,
       stats: function () { return { fps: perf.fps, ms: perf.ms, tier: quality === "auto" ? "low" : quality, mode: quality === "auto" ? "auto" : "manual", px: DPR }; },
     };

@@ -230,6 +230,7 @@
     unlocked = true;
     if (first) { setTimeout(prefetchSfx, 800); }
     syncScene();
+    wxSync();
   }
 
   // ---------- yükleme ----------
@@ -387,6 +388,7 @@
     });
     // --- baykuş ---
     if (def.owl) scheduleOwl(); else if (owlTimer) { clearTimeout(owlTimer); owlTimer = null; }
+    wxSync();
   }
   function scheduleOwl() {
     if (owlTimer) return;
@@ -481,11 +483,126 @@
     setTimeout(function () { if (ctx && ctx.currentTime >= duckUntil) targets.duck = 1; }, dur * 1000 + 900);
   }
 
+  // ---------- hava durumu sesi (prosedürel Web Audio; dosya yok) ----------
+  // Yağmur: üç filtreli gürültü katmanı (yüksek "tıkırtı" bandı, gövde, alçak "çatı uğultusu"), rastgele genlik, döngü.
+  // Gök gürültüsü: şimşekten 0.3–2.5 sn sonra alçak geçiren gürültü patlaması + uzun düşen zarf + yuvarlanma.
+  // Hepsi ortam kanalından (nodes.amb) geçer: ortam kaydırıcısı, sessize alma ve giriş müziği kısması (base) kendiliğinden uygulanır.
+  var WX_LEVEL = { rain: 0.5, storm: 0.7 };   // ortamdan biraz düşük
+  var wx = { kind: 'clear', seed: 0, since: 0, skew: 0, g: null, lastT: 0, timer: null, modTimer: null, thunders: 0, noise: null };
+  function wxNow() { return Date.now() + wx.skew; }
+  function noiseBuffer(seconds, brown) {
+    var n = Math.floor(ctx.sampleRate * seconds), b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0), last = 0;
+    for (var i = 0; i < n; i++) {
+      var w = Math.random() * 2 - 1;
+      if (brown) { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w;
+    }
+    return b;
+  }
+  function wxWanted() {
+    return !!(ctx && unlocked && ctx.state === 'running' && !settings.muted && !document.hidden && wx.kind !== 'clear' && (scene === 'day' || scene === 'night'));
+  }
+  function wxBuild() {
+    if (wx.g) return;
+    if (!wx.noise) wx.noise = { white: noiseBuffer(4, false), brown: noiseBuffer(6, true) };
+    var c = ctx, out = c.createGain(); out.gain.value = 0; out.connect(nodes.amb);
+    function layer(buf, type, f, q, level) {
+      var s = c.createBufferSource(); s.buffer = buf; s.loop = true;
+      var flt = c.createBiquadFilter(); flt.type = type; flt.frequency.value = f; flt.Q.value = q;
+      var g = c.createGain(); g.gain.value = level;
+      s.connect(flt); flt.connect(g); g.connect(out);
+      s.start(0, Math.random() * 2);
+      return { src: s, flt: flt, gain: g, level: level };
+    }
+    var hi = layer(wx.noise.white, 'bandpass', 4200, 0.45, 0.5);      // tıkırtı
+    var mid = layer(wx.noise.white, 'lowpass', 1400, 0.6, 0.4);       // gövde
+    var lo = layer(wx.noise.brown, 'lowpass', 420, 0.5, 0.55);        // çatı/uğultu
+    wx.g = { out: out, layers: [hi, mid, lo] };
+    // rastgele genlik: her ~140 ms'de hafif dalgalanma (düz bir fısıltı gibi durmasın)
+    wx.modTimer = setInterval(function () {
+      if (!wx.g || !ctx) return;
+      var t = ctx.currentTime;
+      wx.g.layers.forEach(function (L) {
+        try { L.gain.gain.setTargetAtTime(L.level * (0.75 + Math.random() * 0.5), t, 0.08); } catch (e) { }
+      });
+    }, 140);
+  }
+  function wxTeardown() {
+    var g = wx.g; wx.g = null;
+    if (wx.modTimer) { clearInterval(wx.modTimer); wx.modTimer = null; }
+    if (!g) return;
+    setTimeout(function () {
+      g.layers.forEach(function (L) { try { L.src.stop(); L.src.disconnect(); L.flt.disconnect(); L.gain.disconnect(); } catch (e) { } });
+      try { g.out.disconnect(); } catch (e) { }
+    }, 3200);
+  }
+  // Tek bir gök gürültüsü: when = ctx.currentTime cinsinden başlangıç, dist 0 (yakın) .. 1 (uzak)
+  function wxThunder(when, dist) {
+    if (!ctx || !wx.g || !wx.noise) return;
+    var c = ctx, dur = 3.2 + 3.2 * dist, vol = 0.95 - 0.5 * dist;
+    var s = c.createBufferSource(); s.buffer = wx.noise.brown;
+    var lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.7;
+    lp.frequency.setValueAtTime(950 - 450 * dist, when);
+    lp.frequency.exponentialRampToValueAtTime(110, when + dur);
+    var g = c.createGain(); g.gain.setValueAtTime(0.0001, when);
+    // ilk çatlama (yakınsa güçlü), sonra yuvarlanma: azalan 3–5 tümsek
+    g.gain.linearRampToValueAtTime(vol, when + 0.03 + 0.12 * dist);
+    g.gain.exponentialRampToValueAtTime(vol * 0.45, when + 0.5);
+    var bumps = 3 + Math.floor(Math.random() * 3), t = when + 0.5;
+    for (var i = 0; i < bumps; i++) {
+      var dt = 0.35 + Math.random() * 0.6, peak = vol * (0.55 - i * 0.09) * (0.7 + Math.random() * 0.5);
+      if (peak < 0.02) break;
+      g.gain.linearRampToValueAtTime(Math.max(peak, 0.02), t + dt * 0.4);
+      g.gain.linearRampToValueAtTime(Math.max(peak * 0.3, 0.01), t + dt);
+      t += dt;
+    }
+    g.gain.exponentialRampToValueAtTime(0.0001, when + dur + 0.6);
+    s.connect(lp); lp.connect(g); g.connect(nodes.amb);
+    s.start(when, Math.random() * 3); s.stop(when + dur + 0.8);
+    s.onended = function () { try { s.disconnect(); lp.disconnect(); g.disconnect(); } catch (e) { } };
+    // yakın şimşekte kısa, keskin çatlama
+    if (dist < 0.45) {
+      var cs = c.createBufferSource(); cs.buffer = wx.noise.white;
+      var bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 0.4;
+      var cg = c.createGain(); cg.gain.setValueAtTime(0.0001, when);
+      cg.gain.linearRampToValueAtTime(0.5 * (1 - dist), when + 0.004);
+      cg.gain.exponentialRampToValueAtTime(0.0001, when + 0.22);
+      cs.connect(bp); bp.connect(cg); cg.connect(nodes.amb);
+      cs.start(when, Math.random() * 2); cs.stop(when + 0.3);
+      cs.onended = function () { try { cs.disconnect(); bp.disconnect(); cg.disconnect(); } catch (e) { } };
+    }
+    wx.thunders++;
+  }
+  function wxTick() {
+    if (!wx.g || wx.kind !== 'storm' || !wxWanted() || !window.VKWeather) return;
+    var now = wxNow(), list = window.VKWeather.strikes(wx.seed, wx.since, wx.lastT, now + 400);
+    wx.lastT = now + 400;
+    list.forEach(function (st) {
+      var at = st.t + window.VKWeather.thunderDelay(st.dist) * 1000;
+      if (at < now - 150) return;     // geç kalmış (sekme açıldı vb.)
+      wxThunder(ctx.currentTime + Math.max(0, (at - now) / 1000), st.dist);
+    });
+  }
+  function wxSync() {
+    var want = wxWanted();
+    if (want) {
+      wxBuild();
+      var lvl = WX_LEVEL[wx.kind] || 0.5;
+      targets.wx = lvl;
+      ramp(wx.g.out.gain, lvl, 3);
+      if (wx.kind === 'storm') { if (!wx.timer) { wx.lastT = wxNow(); wx.timer = setInterval(wxTick, 250); } }
+      else if (wx.timer) { clearInterval(wx.timer); wx.timer = null; }
+    } else {
+      targets.wx = 0;
+      if (wx.timer) { clearInterval(wx.timer); wx.timer = null; }
+      if (wx.g) { ramp(wx.g.out.gain, 0, 2.5); wxTeardown(); }
+    }
+  }
+
   // ---------- sayfa görünürlüğü ----------
   function onVisibility() {
     if (!ctx) return;
     try {
-      if (document.hidden) { if (ctx.state === 'running') ctx.suspend(); }
+      if (document.hidden) { if (ctx.state === 'running') ctx.suspend(); wxSync(); }
       else if (!settings.muted && unlocked) {
         var p = ctx.resume(); if (p && p.then) p.then(afterUnlock, function () { });
       }
@@ -552,6 +669,16 @@
         }
       } catch (e) { logErr('stopSfx', e); }
     },
+    // Sunucu havası ({ kind: 'clear'|'rain'|'storm', seed, since }); serverNow ile saat farkı hesaplanır.
+    setWeather: function (w, serverNow) {
+      try {
+        var n = window.VKWeather ? window.VKWeather.normalize(w) : { kind: 'clear', seed: 0, since: 0 };
+        if (serverNow) wx.skew = serverNow - Date.now();
+        var changed = n.kind !== wx.kind || n.seed !== wx.seed || n.since !== wx.since;
+        wx.kind = n.kind; wx.seed = n.seed; wx.since = n.since;
+        if (changed) { wx.lastT = wxNow(); wxSync(); }
+      } catch (e) { logErr('setWeather', e); }
+    },
     setVolume: function (o) {
       try {
         if (!o || typeof o !== 'object') return;
@@ -566,6 +693,7 @@
       try {
         settings.muted = b === undefined ? true : !!b;
         persist(); applyVolumes(0.12);
+        if (settings.muted) wxSync();   // hava sesi (yağmur/gök gürültüsü) tamamen durur
         if (!ctx) return;
         if (settings.muted) {
           setTimeout(function () { try { if (settings.muted && ctx.state === 'running') ctx.suspend(); } catch (e) { } }, 200);
@@ -594,6 +722,7 @@
       return {
         supported: !!AC, inited: inited, state: ctx ? ctx.state : 'none', unlocked: unlocked,
         sampleRate: ctx ? ctx.sampleRate : null, time: ctx ? +ctx.currentTime.toFixed(3) : 0,
+        weather: { kind: wx.kind, active: !!wx.g, thunders: wx.thunders, gain: wx.g ? g(wx.g.out) : null, target: targets.wx || 0, layers: wx.g ? wx.g.layers.length : 0, thunderTimer: !!wx.timer },
         scene: scene, muted: settings.muted, volume: API.getVolume(), menuTrack: settings.menuTrack,
         gains: {
           master: g(nodes.master), music: g(nodes.music), duck: g(nodes.duck), sfx: g(nodes.sfx), amb: g(nodes.amb),

@@ -20,6 +20,7 @@ import { createNightShow, PRIVATE_KINDS, SHOW_S } from './nightshow.js';
 import { computeLayout, plazaToWorld, worldToPlaza } from './layout.js';
 import { resolveStatic } from './nav.js';
 import { makeTod, evalTod, stepHour } from './tod.js';
+import { createRain } from './rain.js';
 import { TIERS, ORDER, AutoQuality, DynamicRes, detailFor, isMobile, guessTier } from './quality.js';
 import * as Rules from './rules.js';
 import { clamp, damp, smooth, wrapAngle, COLOR_HEX, TAU } from './constants.js';
@@ -163,6 +164,7 @@ export function create(container, handlers = {}) {
   let scenarioId = null;
   let moodDef = null;
   const weather = createWeather(scene);
+  const rain = createRain(scene);   // sunucu havası: yağmur/fırtına (rain.js)
   // gece ay ışığı kenar parlaması (arkadan, gölgesiz)
   const rimLight = new THREE.DirectionalLight(0x8fb4ff, 0);
   scene.add(rimLight);
@@ -306,6 +308,7 @@ export function create(container, handlers = {}) {
   };
   const lastSfx = {};
   let flashT = 0;
+  let rainFlashOn = false;
 
   const overlay = createOverlay(root, {
     onTagTap(id) { tapCharacter(id, true); },
@@ -363,6 +366,7 @@ export function create(container, handlers = {}) {
   let shMode = 0;
   function applyTier(name, announce = true) {
     tier = TIERS[name];
+    rain.setCount(tier.rain || 0);
     const dpr = window.devicePixelRatio || 1;
     px = Math.min(dpr, mobile ? tier.pxMobile : tier.px);
     // çizim görünümünde telefon: görüntü hep keskin (piksel oranı 1'in altına inmez); performans özellik kısarak
@@ -1104,6 +1108,11 @@ export function create(container, handlers = {}) {
     if (tod.night > 0.3) tod.sun.lerp(moonCol, (moonOverrideCol || mood.nightTint ? 0.55 : 0.3) * tod.night);
     tod.fogNear *= mood.fog * fogBoostK; tod.fogFar *= mood.fog * fogBoostK;
     tod.stars *= mood.stars;
+    // hava (yağmur/fırtına): gök, sis ve ışık çarpanları + şimşek parlaması
+    rain.tick(dt, time, Date.now() + skew, view === 'game', reduced);
+    rain.applyTod(tod);
+    if (rain.flash > 0.02) flashEl.style.transition = 'none', flashEl.style.background = 'radial-gradient(ellipse at 50% 30%, #dbe6ff55, #cfe0ffcc)', flashEl.style.opacity = String(rain.flash * (reduced ? 0.2 : 0.32)), rainFlashOn = true;
+    else if (rainFlashOn) { rainFlashOn = false; flashEl.style.transition = 'opacity .35s'; flashEl.style.opacity = '0'; }
     scene.fog.color.copy(tod.hor);
     // sis kameranın uzaklığına göre ölçeklenir: tepeden genel bakışta köy sise gömülmesin
     // gece genel bakışında biraz sis derinliği kalsın (köyün kenarları puslu)
@@ -1115,6 +1124,7 @@ export function create(container, handlers = {}) {
     rimLight.position.set(-camera.position.x * 0.6, 60, -camera.position.z * 0.6 - 40);
     hemi.color.copy(tod.sky); hemi.groundColor.copy(tod.gnd); hemi.intensity = tod.hi;
     sun.color.copy(tod.sun); sun.intensity = tod.si;
+    rain.applyLights(hemi, sun);
     // çizim görünümü: daha düz ışık (ortam ağır basar)
     if (world.toon) { hemi.intensity *= 1.3; sun.intensity *= 0.75; }
     const L = village && village.layout;
@@ -1145,6 +1155,7 @@ export function create(container, handlers = {}) {
       fireLight.position.set(Math.sin(time * 7) * 0.08, 1.4, 0);
       fireLight.distance = 17;
     }
+    rain.followCamera(rig.cur.target, !!roomMode);
     fire.update(time, px, 0.75 + 0.25 * tod.fire);
     sky.update(tod, time, camera, px, moonCol);
     fireflies.update(time, px, tier.fireflies ? clamp(tod.night * 1.2 - 0.2, 0, 1) : 0);
@@ -1684,7 +1695,7 @@ export function create(container, handlers = {}) {
     for (const g of ghosts.values()) g.dispose();
     chars.clear(); ghosts.clear();
     if (village) village.dispose();
-    sky.dispose(); terrain.dispose(); fire.dispose(); fireflies.dispose(); bursts.dispose(); weather.dispose();
+    sky.dispose(); terrain.dispose(); fire.dispose(); fireflies.dispose(); bursts.dispose(); weather.dispose(); rain.dispose();
     if (room) room.dispose();
     for (const a of cineActors.values()) a.ch.dispose();
     cineActors.clear();
@@ -1771,11 +1782,15 @@ export function create(container, handlers = {}) {
       styleT = 0;
     },
     getStyle() { return world.toon ? 'toon' : 'default'; },
-    _debug: { world, scene, renderer, camera, rig, fol, get village() { return village; }, get room() { return room; }, get roomMode() { return roomMode; }, setHour(h) { hour = h; } },
+    _debug: { rain, world, scene, renderer, camera, rig, fol, get village() { return village; }, get room() { return room; }, get roomMode() { return roomMode; }, setHour(h) { hour = h; } },
   };
   // saat farkı (serverNow) her state'te güncellenir
   const origUpdate = api.update;
-  api.update = (st, o) => { if (st && st.serverNow) skew = st.serverNow - Date.now(); origUpdate(st, o); };
+  api.update = (st, o) => {
+    if (st && st.serverNow) skew = st.serverNow - Date.now();
+    try { rain.set(st && st.room ? st.room.weather : null, Date.now() + skew); } catch (e) { report('hava', e); }
+    origUpdate(st, o);
+  };
   // Dışarıdan çağrılan her yöntem hatayı içeride tutar (arayüzü asla bozmasın)
   for (const k of ['announce', 'bubble', 'setView', 'setQuality', 'resize', 'reset', 'setInsets', 'recenter', 'setMood', 'skip', 'setScenario', 'setCameraMode', 'setStyle']) {
     const f = api[k];
