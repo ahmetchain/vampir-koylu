@@ -206,3 +206,16 @@ test('kimlik doğrulama hatası: özellik bir süre duraklar, içerik loglanmaz'
   assert.ok(warns.every((w) => !w.includes('gizli') && !w.includes('U')));
   await flush();
 });
+
+// Robot gibi konuşan kalıplar kodda süzülür; dürüst "botum" cevabı geçer; kişilikler yazı imzası taşır.
+test('manners: robot kalıpları süzülür, dürüst bot itirafı geçer; kişiliklerin yazı imzası var', () => {
+  const { cleanBotLine } = require('../lib/manners');
+  const { PERSONAS } = require('../lib/ai/personas');
+  assert.equal(cleanBotLine('Kesinlikle, ali yalan söylüyor'), 'ali yalan söylüyor');
+  assert.equal(cleanBotLine('Bir köylü olarak, bence uyuyalım'), 'bence uyuyalım');
+  assert.equal(cleanBotLine('Analizlerime göre deniz şüpheli'), '');
+  assert.equal(cleanBotLine('Özetlemek gerekirse herkes sessiz'), '');
+  assert.equal(cleanBotLine('Evet ben bir botum, yapay zeka'), 'Evet ben bir botum, yapay zeka');
+  assert.equal(PERSONAS.length, 12);
+  for (const p of PERSONAS) assert.match(p, /Writing:/, p);
+});
