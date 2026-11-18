@@ -80,6 +80,25 @@ Sources:
 | `sfx/whoosh.mp3`, `whoosh-2.mp3` | Synthesized | Filtered-noise swooshes |
 | `sfx/owl.mp3` | Synthesized | Distant owl hoots (random night ambience, played by the engine) |
 
+Runtime-synthesized effects (no audio files; generated in the browser when first played):
+
+- **ZzFX (Zuper Zmall Zound Zynth)** by Frank Force, https://github.com/KilledByAPixel/ZzFX, **MIT
+  License** (Copyright (c) 2019 Frank Force). Its small sample generator is embedded (ported to ES5, same algorithm, minified) in
+  `public/zzfx.js` (licence header kept in the file). `public/audio.js`
+  uses it to synthesize four layered effects: `zzDeath` (muffled thud + falling breath), `zzDissolve`
+  (rising rustle/shimmer), `zzGong` (low gong, inharmonic partials), `zzHeart` (heartbeat). The
+  parameter sets are our own. They are low-passed and given a light synthetic room (convolver) at
+  playback and play together with the existing mp3 effects `death`, `bite`, `hang`.
+
+MIT License text (ZzFX):
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+> associated documentation files (the "Software"), to deal in the Software without restriction,
+> including without limitation the rights to use, copy, modify, merge, publish, distribute,
+> sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions: The above copyright notice and this
+> permission notice shall be included in all copies or substantial portions of the Software. THE
+> SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+
 ## UI (`public/assets/ui/`, `public/ui/`)
 
 - **Fraunces** (display font, variable, "soft" axis subset) by The Fraunces Project Authors

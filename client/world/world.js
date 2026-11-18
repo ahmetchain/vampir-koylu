@@ -20,6 +20,8 @@ import { createNightShow, PRIVATE_KINDS, SHOW_S } from './nightshow.js';
 import { computeLayout, plazaToWorld, worldToPlaza } from './layout.js';
 import { resolveStatic } from './nav.js';
 import { makeTod, evalTod, stepHour } from './tod.js';
+import * as DeathFx from './deathfx.js';
+const deathWarm = DeathFx.warmObject;
 import { TIERS, ORDER, AutoQuality, DynamicRes, detailFor, isMobile, guessTier } from './quality.js';
 import * as Rules from './rules.js';
 import { clamp, damp, smooth, wrapAngle, COLOR_HEX, TAU } from './constants.js';
@@ -189,6 +191,9 @@ export function create(container, handlers = {}) {
       world.sfx(name);
     },
     sfxStep() { world.sfxThrottled('step', 0.32); },
+    // ölüm/asılma efektleri (deathfx.js): kalite kademesi ve azaltılmış hareket tercihi
+    tierName() { return tier.name; },
+    reducedMotion() { return reduced; },
     reapply() { if (ready && state && view === 'game') applyState(false); },
     ticker,
     assets: A,
@@ -450,17 +455,19 @@ export function create(container, handlers = {}) {
           if (g) extra.push(g.scene);
         }
       }
+      if (withCine) { const w = deathWarm(); if (w) extra.push(w); }   // ölüm dissolve gölgelendiricisi
       const done = () => { for (const c of hidden) c.visible = false; };
       if (renderer.compileAsync && renderer.extensions.has('KHR_parallel_shader_compile')) {
         const jobs = [renderer.compileAsync(scene, camera)];
         for (const o of extra) jobs.push(renderer.compileAsync(o, camera, scene));
         // compileAsync çağrıldığı anda görünürlüğü okur; geri almak güvenli
         done();
-        Promise.all(jobs).catch(() => {});
+        Promise.all(jobs).then(() => { if (withCine) DeathFx.warmDraw(world); }).catch(() => {});
       } else {
         renderer.compile(scene, camera);
         for (const o of extra) renderer.compile(o, camera, scene);
         done();
+        if (withCine) DeathFx.warmDraw(world);
       }
     } catch (e) { report('ön derleme', e); }
   }
@@ -1771,7 +1778,7 @@ export function create(container, handlers = {}) {
       styleT = 0;
     },
     getStyle() { return world.toon ? 'toon' : 'default'; },
-    _debug: { world, scene, renderer, camera, rig, fol, get village() { return village; }, get room() { return room; }, get roomMode() { return roomMode; }, setHour(h) { hour = h; } },
+    _debug: { DeathFx, world, scene, renderer, camera, rig, fol, get village() { return village; }, get room() { return room; }, get roomMode() { return roomMode; }, setHour(h) { hour = h; } },
   };
   // saat farkı (serverNow) her state'te güncellenir
   const origUpdate = api.update;

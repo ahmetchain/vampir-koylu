@@ -228,7 +228,7 @@
     if (!ctx || ctx.state !== 'running') return;
     var first = !unlocked;
     unlocked = true;
-    if (first) { setTimeout(prefetchSfx, 800); }
+    if (first) { setTimeout(prefetchSfx, 800); setTimeout(zzWarm, 1500); }
     syncScene();
   }
 
@@ -459,7 +459,7 @@
   }
   function remove(v) {
     var i = voices.indexOf(v); if (i >= 0) voices.splice(i, 1);
-    try { v.src.disconnect(); v.gain.disconnect(); if (v.out !== v.gain) v.out.disconnect(); } catch (e) { }
+    try { v.src.disconnect(); v.gain.disconnect(); if (v.out !== v.gain) v.out.disconnect(); if (v.extra) v.extra.disconnect(); } catch (e) { }
   }
   function kill(v) {
     try { ramp(v.gain.gain, 0, 0.03); v.src.stop(ctx.currentTime + 0.04); } catch (e) { }
@@ -490,6 +490,108 @@
         var p = ctx.resume(); if (p && p.then) p.then(afterUnlock, function () { });
       }
     } catch (e) { }
+  }
+
+  // ---------- ZzFX katmanı (zzfx.js, MIT): ölüm/asılma efektleri ----------
+  // Parametreler ZzFX sırasıyla: [vol, rastgelelik, frekans, attack, sustain, release, şekil, eğri, slide, dSlide, pitchJump,
+  // pitchJumpTime, repeatTime, noise, modulation, bitCrush, delay, sustainVol, decay, tremolo, filtre(-LP / +HP: ZzFX'te artı değer yüksek geçiren)].
+  // Katmanlar (at: sn gecikme) tek tampona karıştırılır; çalarken alçak geçiren filtre + hafif yankı (sentetik oda) ile
+  // yumuşatılır. Mevcut mp3 efektleri (death, hang, bite...) KATMAN olarak yanında çalar; seviyeler onlara göre dengelidir.
+  var ZZ = {
+    // ölüm anı: boğuk gövde darbesi + kumaş/toprak hışırtısı + düşen soluk
+    zzDeath: { vol: 0.62, lp: 1500, wet: 0.22, gap: 400, max: 1, duck: 0.7, layers: [
+      { p: [1, 0.02, 95, 0.004, 0.05, 0.34, 0, 1.4, -0.25, 0, 0, 0, 0, 0, 0, 0, 0, 0.9, 0.03, 0, -420] },
+      { p: [0.5, 0.1, 300, 0.002, 0.02, 0.16, 4, 1, -0.2, 0, 0, 0, 0, 0.4, 0, 0, 0, 0.6, 0, 0, -1400], at: 0.005 },
+      { p: [0.26, 0.04, 330, 0.07, 0.15, 0.55, 0, 1, -0.45, 0, 0, 0, 0, 0, 0, 0, 0, 0.7, 0.05, 0, -900], at: 0.05 }
+    ] },
+    // toza dönüşme: yükselen hışırtı + parıltı + alçak "whoomp"
+    zzDissolve: { vol: 0.5, lp: 7000, wet: 0.3, gap: 500, max: 1, layers: [
+      { p: [0.4, 0.2, 700, 0.6, 0.5, 0.7, 4, 1, 0, 0, 0, 0, 0.07, 0.2, 0, 0, 0, 0.8, 0, 0.6, 1500] },
+      { p: [0.15, 0.3, 1800, 0.5, 0.5, 0.6, 0, 1, 0.4, 0, 0, 0, 0.11, 0, 0, 0, 0, 0.7, 0, 0.9, 0], at: 0.15 },
+      { p: [0.5, 0.05, 60, 0.4, 0.3, 0.9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.8, 0, 0, -300] }
+    ] },
+    // asılma kararı: alçak gong (uyumsuz kısmi tonlar + hafif vuruş = yavaş sönen çınlama)
+    zzGong: { vol: 0.55, lp: 2600, wet: 0.45, gap: 800, max: 1, duck: 0.65, layers: [
+      { p: [0.9, 0, 98, 0.008, 0.25, 2.6, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.8, 0.1, 0, -1200] },
+      { p: [0.5, 0, 99.4, 0.008, 0.2, 2.4, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.8, 0.1, 0, -1200] },
+      { p: [0.42, 0, 196.7, 0.006, 0.15, 2.0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.8, 0.1, 0, -2000] },
+      { p: [0.3, 0, 267, 0.006, 0.1, 1.6, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.7, 0.1, 0, -2400] },
+      { p: [0.16, 0, 421, 0.004, 0.05, 1.0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.7, 0.05, 0, -3000] },
+      { p: [0.35, 0.1, 500, 0.001, 0, 0.12, 4, 1, 0, 0, 0, 0, 0, 0.3, 0, 0, 0, 0.6, 0, 0, -2500] }
+    ] },
+    // kalp atışı: lub-dub
+    zzHeart: { vol: 0.5, lp: 600, wet: 0.08, gap: 450, max: 1, layers: [
+      { p: [1, 0.02, 68, 0.005, 0.03, 0.14, 0, 1.3, -0.12, 0, 0, 0, 0, 0, 0, 0, 0, 0.9, 0, 0, -200] },
+      { p: [0.75, 0.02, 78, 0.005, 0.02, 0.1, 0, 1.3, -0.12, 0, 0, 0, 0, 0, 0, 0, 0, 0.9, 0, 0, -220], at: 0.17 }
+    ] }
+  };
+  Object.keys(ZZ).forEach(function (n) {
+    var z = ZZ[n];
+    SFX[n] = { files: [], zz: z, vol: z.vol, max: z.max || 1, gap: z.gap || 300, duck: z.duck, prio: 3, pitch: 0.03 };
+  });
+  var zzBufs = {}, zzRoom = null;
+  function zzBuild(name) {
+    if (zzBufs[name]) return zzBufs[name];
+    var z = ZZ[name], Z = window.VKZzfx;
+    if (!z || !Z || !ctx) return null;
+    var sr = ctx.sampleRate, parts = [], len = 0, i, k;
+    z.layers.forEach(function (L) {
+      var s = Z.gen(sr, L.p), at = Math.round((L.at || 0) * sr);
+      parts.push({ s: s, at: at }); len = Math.max(len, at + s.length);
+    });
+    var out = new Float32Array(len), peak = 0;
+    parts.forEach(function (P) { for (i = 0; i < P.s.length; i++) out[P.at + i] += P.s[i]; });
+    for (k = 0; k < len; k++) peak = Math.max(peak, Math.abs(out[k]));
+    var g = peak > 0 ? 0.9 / peak : 1;
+    for (k = 0; k < len; k++) out[k] *= g;
+    var tail = Math.min(len, Math.round(sr * 0.02));      // son 20 ms: tık sesi olmasın
+    for (k = 0; k < tail; k++) out[len - 1 - k] *= k / tail;
+    var buf = ctx.createBuffer(1, len, sr);
+    buf.getChannelData(0).set(out);
+    zzBufs[name] = buf;
+    return buf;
+  }
+  // ortak sentetik oda: 0,9 sn sönen gürültü (stereo), yumuşak kuyruk
+  function zzReverb() {
+    if (zzRoom) return zzRoom;
+    var sr = ctx.sampleRate, n = Math.round(sr * 0.9), ir = ctx.createBuffer(2, n, sr);
+    for (var c = 0; c < 2; c++) {
+      var d = ir.getChannelData(c), lp = 0;
+      for (var i = 0; i < n; i++) { lp += (((Math.random() * 2 - 1) * Math.pow(1 - i / n, 2.4)) - lp) * 0.35; d[i] = lp; }
+    }
+    var conv = ctx.createConvolver(); conv.buffer = ir;
+    var send = ctx.createGain(); send.gain.value = 1;
+    send.connect(conv); conv.connect(nodes.sfx);
+    zzRoom = send;
+    return send;
+  }
+  function playZz(def, name, vol) {
+    var buf = zzBuild(name);
+    if (!buf || !ctx || ctx.state !== 'running') return;
+    try {
+      var same = voices.filter(function (v) { return v.name === name; });
+      if (def.max && same.length >= def.max) kill(same[0]);
+      if (voices.length >= MAX_VOICES) kill(voices[0]);
+      var s = ctx.createBufferSource(), g = ctx.createGain(), lp = ctx.createBiquadFilter(), z = def.zz;
+      s.buffer = buf;
+      s.playbackRate.value = 1 + (Math.random() * 2 - 1) * (def.pitch || 0);
+      g.gain.value = vol;
+      lp.type = 'lowpass'; lp.frequency.value = z.lp || 4000; lp.Q.value = 0.5;
+      s.connect(g); g.connect(lp); lp.connect(nodes.sfx);
+      var wet = null;
+      if (z.wet) { wet = ctx.createGain(); wet.gain.value = z.wet; lp.connect(wet); wet.connect(zzReverb()); }
+      var v = { name: name, src: s, gain: g, out: lp, t: ctx.currentTime, extra: wet };
+      voices.push(v);
+      s.onended = function () { remove(v); try { if (wet) wet.disconnect(); } catch (e) { } };
+      s.start(0);
+      stats.sfxPlayed++; stats.lastSfx = name;
+      if (def.duck) duck(def.duck, buf.duration / (s.playbackRate.value || 1));
+    } catch (e) { logErr('zz ' + name, e); }
+  }
+  // kilit açılınca tamponları sırayla hazırla (ilk çalmada üretim takılması olmasın)
+  function zzWarm() {
+    var names = Object.keys(ZZ), i = 0;
+    (function next() { if (i >= names.length || !ctx) return; try { zzBuild(names[i++]); } catch (e) { logErr('zzWarm', e); } setTimeout(next, 150); })();
   }
 
   // ---------- genel API ----------
@@ -530,6 +632,7 @@
         if (!isFinite(v)) v = 1;
         v = Math.max(0, Math.min(2, v));
         if (v <= 0) return;
+        if (def.zz) { playZz(def, name, def.vol * v); return; }
         play(def, name, def.vol * v, def.party ? nodes.hero : nodes.sfx, def.pitch || 0, false);
       } catch (e) { logErr('sfx', e); }
     },
@@ -609,7 +712,7 @@
         failed: Object.keys(failed).reduce(function (o, k) { o[k] = failed[k].error; return o; }, {}),
         voices: voices.map(function (v) { return v.name; }),
         stats: JSON.parse(JSON.stringify(stats)),
-        sfxNames: Object.keys(SFX), scenes: Object.keys(SCENES), base: BASE
+        zz: Object.keys(zzBufs), sfxNames: Object.keys(SFX), scenes: Object.keys(SCENES), base: BASE
       };
     }
   };
