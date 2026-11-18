@@ -9,6 +9,7 @@ import { makeFlame } from './fx.js';
 import { COLOR_HEX, TAU, clamp } from './constants.js';
 import { makeHat } from './hats.js';
 import { toWorld } from './layout.js';
+import { playCollapse, dissolve, COLLAPSE_DUR } from './deathfx.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const ids = (msg) => (msg.targets || []).map((t) => t.id).filter(Boolean);
@@ -324,7 +325,7 @@ export function registerCinematics(director, world) {
     if (body) {
       body.run([{ walk: [a.door, fall], mode: 'sneak' }]);
       let sway = 0;
-      world.ticker.push((dt) => { if (!ctx.alive() || !body.root.visible || body.base === 'lie') return true; sway += dt * 7; body.root.rotation.z = Math.sin(sway) * 0.12; return false; });
+      world.ticker.push((dt) => { if (!ctx.alive() || !body.root.visible || body.base === 'lie' || body.base === 'collapse') return true; sway += dt * 7; body.root.rotation.z = Math.sin(sway) * 0.12; return false; });
     }
     if (scene === 'poison') {
       ctx.sfx('potion');
@@ -339,21 +340,28 @@ export function registerCinematics(director, world) {
       world.flash(0.22, '#d7263d');
       await ctx.wait(0.2 * speed);
     }
-    // yığılır
+    // yığılır: kod üretimi klip (sendele, diz çök, öne düş, yere çarp, yana dön); çarpma anında sarsıntı + ses + toz
+    const gx = body ? body.pos.x : fall.x, gz = body ? body.pos.z : fall.z;
     if (body) {
       body.run([]); body.path = null; body.root.rotation.z = 0;
       body.faceYaw = Math.atan2(fall.x - a.door.x, fall.z - a.door.z);
-      body.setBase('lie', 0.15);
+      body.yaw = body.faceYaw;
+      playCollapse(body, speed);
       if (scene === 'poison') world.fx.emit('bubble', body.pos.x, 0.5, body.pos.z, '#94d82d', 10);
-      world.fx.emit('dust', body.pos.x, 0.1, body.pos.z, null, 6);
-    }
-    world.shake(0.3); world.hitStop(80);   // ölüm anı
+      await ctx.wait(COLLAPSE_DUR * 0.8 * speed);
+    } else await ctx.wait(0.4 * speed);
+    world.shake(0.3); world.hitStop(80);   // ölüm anı (yere çarpma)
+    ctx.sfx('zzDeath');
+    world.fx.emit('dust', gx, 0.1, gz, null, 8);
     world.flickerHouse(id, 1.2 * speed);
-    await ctx.wait(1.3 * speed);
-    const gx = body ? body.pos.x : fall.x, gz = body ? body.pos.z : fall.z;
-    const gr = ghostRise(ctx, look, gx, gz, 0.3, 2.0 * speed);
     await ctx.wait(0.7 * speed);
-    if (body) { world.fx.emit('poof', gx, 0.3, gz, '#d8d0ff', 12); body.setVisible(false); }
+    // toz olup dağılır (kenarlardan kor gibi parlayarak); hayalet yarı yolda yükselir
+    let dis = null;
+    if (body) { ctx.sfx('zzDissolve'); dis = dissolve(world, body, { kind: 'burn', dur: 1.6, alive: () => ctx.alive() }); }
+    await ctx.wait(0.7 * speed);
+    const gr = ghostRise(ctx, look, gx, gz, 0.3, 2.0 * speed);
+    if (dis) await dis.promise; else await ctx.wait(0.9 * speed);
+    if (body) { world.fx.emit('poof', gx, 0.3, gz, '#d8d0ff', 6); body.setVisible(false); }
     tombDrop(ctx, id);
     await gr;
     await ctx.wait(0.2);
@@ -527,12 +535,12 @@ export function registerCinematics(director, world) {
     // yüksekten: seyirciler yukarıdan küçük görünür (başlar kadrajı kapatmaz), ateş kameranın altında kalır
     // kamera önden ~45° yandan: ateş (önde, meydan ortasında) kadrajın dışında kalır
     // yatay ekranda dar açı + biraz geri: ateş (yaklaşık 33° yanda) kadraja girmez
-    const fd = portrait ? 8.0 : 7.4, sd = portrait ? 8.0 : 9.6;
+    const fd = portrait ? 8.0 : 8.6, sd = portrait ? 8.0 : 3.4;
     const gfov = portrait ? wfov() : 32;
     const cam0 = V(g.x + front.x * fd + side.x * sd, portrait ? 6.2 : 5.0, g.z + front.z * fd + side.z * sd);
     const cam1 = V(g.x + front.x * fd * 0.8 + side.x * sd * 0.8, portrait ? 5.2 : 4.2, g.z + front.z * fd * 0.8 + side.z * sd * 0.8);
     const lk = (y) => V(g.x - front.x * (portrait ? 0 : 0.7) - side.x * 0.5, y, g.z - front.z * (portrait ? 0 : 0.7) - side.z * 0.5);
-    ctx.move(cam0, lk(portrait ? 1.6 : 1.7), cam1, lk(portrait ? 1.9 : 2.0), 4.2, { fov: gfov });
+    ctx.move(cam0, lk(portrait ? 2.4 : 2.4), cam1, lk(portrait ? 2.6 : 2.6), 4.2, { fov: gfov });
     nearGuard(ctx, others, portrait ? 6.0 : 6.0);
     ch.run([{ walk: [{ x: g.x + front.x * 1.6, z: g.z + front.z * 1.6 }], mode: 'walk' }]);
     await ctx.wait(1.4);
@@ -542,15 +550,23 @@ export function registerCinematics(director, world) {
     await ctx.wait(0.5);
     ch.playOnce('emote-no', { timeScale: 0.9 });
     ctx.sfx('hang', { volume: 0.7 });
-    await ctx.wait(1.2);
+    ctx.sfx('zzGong');
+    await ctx.wait(0.55);
+    ctx.sfx('zzHeart');
+    await ctx.wait(0.65);
     world.flash(0.45, '#f4e4c1');
     world.shake(0.5); world.hitStop(80);   // asılma anı
-    world.fx.emit('poof', ch.pos.x, 1.4, ch.pos.z, null, 26);
-    ctx.sfx('poof');
-    ch.setVisible(false);
+    ctx.sfx('zzDeath', { volume: 0.7 });
+    ctx.sfx('zzDissolve');
+    // soğuk mavi-gri kenarlı toz olup dağılır (baştan aşağı); kalabalık tepki verir, hayalet yarı yolda yükselir
+    const dis = dissolve(world, ch, { kind: 'cold', from: 'head', dur: 1.6, alive: () => ctx.alive() });
     for (const c of others) if (Math.random() < 0.6) c.playOnce(Math.random() < 0.5 ? 'emote-no' : 'interact-right');
     const p = world.playerById(id);
+    await ctx.wait(0.7);
     const gr = ghostRise(ctx, p && p.look, g.x, g.z, 1.4, 1.8);
+    await dis.promise;
+    ch.setVisible(false);
+    world.fx.emit('poof', ch.pos.x, 1.4, ch.pos.z, null, 6);
     world.markDead(id, { quiet: true, drop: true });
     await gr;
   }

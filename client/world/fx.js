@@ -281,7 +281,7 @@ export class Bursts {
     this.dustOn = true;
   }
   // tür: 'poof' (beyaz-gri bulut), 'magic' (renkli ışıltı), 'dust' (ayak tozu), 'bubble' (zehir kabarcığı),
-  // 'confetti' (renkli, düşen), 'smoke' (koyu, yükselen), 'mist' (mor sis)
+  // 'confetti' (renkli, düşen), 'smoke' (koyu, yükselen), 'mist' (mor sis), 'ember' (kor, yükselen), 'ash' (kül)
   emit(kind, x, y, z, color, count = 14) {
     if (this.list.length > this.max * 1.6) return;
     const base = color ? new THREE.Color(color) : new THREE.Color(kind === 'poof' ? '#e8e4f2' : kind === 'dust' ? '#b59a72' : kind === 'smoke' ? '#4a4652' : kind === 'bubble' ? '#94d82d' : kind === 'mist' ? '#9b7bff' : '#ffd27a');
@@ -294,6 +294,8 @@ export class Bursts {
       if (kind === 'dust') { sp = 0.25 + Math.random() * 0.3; vy = 0.15 + Math.random() * 0.2; life = 0.5 + Math.random() * 0.3; size = 0.14 + Math.random() * 0.1; }
       if (kind === 'bubble') { sp = 0.15; vy = 0.8 + Math.random() * 0.8; life = 1.2 + Math.random(); size = 0.12 + Math.random() * 0.12; }
       if (kind === 'smoke' || kind === 'mist') { sp = 0.3 + Math.random() * 0.5; vy = 0.5 + Math.random() * 0.6; life = 1.4 + Math.random() * 0.8; size = 0.45 + Math.random() * 0.4; }
+      if (kind === 'ember') { sp = 0.15 + Math.random() * 0.35; vy = 0.7 + Math.random() * 1.1; life = 0.9 + Math.random() * 0.9; size = 0.07 + Math.random() * 0.07; }
+      if (kind === 'ash') { sp = 0.25 + Math.random() * 0.5; vy = 0.35 + Math.random() * 0.6; life = 1.3 + Math.random() * 1.0; size = 0.09 + Math.random() * 0.1; }
       if (kind === 'confetti') { sp = 1.5 + Math.random() * 2.5; vy = 3 + Math.random() * 3; life = 1.6 + Math.random() * 0.8; size = 0.1 + Math.random() * 0.08; c = new THREE.Color(CONF[i % CONF.length]); }
       this.list.push({ kind, x: x + Math.cos(a) * 0.2, y: y + Math.random() * 0.4, z: z + Math.sin(a) * 0.2, vx: Math.cos(a) * sp, vy, vz: Math.sin(a) * sp, t: 0, life, size, c });
     }
@@ -310,7 +312,7 @@ export class Bursts {
       p.vx *= drag; p.vz *= drag;
       if (p.kind === 'confetti') p.vy -= 6 * dt; else p.vy *= Math.exp(-1.5 * dt);
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
-      if (p.kind === 'magic' || p.kind === 'bubble') this.add.add(p.x, p.y, p.z, p.size * (1 - k * 0.5), p.c, 1 - k);
+      if (p.kind === 'magic' || p.kind === 'bubble' || p.kind === 'ember') this.add.add(p.x, p.y, p.z, p.size * (1 - k * 0.5), p.c, 1 - k);
       else if (p.kind === 'confetti') this.normal.add(p.x, Math.max(0.05, p.y), p.z, p.size, p.c, 1 - k * k);
       else if (p.kind === 'dust') this.normal.add(p.x, p.y, p.z, p.size * (1 + k * 2), p.c, (1 - k) * 0.45);
       else this.normal.add(p.x, p.y, p.z, p.size * (1 + k * 1.6), p.c, (1 - k) * (1 - k) * (p.kind === 'smoke' || p.kind === 'mist' ? 0.6 : 0.8));

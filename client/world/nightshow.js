@@ -559,6 +559,7 @@ export function createNightShow(world, dir, choreo, H) {
           world.flickerRoom(1.4);
           world.sfx(e.kind === 'poison' ? 'potion' : 'bite', { volume: 0.7 });
           if (e.kind !== 'poison') world.flash(0.25, '#d7263d');
+          world.sfx('zzDeath', { volume: 0.8 });   // ölüm anı: boğuk darbe katmanı
           await ctx.wait(1.4);
           world.fx.emit('smoke', f.root.position.x, 1.0, f.root.position.z, '#2a2238', 16);
           f.root.visible = false;

@@ -306,7 +306,7 @@ export class Character {
 
     // animasyon temeli: hızdan
     const moving = this.speed > 0.15;
-    if (this.base !== 'lie' && this.base !== 'float') {
+    if (this.base !== 'lie' && this.base !== 'float' && this.base !== 'collapse') {
       if (moving) {
         const want = this.mode === 'sprint' ? 'sprint' : this.mode === 'sneak' ? 'sneak' : 'walk';
         if (this.base !== want) this.setBase(want, 0.18);
@@ -376,7 +376,7 @@ export class Character {
     // baş çevirme: konuşana / ateşe / kameraya (animasyonun üstüne, sınırlı)
     if (this.headBone) {
       let want = 0;
-      if (this.lookAt && this.base !== 'lie' && this.speed < 0.3) {
+      if (this.lookAt && this.base !== 'lie' && this.base !== 'collapse' && this.speed < 0.3) {
         const a = Math.atan2(this.lookAt.x - this.pos.x, this.lookAt.z - this.pos.z);
         want = clamp(wrapAngle(a - this.yaw), -0.85, 0.85);
         if (this.lookUntil && time > this.lookUntil) { this.lookAt = null; }
