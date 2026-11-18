@@ -4,7 +4,7 @@
  * Kod dosyaları (html/js/css/build) HER ZAMAN önce ağdan gelir: yeni sürüm yayınlanınca eski kod kalmaz.
  * /api, /socket.io ve /healthz asla önbelleğe alınmaz. */
 // Her model/ses değişiminde (public/assets altı) bu sürümü artır (v2-<yyyymmdd>[-n]); eski önbellekler activate'te silinir.
-const VERSION = 'v2-20261119';
+const VERSION = 'v2-20261119b';
 const STATIC = `vk-static-${VERSION}`;    // /assets/ altı: modeller, sesler, yazı tipleri (önce önbellek, arkadan güncelle)
 const SHELL = `vk-shell-${VERSION}`;      // kod dosyaları: önce ağ, olmazsa önbellek
 

@@ -38,6 +38,7 @@
   // Menü/lobi müziği için iki aday (sahibi kulakla seçsin): setMenuTrack('harp'|'lute').
   // Varsayılan 'harp': ölçümle daha düz dinamik, en az tiz enerji, daha temiz döngü dikişi.
   var MUSIC = {
+    'menu-lobi': { file: 'music/menu-lobi.mp3', loopStart: 0, loopEnd: 125.85, gain: 0.9 },
     'menu-harp': { file: 'music/menu-harp.mp3', loopStart: 0.3, loopEnd: 52.32472, gain: 1.0 },
     'menu-lute': { file: 'music/menu-lute.mp3', loopStart: 0.3, loopEnd: 59.36177, gain: 1.0 },
     day:   { file: 'music/day.mp3',   loopStart: 0.3, loopEnd: 62.5246,  gain: 1.0 },
@@ -83,7 +84,7 @@
   // gece rastgele baykuş (iç efekt, genel sfx listesinde değil)
   var OWL = { files: ['sfx/owl.mp3'] };
 
-  var MENU_TRACKS = ['harp', 'lute'];
+  var MENU_TRACKS = ['lobi', 'harp', 'lute'];   // 'lobi': oyunun ana teması (menü, oda kurma, lobi, oyun sonu)
   // sahne -> müzik + ortam katman seviyeleri (0..1); 'menu' = seçili menü parçası
   var SCENES = {
     menu:  { music: 'menu',  amb: { fire: 0.25 } },
@@ -102,8 +103,8 @@
   //   ortam çıkışı  = master² · amb²   (kamp ateşi, gece/gündüz zemini, baykuş)
   //   efekt çıkışı  = master² · sfx²
   // mute(true) hepsini susturur (master → 0, bağlam askıya alınır); kaydırıcı değerleri korunur.
-  var KEY = 'vk.audio', VERSION = 2;
-  var DEFAULTS = { master: 0.9, music: 0.5, sfx: 0.9, amb: 0.6, muted: false, menuTrack: 'harp' };
+  var KEY = 'vk.audio', VERSION = 3;
+  var DEFAULTS = { master: 0.9, music: 0.5, sfx: 0.9, amb: 0.6, muted: false, menuTrack: 'lobi' };
   var settings = JSON.parse(JSON.stringify(DEFAULTS)), migrated = false;
   function clamp01(v, d) { v = Number(v); return isFinite(v) ? Math.max(0, Math.min(1, v)) : d; }
   try {
@@ -112,7 +113,8 @@
       ['master', 'music', 'sfx', 'amb'].forEach(function (k) { if (k in saved) settings[k] = clamp01(saved[k], settings[k]); });
       settings.muted = !!saved.muted;
       if (MENU_TRACKS.indexOf(saved.menuTrack) >= 0) settings.menuTrack = saved.menuTrack;
-      if (saved.v !== VERSION) {
+      if (!saved.v || saved.v < 3) { settings.menuTrack = DEFAULTS.menuTrack; migrated = true; }   // v3: yeni ana tema herkese varsayılan
+      if (!saved.v || saved.v < 2) {
         // v1 göçü: v1'de ortam efekt kaydırıcısına bağlıydı (kazanç amb²·sfx²) ve varsayılanlar
         // müzik 0.7 / ortam 1 idi. Kullanıcının değiştirmediği eski varsayılanlar yeni varsayılana
         // döner; değiştirdiyse duyduğu ortam seviyesi korunur (amb = amb·sfx).
@@ -283,6 +285,15 @@
     if (!d || !inited) return;
     if (d.music) getBytes(MUSIC[musicId(d.music)].file).then(null, function () { });
     Object.keys(d.amb).forEach(function (id) { getBytes(AMB[id].file).then(null, function () { }); });
+    if (scene === 'lobby') prefetchGameBytes();
+  }
+  // Lobide beklerken oyunun gündüz/gece müziği ve ortam sesleri arka planda iner: oyun başlayınca beklemeden çalar.
+  var gamePrefetched = false;
+  function prefetchGameBytes() {
+    if (gamePrefetched || !inited) return;
+    gamePrefetched = true;
+    ['day', 'night'].forEach(function (id) { getBytes(MUSIC[id].file).then(null, function () { }); });
+    ['day', 'night'].forEach(function (id) { if (AMB[id]) getBytes(AMB[id].file).then(null, function () { }); });
   }
   function prefetchSfx() {
     var list = [];
@@ -735,6 +746,7 @@
         if (name === scene) return;
         scene = name; sceneToken++;
         if (!ctx || !unlocked) prefetchSceneBytes();
+        else if (name === 'lobby') setTimeout(prefetchGameBytes, 4000);   // lobi müziği başladıktan sonra
         syncScene();
       } catch (e) { logErr('setScene', e); }
     },
