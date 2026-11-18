@@ -9,7 +9,9 @@ import { ROLES, TOGGLE_ROLES, DEFAULT_ROLES, distribution, distributionPlan, cou
 const LAST_KEY = 'vk.lastSettings.v2';
 const AI_KEY = 'vk.aiAvailable';
 // Bot zekâsı (yalnızca sahip hesap görür): normal / karma (önemli roller Sonnet) / güçlü (hepsi Sonnet).
-const BOT_MODEL_OPTS = [['haiku', 'Normal (Haiku)'], ['hybrid', 'Karma (önemli roller Sonnet)'], ['sonnet', 'Güçlü (hepsi Sonnet, pahalı)']];
+// Düğmelerde kısa ad (dar telefonda taşmasın), açıklama altta küçük yazıyla.
+const BOT_MODEL_OPTS = [['haiku', 'Normal'], ['hybrid', 'Karma'], ['sonnet', 'Güçlü']];
+const BOT_MODEL_NOTE = { haiku: 'Normal: hepsi Haiku, ucuz.', hybrid: 'Karma: Vampir, Gözcü, Kahin, Doktor gibi önemli roller Sonnet, diğerleri Haiku.', sonnet: 'Güçlü: hepsi Sonnet, en akıllı ama pahalı.' };
 const bmOf = (v) => (v === 'sonnet' || v === 'hybrid' ? v : 'haiku');
 
 export function distChips(list) {
@@ -68,7 +70,7 @@ function formHTML(s, editable, withRoomFields, sampleN) {
     ${s.aiAvailable && s.canChooseBotModel ? `<div class="set-row"><label>Bot zekâsı</label>
       <div class="seg" role="radiogroup" aria-label="Bot zekâsı" data-bmseg>
         ${BOT_MODEL_OPTS.map(([k, l]) => `<button type="button" role="radio" class="seg-btn${bmOf(s.botModel) === k ? ' on' : ''}" data-bm="${k}" aria-checked="${bmOf(s.botModel) === k}" ${dis}>${l}</button>`).join('')}
-      </div></div>` : ''}
+      </div><p class="muted small" style="margin:6px 0 0" data-bmnote>${BOT_MODEL_NOTE[bmOf(s.botModel)]}</p></div>` : ''}
     ${EVENTS_UI ? `<div class="section-title">Köy olayları</div>
     <div class="seg" role="radiogroup" aria-label="Köy olayları" data-evseg>
       ${EVENT_FREQ.map(([k, l]) => `<button type="button" role="radio" class="seg-btn${(s.events || 'some') === k ? ' on' : ''}" data-ev="${k}" aria-checked="${(s.events || 'some') === k}" ${dis}>${l}</button>`).join('')}
@@ -132,6 +134,7 @@ function bindForm(root, s, onChange) {
     if (bm && !bm.disabled) {
       s.botModel = bm.dataset.bm;
       root.querySelectorAll('[data-bm]').forEach((b) => { b.classList.toggle('on', b === bm); b.setAttribute('aria-checked', String(b === bm)); });
+      const note = root.querySelector('[data-bmnote]'); if (note) note.textContent = BOT_MODEL_NOTE[bmOf(s.botModel)];
       sfx('click');
       onChange && onChange();
       return;

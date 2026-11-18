@@ -101,7 +101,7 @@ oyun başına 300, bot başına oyun başına 45 çağrı.
 | `AI_BOT_CALL_LIMIT` | `45` | Bir botun bir oyundaki en fazla çağrısı. |
 | `AI_CONCURRENCY` | `6` | Aynı anda en fazla istek. |
 | `AI_TIMEOUT_MS` | `8000` | Gündüz turlarının zaman aşımı (gece kararları seçim süresine göre daha kısa). |
-| `AI_REVIEW` | – | `off` yazılırsa biten oyunların otomatik incelemesi kapalı (anahtar yoksa da kapalı). |
+| `AI_REVIEW` | kapalı | Biten oyunların otomatik incelemesi varsayılan KAPALI (oyun başına ≈ $0.13); `on` yazılırsa açılır. Oyun kayıtları yine saklanır; seçilen oyunlar `scripts/game-logs.js --analyze` ile incelenir. |
 | `AI_REVIEW_MODEL` | `claude-sonnet-5-5` | İnceleyen model (oyun başına ≈ $0.13). |
 | `AI_REVIEW_DAILY_LIMIT` | `30` | Günlük (UTC) inceleme sayısı. |
 | `AI_ANALYZE` | – | `off` yazılırsa oyun geçmişi çözümlemesi (sunucuda; `scripts/game-logs.js --analyze`) kapalı (anahtar yoksa da kapalı). |

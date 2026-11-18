@@ -166,20 +166,22 @@ test('kayıt üst sınırı: en eski sohbet satırları önce atılır, son sat�
 // ---------- yapılandırma ----------
 
 test('yapılandırma: varsayılanlar, AI_REVIEW=off ve anahtarsızken kapalı', () => {
-  const on = reviewConfig({ ANTHROPIC_API_KEY: 'k' });
+  const on = reviewConfig({ AI_REVIEW: 'on', ANTHROPIC_API_KEY: 'k' });
   assert.equal(on.enabled, true);
   assert.equal(on.model, 'claude-sonnet-5-5');
   assert.equal(on.dailyLimit, 10);
   assert.equal(on.prices.input, 2);
-  const custom = reviewConfig({ ANTHROPIC_API_KEY: 'k', AI_REVIEW_MODEL: 'claude-opus-5-5', AI_REVIEW_DAILY_LIMIT: '5' });
+  const custom = reviewConfig({ AI_REVIEW: 'on', ANTHROPIC_API_KEY: 'k', AI_REVIEW_MODEL: 'claude-opus-5-5', AI_REVIEW_DAILY_LIMIT: '5' });
   assert.equal(custom.model, 'claude-opus-5-5');
   assert.equal(custom.dailyLimit, 5);
   assert.equal(custom.prices.output, 20);
-  assert.equal(reviewConfig({ ANTHROPIC_API_KEY: 'k', AI_REVIEW: 'off' }).enabled, false);
+  assert.equal(reviewConfig({ AI_REVIEW: 'on', ANTHROPIC_API_KEY: 'k', AI_REVIEW: 'off' }).enabled, false);
   assert.equal(reviewConfig({}).enabled, false);
-  assert.equal(createReviewer({ ANTHROPIC_API_KEY: 'k', AI_REVIEW: 'off' }), null);
+  assert.equal(reviewConfig({ ANTHROPIC_API_KEY: 'k' }).enabled, false, 'varsayılan kapalı: AI_REVIEW=on gerekir');
+  assert.equal(createReviewer({ ANTHROPIC_API_KEY: 'k' }), null);
+  assert.equal(createReviewer({ AI_REVIEW: 'on', ANTHROPIC_API_KEY: 'k', AI_REVIEW: 'off' }), null);
   assert.equal(createReviewer({}), null);
-  assert.ok(createReviewer({ ANTHROPIC_API_KEY: 'k' }, { logger: quiet() }));
+  assert.ok(createReviewer({ AI_REVIEW: 'on', ANTHROPIC_API_KEY: 'k' }, { logger: quiet() }));
 });
 
 test('inceleme istemi: sistem istemi botların kural kitabını içerir; şema zorunlu alanları ister', () => {
@@ -210,7 +212,7 @@ test('inceleyici: isteği doğru kurar, maliyeti hesaplar, tek satır log (sohbe
   const store = new JsonStore({ dir });
   await store.init();
   try {
-    const reviewer = new Reviewer({ config: reviewConfig({ ANTHROPIC_API_KEY: 'k' }), transport, logger, store });
+    const reviewer = new Reviewer({ config: reviewConfig({ AI_REVIEW: 'on', ANTHROPIC_API_KEY: 'k' }), transport, logger, store });
     const record = smallRecord({ chat: [{ t: 1, ph: 'gün 1', ch: 'genel', from: 'Zeynep', text: 'ÇOK-GİZLİ-SÖZ' }] });
     const res = await reviewer.process(record, 'ABCDE');
     assert.equal(res.ok, true);
@@ -241,7 +243,7 @@ test('inceleyici: günlük sınır aşılınca çağrı yapılmaz (tek satır uy
   const transport = reviewTransport();
   const logger = quiet();
   let now = NOW;
-  const reviewer = new Reviewer({ config: reviewConfig({ ANTHROPIC_API_KEY: 'k', AI_REVIEW_DAILY_LIMIT: '2' }), transport, logger, now: () => now });
+  const reviewer = new Reviewer({ config: reviewConfig({ AI_REVIEW: 'on', ANTHROPIC_API_KEY: 'k', AI_REVIEW_DAILY_LIMIT: '2' }), transport, logger, now: () => now });
   assert.equal((await reviewer.process(smallRecord(), 'A')).ok, true);
   assert.equal((await reviewer.process(smallRecord(), 'B')).ok, true);
   const third = await reviewer.process(smallRecord(), 'C');
@@ -258,7 +260,7 @@ test('inceleyici: günlük sınır aşılınca çağrı yapılmaz (tek satır uy
 test('inceleyici: AI_REVIEW=off ya da anahtarsız: hiçbir çağrı, hiçbir hata', async () => {
   const transport = reviewTransport();
   const logger = quiet();
-  const off = new Reviewer({ config: reviewConfig({ ANTHROPIC_API_KEY: 'k', AI_REVIEW: 'off' }), transport, logger });
+  const off = new Reviewer({ config: reviewConfig({ AI_REVIEW: 'on', ANTHROPIC_API_KEY: 'k', AI_REVIEW: 'off' }), transport, logger });
   assert.equal(off.available(), false);
   assert.equal((await off.process(smallRecord(), 'X')).reason, 'off');
   const nokey = new Reviewer({ config: reviewConfig({}), transport, logger });
@@ -275,7 +277,7 @@ test('inceleyici: hata, ret, bozuk çıktı, kesilme, depo hatası → atmaz, ya
   ];
   for (const [name, transport] of cases) {
     const logger = quiet();
-    const reviewer = new Reviewer({ config: reviewConfig({ ANTHROPIC_API_KEY: 'k' }), transport, logger });
+    const reviewer = new Reviewer({ config: reviewConfig({ AI_REVIEW: 'on', ANTHROPIC_API_KEY: 'k' }), transport, logger });
     const res = await reviewer.process(smallRecord(), 'Z');
     assert.equal(res.ok, false, name);
     assert.equal(logger.lines.warn.length, 1, name);
@@ -285,13 +287,13 @@ test('inceleyici: hata, ret, bozuk çıktı, kesilme, depo hatası → atmaz, ya
   // Depo hatası: inceleme sayılır ama oyun/süreç etkilenmez.
   const logger = quiet();
   const badStore = { saveAiReview: async () => { throw new Error('disk dolu'); } };
-  const reviewer = new Reviewer({ config: reviewConfig({ ANTHROPIC_API_KEY: 'k' }), transport: reviewTransport(), logger, store: badStore });
+  const reviewer = new Reviewer({ config: reviewConfig({ AI_REVIEW: 'on', ANTHROPIC_API_KEY: 'k' }), transport: reviewTransport(), logger, store: badStore });
   const res = await reviewer.process(smallRecord(), 'Q');
   assert.equal(res.ok, true);
   assert.ok(logger.lines.warn.some((l) => /kaydedilemedi/.test(l)));
   // Zaman aşımı
   const hang = () => new Promise(() => {});
-  const slow = new Reviewer({ config: { ...reviewConfig({ ANTHROPIC_API_KEY: 'k' }), timeoutMs: 30 }, transport: hang, logger: quiet() });
+  const slow = new Reviewer({ config: { ...reviewConfig({ AI_REVIEW: 'on', ANTHROPIC_API_KEY: 'k' }), timeoutMs: 30 }, transport: hang, logger: quiet() });
   const r = await slow.process(smallRecord(), 'T');
   assert.equal(r.reason, 'timeout');
 });
@@ -427,7 +429,7 @@ test('sunucu: oyun kaydı kancası incelemeyi arka planda yapar ve depoya yazar;
   const store = new JsonStore({ dir });
   await store.init();
   const logger = quiet();
-  const reviewer = new Reviewer({ config: reviewConfig({ ANTHROPIC_API_KEY: 'k' }), transport: reviewTransport(), logger, store });
+  const reviewer = new Reviewer({ config: reviewConfig({ AI_REVIEW: 'on', ANTHROPIC_API_KEY: 'k' }), transport: reviewTransport(), logger, store });
   const srv = createGameServer({ store, reviewer, adminToken: 'tk' });
   t.after(async () => { await srv.close(); removeDir(dir); });
   srv.hooks.reviewReady({ id: 'SRV01' }, smallRecord());

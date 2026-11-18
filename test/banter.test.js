@@ -528,6 +528,12 @@ test('botModel hybrid: vampir botun çağrısı sonnet, düz köylününki haiku
     return turn(args);
   };
   room.start('h0');
+  // Roller rastgele dağıtılır: insan Vampir çıktıysa bir botla rol değiştirilir ki bot Vampir kesin olsun.
+  const human = room.players.get('h0');
+  if (human.role === 'vampir') {
+    const bot = [...room.players.values()].find((x) => x.bot && x.role === 'koylu') || [...room.players.values()].find((x) => x.bot);
+    [human.role, bot.role] = [bot.role, human.role];
+  }
   await advance(t, 90000);
   assert.ok(seen.length >= 1, 'çağrı yok');
   const HEAVY = new Set(['vampir', 'iftiraci', 'temizlikci', 'gozcu', 'kahin', 'doktor', 'hirsiz']);

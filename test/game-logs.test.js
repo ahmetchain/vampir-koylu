@@ -551,7 +551,7 @@ test('sunucu: inceleme bitince oyun geçmişine bağlanır (geçmiş yazımı be
   const dir = tempDir('vk-glrev-');
   const store = new JsonStore({ dir });
   await store.init();
-  const reviewer = new Reviewer({ config: reviewConfig({ ANTHROPIC_API_KEY: 'k' }), transport, logger: quiet(), store });
+  const reviewer = new Reviewer({ config: reviewConfig({ AI_REVIEW: 'on', ANTHROPIC_API_KEY: 'k' }), transport, logger: quiet(), store });
   const srv = await gameServer(t, { store, reviewer });
   t.after(() => removeDir(dir));
   const origLog = console.log;

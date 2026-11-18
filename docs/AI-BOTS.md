@@ -173,7 +173,7 @@ To find the mistakes without reading every game, a game that had smart bots is r
 
 | var | default | meaning |
 |---|---|---|
-| `AI_REVIEW` | – | `off` disables reviews (they are also off without `ANTHROPIC_API_KEY` or with `AI_BOTS=off`) |
+| `AI_REVIEW` | off | automatic review after each game is OFF by default (~$0.13/game); `on` enables it (needs `ANTHROPIC_API_KEY`). Game logs are stored either way; analyse chosen games with `scripts/game-logs.js --analyze` |
 | `AI_REVIEW_MODEL` | `claude-sonnet-5-5` | reviewer model (`claude-opus-5-5` also priced) |
 | `AI_REVIEW_DAILY_LIMIT` | 10 | reviews per UTC day (separate from the bots' call budget; counted in memory) |
 | `AI_REVIEW_EFFORT` | `medium` | `low` / `medium` / `high` |
