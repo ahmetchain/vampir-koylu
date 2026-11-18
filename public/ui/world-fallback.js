@@ -19,8 +19,8 @@
     ['Badem', '#d39a6c', '#3a2a1a', 0], ['Kömür', '#6e4128', '#0e0b0a', 2], ['Gümüş', '#e2a97e', '#8a8a8a', 4],
   ];
   var ROOFS = ['#9c3b32', '#3d5a8a', '#6a4a8c', '#4f7a3a', '#a0612a', '#7a3550', '#2f6b6b', '#8a6a2a'];
-  var SEL_COLOR = { vampir: '#ff4b5f', iftiraci: '#e070c0', doktor: '#4fe0a8', kahin: '#a898ff', gozcu: '#ffc062', cadi: '#8be06a' };
-  var SEL_LABEL = { vampir: 'Hedefin', iftiraci: 'İftira', doktor: 'Koruman', kahin: 'Bakılacak', gozcu: 'Gözetlenen' };
+  var SEL_COLOR = { vampir: '#ff4b5f', doktor: '#4fe0a8', kahin: '#a898ff', gozcu: '#ffc062', cadi: '#8be06a' };
+  var SEL_LABEL = { vampir: 'Hedefin', doktor: 'Koruman', kahin: 'Bakılacak', gozcu: 'Gözetlenen' };
   var TAU = Math.PI * 2;
 
   function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
@@ -876,7 +876,6 @@
         if (night.witch.poison === p.id) { mark = 'Zehir'; markColor = '#b06cff'; }
         if (!mark && night.witch.victims.indexOf(p.id) >= 0) { mark = 'Saldırı altında'; markColor = '#ff4b5f'; }
       }
-      if (night && night.team && state.me.role !== 'vampir' && state.me.role !== 'iftiraci') { /* görmez */ }
       var teamPick = night && night.team ? night.team.filter(function (t) { return t.targetId === p.id && t.vampId !== state.me.id; }) : [];
       if (!mark && teamPick.length) { mark = teamPick.map(function (t) { return t.name; }).join(', '); markColor = '#ff8a9a'; }
       if (state.day && state.day.myVote === p.id) { mark = 'Oyun'; markColor = '#ffd27a'; }

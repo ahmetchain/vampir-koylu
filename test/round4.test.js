@@ -8,8 +8,12 @@ const {
 } = require('../game');
 
 const {
-  VAMPIRE: V, FRAMER: F, DOCTOR: D, SEER: S, WATCHER: G, JAILER: L, WITCH: W, HUNTER: H, VILLAGER: K,
+  VAMPIRE: V, DOCTOR: D, SEER: S, WATCHER: G, JAILER: L, WITCH: W, HUNTER: H, VILLAGER: K,
 } = ROLE;
+
+// İftiracı artık rol değil, iftira yetenekli vampirdir.
+const F = 'iftiraci';
+const ABILITY = { iftiraci: 'iftira', temizlikci: 'temizlik' };
 
 function setup(count, { events = 'off', eventRng } = {}) {
   const ev = { announces: [], narrated: [] };
@@ -37,7 +41,11 @@ function setup(count, { events = 'off', eventRng } = {}) {
 
 function startWithRoles(room, roles) {
   assert.equal(room.start(room.hostId), null);
-  roles.forEach((role, i) => { room.players.get(`p${i}`).role = role; });
+  roles.forEach((role, i) => {
+    const p = room.players.get(`p${i}`);
+    p.role = ABILITY[role] ? V : role;
+    p.ability = ABILITY[role] || null;
+  });
   room.startNight();
 }
 
@@ -77,17 +85,19 @@ test('gece seçimleri kesindir: değiştirme ve geri alma reddedilir', (t) => {
   room.destroy();
 });
 
-test('vampir takımı: kilitli vampir seçemez ve gitmez, diğeri hedefi seçer; hedefi seçen ayrılırsa yeni vampir seçebilir', (t) => {
+test('vampir takımı: kilitli vampir seçemez ve gitmez, diğeri kendi hedefini seçer; seçip ayrılanın saldırısı olmaz', (t) => {
   clock(t);
   const { room, ev } = setup(10);
-  startWithRoles(room, [V, V, L, G, F, K, K, K, K, K]);
+  startWithRoles(room, [V, V, L, G, K, K, K, K, K, K]);
   lockNext(room, 'p2', 'p1');   // 2. gece p1'in kapısı kilitli
-  assert.deepEqual(of(ev, 'locked').pop().to, ['p1']);
+  assert.equal(of(ev, 'locked').length, 0, 'kilit önceden söylenmez');
+  assert.equal(room.viewFor('p1').night.canAct, true, 'kilidi bilmeyen oyuncu normal görünür');
+  assert.equal(room.viewFor('p1').night.lockFound, false);
   assert.match(room.selectNight('p1', 'p5'), /Kapın dışarıdan kilitlendi/);
-  assert.equal(room.viewFor('p1').night.locked, true);
+  assert.equal(room.viewFor('p1').night.lockFound, true, 'çıkmaya çalışınca öğrenir');
+  assert.deepEqual(of(ev, 'locked').pop().to, ['p1']);
   assert.equal(room.selectNight('p3', 'p1'), null);   // gözcü kilitli vampirin evini izler
   assert.equal(room.selectNight('p0', 'p5'), null);
-  assert.deepEqual(room.viewFor('p1').night.teamTarget, { targetId: 'p5', by: 'p0', byName: 'Oyuncu0' });
   assert.deepEqual(room.viewFor('p1').night.team.map((x) => x.targetId), ['p5', null], 'kilitli vampir gitmedi');
   assert.equal(room.viewFor('p3').night.watch, undefined, 'gözcünün canlı paneli yok');
   room.endPick();
@@ -98,7 +108,7 @@ test('vampir takımı: kilitli vampir seçemez ve gitmez, diğeri hedefi seçer;
   room.endNight();
   assert.equal(room.players.get('p5').alive, false);
 
-  // Hedefi seçen tek vampir gece ayrılırsa iftiracı dönüşür ve yeni hedef seçebilir.
+  // Hedef seçip gece ayrılan vampirin saldırısı olmaz; diğer vampir (yetenekli de olsa vampirdir) kendi hedefini seçer.
   const { room: r2 } = setup(8);
   startWithRoles(r2, [V, F, K, K, K, K, K, K]);
   assert.equal(r2.selectNight('p0', 'p3'), null);
@@ -136,9 +146,9 @@ test('gardiyan: kilit sadece gündüz, kendi kapısı ve dünkü kapı olmaz, de
   assert.deepEqual(room.nightLock, { targetId: 'p4', by: 'p1' });
   assert.equal(room.viewFor('p1').night.mySelection, 'p4');
   assert.equal(room.viewFor('p1').night.canAct, false);
-  const locked = of(ev, 'locked').pop();
-  assert.deepEqual(locked.to, ['p4']);
-  assert.equal(locked.text, 'Kapın dışarıdan kilitlendi. Bu gece evinden çıkamazsın.');
+  assert.equal(of(ev, 'locked').length, 0, 'kilitli köylüye haber verilmez');
+  assert.match(room.selectNight('p4', 'p5'), /Köylüler gece seçim yapamaz/, 'görevi olmayan kilidi hiç öğrenmez');
+  assert.equal(room.viewFor('p4').night, null);
   room.endNight();
   assert.match(room.lockHouse('p1', 'p4'), /iki gece üst üste/);
   assert.deepEqual(room.viewFor('p1').day.lock, { targetId: null, lastTargetId: 'p4' });
@@ -165,8 +175,10 @@ test('vampirin kapısı kilitlenirse: tek vampir çıkamaz, o gece kimse ölmez,
   const { room, ev } = setup(8);
   startWithRoles(room, [V, L, D, K, K, K, K, K]);
   lockNext(room, 'p1', 'p0');
-  assert.deepEqual(of(ev, 'locked').pop().to, ['p0']);
+  assert.equal(of(ev, 'locked').length, 0);
+  assert.equal(room.viewFor('p0').night.canAct, true);
   assert.match(room.selectNight('p0', 'p3'), /kilitlendi/);
+  assert.deepEqual(of(ev, 'locked').pop().to, ['p0']);
   assert.equal(room.viewFor('p0').night.canAct, false);
   const safeBefore = of(ev, 'safe').length;
   room.endNight();
@@ -174,7 +186,8 @@ test('vampirin kapısı kilitlenirse: tek vampir çıkamaz, o gece kimse ölmez,
   const report = of(ev, 'lockreport').pop();
   assert.deepEqual(report.to, ['p1']);
   assert.equal(report.count, 0);
-  assert.match(report.text, /kimse zorlamadı/);
+  assert.match(report.text, /kimse zorlamadı; ev sahibi de dışarı çıkmak istedi\./, 'ev sahibi çıkmayı denedi: gece görevi var');
+  assert.equal(report.tried, true);
   room.destroy();
 });
 
@@ -183,7 +196,8 @@ test('kilitli doktor koruyamaz; kilitli eve gelen vampir hemen geri döner, kims
   const { room, ev } = setup(8);
   startWithRoles(room, [V, L, D, G, K, K, K, K]);
   lockNext(room, 'p1', 'p2');
-  assert.match(room.selectNight('p2', 'p2'), /kilitlendi/);
+  assert.equal(room.selectNight('p2', 'p2'), null, 'kendini korumak evden çıkmak değildir: kilit açığa çıkmaz');
+  assert.equal(room.viewFor('p2').night.lockFound, false);
   assert.equal(room.selectNight('p3', 'p2'), null);   // gözcü kilitli evi izler
   assert.equal(room.selectNight('p0', 'p2'), null);
   assert.equal(of(ev, 'bounced').length, 0, 'seçim aşamasında köyde kimse yürümez');
@@ -206,7 +220,8 @@ test('kilitli doktor koruyamaz; kilitli eve gelen vampir hemen geri döner, kims
   assert.equal(room.players.get('p2').alive, true);
   const report = of(ev, 'lockreport').pop();
   assert.equal(report.count, 1);
-  assert.match(report.text, /1 kişi zorladı/);
+  assert.match(report.text, /1 kişi zorladı; ev sahibi evden çıkmak istemedi\./);
+  assert.equal(report.tried, false);
   const watch = of(ev, 'watch').pop();
   assert.deepEqual(watch.visitors, ['p0']);
   assert.deepEqual(watch.blocked, ['p0']);

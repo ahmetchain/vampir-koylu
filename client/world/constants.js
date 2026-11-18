@@ -42,13 +42,14 @@ export const PAL = {
   fire0: '#ffb347', fire1: '#ff7a1a', blood: '#d7263d', parchment: '#f4e4c1', forest: '#2f6b4f', text: '#f6f1ff',
 };
 
-export const EVIL = { vampir: true, iftiraci: true };
-export const NIGHT_ROLES = { vampir: 1, iftiraci: 1, doktor: 1, kahin: 1, gozcu: 1, cadi: 1 };
+export const EVIL = { vampir: true };
+export const NIGHT_ROLES = { vampir: 1, doktor: 1, kahin: 1, gozcu: 1, cadi: 1 };
 
 // Rol başına seçim işareti (izleyicinin kendi seçimi)
 export const ROLE_MARK = {
   vampir: { label: '🩸 Hedefin', color: '#d7263d' },
-  iftiraci: { label: '🎭 İftira', color: '#b197fc' },
+  frame: { label: '🎭 İftira', color: '#b197fc' },
+  clean: { label: '🧹 Temizlik', color: '#b08af0' },
   doktor: { label: '🛡️ Koruman', color: '#5ef0a0' },
   kahin: { label: '🔮 Bakılacak', color: '#9b7bff' },
   gozcu: { label: '👁️ Gözleniyor', color: '#8fb4ff' },

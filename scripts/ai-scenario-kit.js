@@ -11,18 +11,23 @@ const { buildUser } = require('../lib/ai/prompt');
 const { personaFor } = require('../lib/ai/personas');
 
 const SPECIALS = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz'];
-const HELPERS = ['iftiraci', 'temizlikci'];
+// İftiracı / Temizlikçi artık rol değil, vampir yeteneğidir (V2-PLAN §22). Eski senaryo yazımı ({ role: 'iftiraci' })
+// korunur: vampir + yetenek olarak kurulur.
+const LEGACY_ABILITY = { iftiraci: 'iftira', temizlikci: 'temizlik' };
+const ABILITY_TOGGLE = { iftira: 'iftiraci', temizlik: 'temizlikci' };
 
 class Game {
   // players: [{ name, role, bot?: true, fake?: 'doktor'|... (Deli'nin inandığı rol) }]; ilk insan oda sahibi olur.
   // settings: oda ayarları (varsayılan: roller açık, 'all' dağıtım, roller ölünce açıklanır).
-  constructor({ players, settings = {}, client = null, dealSeed = 1, seerRng = null }) {
+  constructor({ players: given, settings = {}, client = null, dealSeed = 1, seerRng = null }) {
+    const players = given.map((p) => (LEGACY_ABILITY[p.role] ? { ...p, role: 'vampir', ability: LEGACY_ABILITY[p.role] } : p));
     this.spec = players;
     this.ids = new Map();
     this.chats = [];
     const present = new Set(players.map((p) => p.role));
     const roles = {};
-    for (const r of [...SPECIALS, ...HELPERS]) roles[r] = present.has(r);
+    for (const r of SPECIALS) roles[r] = present.has(r);
+    for (const a of Object.keys(ABILITY_TOGGLE)) roles[ABILITY_TOGGLE[a]] = players.some((p) => p.ability === a);
     this.room = new Room({
       id: 'SENARYO',
       name: 'Senaryo',
@@ -51,6 +56,7 @@ class Game {
     for (const p of players) {
       const r = this.room.players.get(this.ids.get(p.name));
       r.role = p.role;
+      r.ability = p.ability || null;
       r.fakeRole = p.role === 'deli' ? (p.fake || 'kahin') : null;
     }
     // Botların kendi zamanlayıcıları kapalı: yalnızca senaryonun istediği kararlar verilir.

@@ -21,18 +21,18 @@ bir 3B dünya olarak açılır. Gündüz tartışıp oylarla vampirleri bulmaya,
 
 | Rol | Takım | Ne yapar |
 | --- | --- | --- |
-| Vampir | Vampirler | Her gece diğer vampirlerle bir kurban seçer. Sayıları diğerlerine eşitlenince kazanırlar. |
-| İftiracı | Vampirler | Vampirlerin gizli yardımcısı (7+ oyuncuda). Gece birine iftira atar: kahin ona bakarsa VAMPİR görür. Son vampir ölürse vampire dönüşür. |
+| Vampir | Vampirler | Her gece **her vampir kendi kurbanını** seçer ve o eve gider (iki vampir aynı kişiyi seçerse tek ölüm, ama Gözcü ikisini birden yakalar; ayrı kişileri seçerlerse iki ölüm). Oyun başında (7+ oyuncuda, oda açtıysa) bir vampire **İftira** ya da **Temizlik yeteneği** verilebilir: o gece öldürmek yerine birine iftira atar (kahin ona bakarsa VAMPİR görür; o gece ölürse ya da ertesi gün asılırsa köye "Vampir" diye duyurulur) ya da bir kişinin izini siler (o gece ölürse ya da ertesi gün asılırsa rolü gizli kalır). Yetenek rol değildir; yalnızca vampirin kendisi ve takımı bilir. Yaşayan vampirler diğerlerine eşitlenince kazanırlar; terfi yoktur. |
 | Doktor | Köylüler | Her gece birini korur (kendini de); korunan kişi o gece ölmez. |
 | Kahin | Köylüler | Her gece birine bakar, sabah onun vampir olup olmadığını gizlice öğrenir. |
 | Gözcü | Köylüler | Her gece bir evi gözetler; sabah o eve kimlerin girdiğini öğrenir. |
-| Cadı | Köylüler | Vampirlerin hedefini görür. Oyunda bir kez hayat iksiri, bir kez zehir kullanır. |
+| Cadı | Köylüler | Vampirlerin hedeflerini (listeyi) görür. Oyunda bir kez hayat iksiri, bir kez zehir kullanır. |
 | Avcı | Köylüler | Ölünce 20 saniye içinde birini vurup yanında götürür. |
 | Muhtar | Köylüler | Gündüz oyu iki sayılır (herkes görür). |
 | Soytarı | Tek başına | Gündüz asılırsa tek başına kazanır. |
 | Köylü | Köylüler | Tartışır, oy verir, vampirleri bulmaya çalışır. |
 
-Vampir sayısı oyuncu sayısına göre belirlenir (5–9: 1, 10–14: 2, 15+: 3). Oda sahibi özel rolleri oda
+Vampir sayısı varsayılan olarak oyuncu sayısına göre belirlenir (5–9: 1, 10–14: 2, 15+: 3); oda sahibi 1–4 vampir de seçebilir
+(köy çoğunlukta kalsın diye en fazla `(oyuncu − 1) / 2`, aşağı yuvarlanmış: 5 kişide 2, 8 kişide 3). Oda sahibi özel rolleri oda
 kurarken ya da lobide açıp kapatır. Özel roller Doktor, Kahin, Gözcü, Cadı, Avcı, Muhtar, Soytarı
 sırasıyla eklenir; her oyunda en az bir sade köylü kalır. Her oyuncuya ayrıca sadece hikâye için bir köy
 işi (terzi, fırıncı…) verilir; işin rolle hiçbir ilgisi yoktur.

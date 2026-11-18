@@ -643,7 +643,7 @@ export function create(container, handlers = {}) {
     if (!state || !village || !nightShow.focus) return;
     const portrait = rig.portrait;
     let ch = chars.get(state.me.id);
-    if (!(ch && ch.visible && ch.claimed)) { ch = null; for (const id of nightShow.actors) { const c = chars.get(id); if (c && c.visible && c.claimed && state.players.some((p) => p.id === id && p.role && (p.role === 'vampir' || p.role === 'iftiraci'))) { ch = c; break; } } }
+    if (!(ch && ch.visible && ch.claimed)) { ch = null; for (const id of nightShow.actors) { const c = chars.get(id); if (c && c.visible && c.claimed && state.players.some((p) => p.id === id && p.role && p.role === 'vampir')) { ch = c; break; } } }
     const wc = nightShow.watchCam;
     const wh = wc && ch && ch.peeking === wc.hid ? village.house(wc.hid) : null;
     if (wh && ch.isMe) {

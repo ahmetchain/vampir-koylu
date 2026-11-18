@@ -492,15 +492,16 @@ test('botModel hybrid: yalnızca sahip seçebilir; geçerli değerler haiku/hybr
   assert.equal(room.settings.botModel, 'hybrid');
   assert.match(room.updateSettings('h0', { botModel: 'hybrid' }), /yetki/);
   // Rol -> kademe.
-  const SONNET = ['vampir', 'iftiraci', 'temizlikci', 'gozcu', 'kahin', 'doktor', 'hirsiz'];
-  const HAIKU = ['koylu', 'cadi', 'avci', 'muhtar', 'gardiyan', 'soytari', 'deli'];
+  const SONNET = ['vampir', 'gozcu', 'doktor'];
+  const HAIKU = ['temizlikci', 'kahin', 'hirsiz', 'koylu', 'cadi', 'avci', 'muhtar', 'gardiyan', 'soytari', 'deli'];
   const p = room.players.get('h0');
   for (const r of SONNET) { p.role = r; assert.equal(room.botTier('h0'), 'sonnet', r); }
   for (const r of HAIKU) { p.role = r; assert.equal(room.botTier('h0'), 'haiku', r); }
   // Deli kendini doktor sansa da gerçek rolü (deli) sayılır; hırsız çaldıktan sonra yeni rolü sayılır.
   p.role = 'deli'; p.fakeRole = 'doktor';
   assert.equal(room.botTier('h0'), 'haiku');
-  p.role = 'hirsiz'; assert.equal(room.botTier('h0'), 'sonnet');
+  p.role = 'hirsiz'; assert.equal(room.botTier('h0'), 'haiku');
+  p.role = 'doktor'; assert.equal(room.botTier('h0'), 'sonnet', 'hırsız doktoru soydu: yeni rolü sayılır');
   p.role = 'koylu'; assert.equal(room.botTier('h0'), 'haiku', 'hırsız köylüyü soydu');
   assert.equal(room.botTier('yok'), 'haiku');
   room.settings.botModel = 'sonnet'; assert.equal(room.botTier('h0'), 'sonnet');
@@ -536,7 +537,7 @@ test('botModel hybrid: vampir botun çağrısı sonnet, düz köylününki haiku
   }
   await advance(t, 90000);
   assert.ok(seen.length >= 1, 'çağrı yok');
-  const HEAVY = new Set(['vampir', 'iftiraci', 'temizlikci', 'gozcu', 'kahin', 'doktor', 'hirsiz']);
+  const HEAVY = new Set(['vampir', 'gozcu', 'doktor']);
   for (const c of seen) assert.equal(c.tier, HEAVY.has(c.role) ? 'sonnet' : 'haiku', c.role);
   assert.ok(seen.some((c) => c.role === 'vampir' && c.tier === 'sonnet'), 'vampir sonnet');
   assert.ok(seen.some((c) => c.role === 'koylu' && c.tier === 'haiku'), 'köylü haiku');

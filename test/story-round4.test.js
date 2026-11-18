@@ -303,7 +303,7 @@ test('Gardiyan: rol açıkken tepki (rol ya da meslek), gizliyken hiç anılmaz;
 
 test('roller gizli + olaylar: rol adı geçmez (Gardiyan dahil), roller karıştırılsa da aynı', () => {
   const words = ['doktor', 'kahin', 'gözcü', 'gardiyan', 'cadı', 'muhtar', 'soytarı', 'iftiracı', 'köylü'];
-  const ROLES = ['vampir', 'iftiraci', 'doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'koylu'];
+  const ROLES = ['vampir', 'doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'koylu'];
   for (const s of SEEDS.slice(0, 100)) {
     const g = makeScript(`gz${s}`, { revealRoles: false, events: 'often' });
     const a = runScript(createChronicle({ seed: `x${s}`, players: g.players, revealRoles: false }), g.script);

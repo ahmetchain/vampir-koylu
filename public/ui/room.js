@@ -4,7 +4,7 @@ import { ctx, send, playerById, iAmHost, emitLocal, on, serverNow } from './ctx.
 import { Api } from './api.js';
 import { $, esc, sfx, fmtClock, vibrate, audioScene } from './util.js';
 import { icon, emblem, logoMark } from './icons.js';
-import { ROLES, COLORS, inkOn, isEvil, WIN_TITLE, levelOf, countRoles, MIN_PLAYERS, EVENTS } from './data.js';
+import { ROLES, ABILITIES, COLORS, inkOn, isEvil, WIN_TITLE, levelOf, countRoles, MIN_PLAYERS, EVENTS } from './data.js';
 import { W } from './world-host.js';
 import { openSheet, confirmBox, toast } from './kit.js';
 import { openLookEditor } from './look.js';
@@ -13,8 +13,8 @@ import { renderChatState, isDocked } from './chat.js';
 import { isAnnouncing } from './announce.js';
 import { openChronicle } from './chronicle.js';
 
-const SEL_COLOR = { vampir: '#ff4b5f', iftiraci: '#e070c0', temizlikci: '#b08af0', doktor: '#4fe0a8', kahin: '#a898ff', gozcu: '#ffc062', hirsiz: '#5fd0de' };
-const SEL_LABEL = { vampir: 'Hedef', iftiraci: 'İftira', temizlikci: 'Temizlik', doktor: 'Koruma', kahin: 'Bakılacak', gozcu: 'Gözetle', hirsiz: 'Soyulacak' };
+const SEL_COLOR = { vampir: '#ff4b5f', doktor: '#4fe0a8', kahin: '#a898ff', gozcu: '#ffc062', hirsiz: '#5fd0de' };
+const SEL_LABEL = { vampir: 'Hedef', doktor: 'Koruma', kahin: 'Bakılacak', gozcu: 'Gözetle', hirsiz: 'Soyulacak' };
 
 let phaseKey = '';
 let lastTick = -1;
@@ -97,9 +97,9 @@ export function pick(id) {
 // Gece seçimi kesindir: önce onay sorulur.
 let confirmSheet = null;
 const NIGHT_VERB = {
-  vampir: (n) => `<b>${n}</b> takımın hedefi olsun mu?`,
-  iftiraci: (n) => `<b>${n}</b> kişisine iftira atılsın mı?`,
-  temizlikci: (n) => `Bu gece <b>${n}</b> evine gidilsin mi?`,
+  vampir: (n) => `<b>${n}</b> bu gece senin kurbanın olsun mu? O eve sen gideceksin.`,
+  frame: (n) => `<b>${n}</b> kişisine iftira atılsın mı? (Bu gece öldürmezsin.)`,
+  clean: (n) => `Bu gece <b>${n}</b> evine gidip izleri silinsin mi? (Bu gece öldürmezsin.)`,
   doktor: (n) => `Bu gece <b>${n}</b> korunsun mu?`,
   kahin: (n) => `Kristal küre <b>${n}</b> için çalışsın mı?`,
   gozcu: (n) => `Bu gece <b>${n}</b> evini gözetleyecek misin?`,
@@ -110,10 +110,12 @@ const NIGHT_VERB = {
 function confirmNight(s, p) {
   if (confirmSheet) confirmSheet.close();
   const role = s.me.role;
-  const key = role === 'cadi' ? (ctx.witchMode === 'poison' ? 'poison' : 'heal') : role;
+  const abilityMode = role === 'vampir' && s.night && s.night.ability && ['frame', 'clean'].includes(ctx.witchMode) ? ctx.witchMode : null;
+  const key = role === 'cadi' ? (ctx.witchMode === 'poison' ? 'poison' : 'heal') : (abilityMode || role);
   const verb = (NIGHT_VERB[key] || ((n) => `<b>${n}</b> seçilsin mi?`))(esc(p.id === s.me.id ? 'Kendin' : p.name));
   const c = COLORS[p.look.color];
-  const witchMode = ctx.witchMode;
+  // Vampir: öldür (varsayılan) / iftira / temizlik; sunucuya eylem olarak gider (cadıda iksir).
+  const witchMode = role === 'vampir' ? (abilityMode || 'kill') : ctx.witchMode;
   const phaseAt = phaseKey;
   const sheet = openSheet({
     title: 'Emin misin?', cls: 'sheet-small confirm-pick',
@@ -220,7 +222,7 @@ function onPromptClick(e) {
   if (!b || b.disabled) return;
   const s = ctx.state;
   const a = b.dataset.a;
-  if (a === 'heal' || a === 'poison') { ctx.witchMode = a; sfx('click'); renderAll(s); return; }
+  if (a === 'heal' || a === 'poison' || a === 'kill' || a === 'frame' || a === 'clean') { ctx.witchMode = a; sfx('click'); renderAll(s); return; }
   if (a === 'sleep') { sfx('vote'); send('day:vote', { targetId: 'sleep' }); return; }
   if (a === 'unvote') { sfx('click'); send('day:vote', { targetId: null }); return; }
   if (a === 'role') openRoleSheet();
@@ -338,7 +340,7 @@ function onPhaseChange(s, prev) {
   if (confirmSheet) confirmSheet.close();
   if (ph === 'night') {
     const w = s.night && s.night.witch;
-    ctx.witchMode = w && w.healUsed && !w.poisonUsed ? 'poison' : 'heal';
+    ctx.witchMode = s.me.role === 'vampir' ? 'kill' : (w && w.healUsed && !w.poisonUsed ? 'poison' : 'heal');
   }
   if (ph === 'reveal') flipped = false;
   if (ph !== 'ended') endHidden = false;
@@ -474,9 +476,9 @@ function promptFor(s) {
     out.lead = emblem(me.role, 's');
     const ev = activeEvent(s);
     // Kilitli kapı / tipi: bu gece yapılacak bir şey yok
-    if (n.locked) {
+    if (n.lockFound) {
       out.tone = 'ghost'; out.lead = icon('lock');
-      out.html = '<b>Kapın dışarıdan kilitlendi.</b> Bu gece evinden çıkamazsın; sabahı bekle.';
+      out.html = '<b>Kapın dışarıdan kilitlenmiş.</b> Dışarı çıkmayı denedin ama çıkamadın; sabahı bekle.';
       return out;
     }
     if (ev && ev.id === 'tipi' && n.canAct === false && !isEvil(me.role) && ['doktor', 'kahin', 'gozcu', 'cadi'].includes(me.role)) {
@@ -490,41 +492,34 @@ function promptFor(s) {
       return out;
     }
     const st = tripStatus(s, sel);
+    // Vampir takımı: her vampirin kendi seçimi (herkes seçtiği eve gider).
+    const KIND = { kill: '', frame: ' (iftira)', clean: ' (temizlik)' };
     const teamLine = () => {
-      if (!n.team || !n.team.length || n.teamTarget) return '';
-      const picks = n.team.filter((t) => t.vampId !== me.id && t.targetId).map((t) => `${esc(t.name)} → ${name(t.targetId)}`);
+      if (!n.team || !n.team.length) return '';
+      const picks = n.team.filter((t) => t.vampId !== me.id && t.targetId).map((t) => `${esc(t.name)} → ${name(t.targetId)}${KIND[t.kind] || ''}`);
       return picks.length ? `<br><span class="muted">Takımın: ${picks.join(', ')}</span>` : '';
     };
     switch (me.role) {
       case 'vampir': {
         out.tone = 'vampir';
-        const tt = n.teamTarget;
-        if (tt && tt.targetId) {
-          const mine = tt.by === me.id;
-          out.html = mine ? `Takımın hedefi: ${name(tt.targetId)} <span class="muted">(sen seçtin)</span> ${st}`
-            : `<b>Takımının hedefi:</b> ${name(tt.targetId)} <span class="muted">(${esc(tt.byName || 'takım arkadaşın')} seçti)</span> ${st}`;
-          out.short = `Hedef: ${name(tt.targetId)} ${st}`;
+        const ab = n.ability ? ABILITIES[n.ability] : null;
+        const mk = n.myKind || 'kill';
+        if (sel) {
+          out.html = mk === 'frame' ? `İftiran: ${name(sel)} ${st}` : mk === 'clean' ? `Temizlik: ${name(sel)} ${st} <span class="muted">(izleri siliyorsun)</span>` : `Kurbanın: ${name(sel)} ${st}`;
+          out.short = `${mk === 'frame' ? 'İftira' : mk === 'clean' ? 'Temizlik' : 'Kurban'}: ${name(sel)} ${st}`;
         } else {
-          out.html = '<b>Avlanma vakti.</b> İlk onaylayan vampir takımın tek hedefini belirler; seçim kesindir.';
+          out.html = '<b>Avlanma vakti.</b> Kendi kurbanını seç; o eve sen gidersin. Takım arkadaşın aynı kişiyi seçerse ikiniz de oraya gidersiniz (Gözcü ikinizi de görür). Seçim kesindir.';
+          if (ab) out.html += `<br><span class="muted">Yeteneğin: ${ab.name}. Aşağıdan seçip öldürmek yerine kullanabilirsin.</span>`;
+          if (ab) {
+            const m = ['frame', 'clean'].includes(ctx.witchMode) ? ctx.witchMode : 'kill';
+            const abKind = n.ability === 'iftira' ? 'frame' : 'clean';
+            out.actions = `<button type="button" class="btn btn-s mode-btn poison${m === 'kill' ? ' on' : ''}" data-a="kill">${icon('tomb')}Öldür</button>
+          <button type="button" class="btn btn-s mode-btn${m === abKind ? ' on' : ''}" data-a="${abKind}">${icon('sparkle')}${n.ability === 'iftira' ? 'İftira at' : 'İzleri sil'}</button>`;
+          }
         }
         out.html += teamLine();
-        if (n.framer) out.html += `<br><span class="muted">İftiracı ${name(n.framer)} kişisine iftira atıyor.</span>`;
         break;
       }
-      case 'iftiraci':
-        out.tone = 'vampir';
-        if (n.teamTarget && n.teamTarget.targetId) out.html = `<span class="muted">Vampirlerin hedefi: ${name(n.teamTarget.targetId)}</span><br>`;
-        out.html += sel ? `İftiran: ${name(sel)} ${st}` : '<b>Kime iftira atacaksın?</b> Kahin bu gece ona bakarsa VAMPİR görür.';
-        out.html += teamLine();
-        if (sel) out.short = `İftira: ${name(sel)} ${st}`;
-        break;
-      case 'temizlikci':
-        out.tone = 'vampir';
-        if (n.teamTarget && n.teamTarget.targetId) out.html = `<span class="muted">Vampirlerin hedefi: ${name(n.teamTarget.targetId)}</span><br>`;
-        out.html += sel ? `Gideceğin ev: ${name(sel)} ${st}` : '<b>Bir eve git:</b> o kişi bu gece ölürse rolü köyden gizlenir.';
-        out.html += teamLine();
-        if (sel) out.short = `Temizlik: ${name(sel)} ${st}`;
-        break;
       case 'doktor':
         out.tone = 'good';
         out.html = sel ? `Koruman: ${name(sel)} ${st}` : '<b>Bu gece kimi koruyacaksın?</b> Kendini de seçebilirsin. Seçim kesindir.';
@@ -609,7 +604,7 @@ function statusHTML(kind) {
 const selSeen = new Map(); // seçim -> ilk görüldüğü an
 function tripStatus(s, sel) {
   const n = s.night || {};
-  const target = (n.teamTarget && n.teamTarget.targetId) || sel || (n.witch && (n.witch.poison || n.witch.heal));
+  const target = sel || (n.witch && (n.witch.poison || n.witch.heal));
   if (!target) return '';
   if (n.bounced) return statusHTML('locked');
   if (target === s.me.id) return statusHTML('home');
@@ -744,8 +739,12 @@ function lobbySheetHTML(s) {
   if (need > 0) notes.push(`Başlamak için en az ${room.minPlayers} bağlı oyuncu gerekli (şu an ${connected}). ${host ? `${need} kişi daha davet et ya da bot ekle.` : ''}`);
   else if (connected < total) notes.push('Bağlantısı kopan oyuncular başlarken odadan çıkarılır.');
   if (!host) notes.push(`${esc(hostP ? hostP.name : 'Oda sahibi')} oyunu başlatınca roller dağıtılacak.`);
-  if (room.settings.roles.iftiraci && total < 7) notes.push('İftiracı 7 oyuncudan az olduğu için dağıtılmayacak.');
-  if (room.settings.roles.temizlikci && total < 7) notes.push('Temizlikçi 7 oyuncudan az olduğu için dağıtılmayacak.');
+  const askedV = room.settings.vampires;
+  if (Number.isInteger(askedV) && room.vampireCount < askedV) notes.push(`${askedV} vampir seçildi ama ${total} oyuncuda köy çoğunlukta kalsın diye en fazla ${room.vampireCount} vampir olabilir; oyun ${room.vampireCount} vampirle başlar.`);
+  else if (Number.isInteger(askedV)) notes.push(`Bu oyunda ${room.vampireCount} vampir olacak (oda sahibi seçti).`);
+  if (room.settings.roles.iftiraci && total < 7) notes.push('İftira yeteneği 7 oyuncudan az olduğu için verilmeyecek.');
+  if (room.settings.roles.temizlikci && total < 7) notes.push('Temizlik yeteneği 7 oyuncudan az olduğu için verilmeyecek.');
+  if (room.vampireCount > 1) notes.push(`Bu oyunda ${room.vampireCount} vampir var: her biri gecede kendi kurbanını öldürür (en çok ${room.vampireCount} ölüm).`);
   if (room.settings.roles.hirsiz && total < 7) notes.push('Hırsız 7 oyuncudan az olduğu için dağıtılmayacak.');
   notes.push(bots ? `Odada ${bots} bot var. Botlu oyunlar istatistiğe sayılmaz.` : host ? 'Tek başına denemek için bot ekleyebilirsin. Botlu oyunlar istatistiğe sayılmaz.' : '');
   if (room.aiAvailable && room.settings.smartBots !== false && bots) notes.push('Akıllı botlar açık: sohbet mesajları ve oyuncu adları bir yapay zekâ hizmetine gönderilir; biten oyunlar botları geliştirmek için bu hizmet tarafından incelenebilir.');
@@ -813,14 +812,13 @@ function renderRail(s) {
     if (can) cls.push('can'); else if (act && p.alive && !p.left) cls.push('locked');
     let mark = ''; let sel = '';
     if (night) {
-      if (night.mySelection === p.id && SEL_LABEL[me.role]) { mark = SEL_LABEL[me.role]; sel = SEL_COLOR[me.role]; }
+      if (night.mySelection === p.id && SEL_LABEL[me.role]) { mark = me.role === 'vampir' ? ({ frame: 'İftira', clean: 'Temizlik' }[night.myKind] || SEL_LABEL.vampir) : SEL_LABEL[me.role]; sel = SEL_COLOR[me.role]; }
       if (night.witch) {
         if (night.witch.heal === p.id) { mark = 'İksir'; sel = '#8be06a'; }
         if (night.witch.poison === p.id) { mark = 'Zehir'; sel = '#b06cff'; }
       }
       const tp = (night.team || []).filter((t) => t.targetId === p.id && t.vampId !== me.id);
       if (!mark && tp.length) { mark = tp.map((t) => t.name).join(', '); sel = '#ff8a9a'; }
-      if (!mark && night.framer === p.id && me.role === 'vampir') { mark = 'İftira'; sel = '#e070c0'; }
     }
     if (victims.has(p.id)) { cls.push('attacked'); if (!mark) { mark = 'Hedef'; sel = '#ff4b5f'; } }
     if (day && day.myVote === p.id) { mark = 'Oyun'; sel = '#ffd27a'; }
@@ -874,8 +872,9 @@ function roleCardHTML(s) {
   const role = s.me.role;
   const r = ROLES[role];
   const mates = isEvil(role)
-    ? s.players.filter((p) => p.id !== s.me.id && isEvil(p.role)).map((p) => `${esc(p.name)} <small class="muted">(${ROLES[p.role].name})</small>`)
+    ? s.players.filter((p) => p.id !== s.me.id && isEvil(p.role)).map((p) => `${esc(p.name)} <small class="muted">(${ROLES[p.role].name}${p.ability && ABILITIES[p.ability] ? ` · ${ABILITIES[p.ability].name}` : ''})</small>`)
     : [];
+  const ability = role === 'vampir' && s.me.ability ? ABILITIES[s.me.ability] : null;
   const notes = s.me.notes || [];
   const job = s.me.job || (playerById(s.me.id) || {}).job;
   return `<div class="rolecard" style="--rc:${r.color}">
@@ -884,6 +883,7 @@ function roleCardHTML(s) {
     <h2>${r.name}</h2>
     <span class="team-tag team-${r.team}">${r.teamName}</span>
     <p>${r.desc}</p>
+    ${ability ? `<div class="mates"><b>Yeteneğin · ${ability.name}</b>${ability.desc}<small>Takım arkadaşların da bilir; köy bilmez.</small></div>` : ''}
     ${mates.length ? `<div class="mates"><b>Takım arkadaşların</b>${mates.join(', ')}</div>` : isEvil(role) ? '<div class="mates"><b>Takım arkadaşların</b>Takımında senden başka kimse yok.</div>' : ''}
     ${job && job.label ? `<div class="job"><b>Köydeki işin</b>${esc(job.label)}<small>Sadece hikâye için; rolün hakkında hiçbir şey söylemez.</small></div>` : ''}
     ${s.room.scenario && s.room.scenario.name ? `<div class="scenario"><b>Bu oyunun hikâyesi · ${esc(s.room.scenario.name)}</b>${s.room.scenario.intro ? `<p>${esc(s.room.scenario.intro)}</p>` : ''}</div>` : ''}

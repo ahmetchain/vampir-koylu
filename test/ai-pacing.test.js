@@ -197,12 +197,12 @@ test('oyun sonu logu: tek satır, yalnızca sayılar (çağrı, token, maliyet, 
 
 // ---------- istem: takım, meslek, Deli ----------
 
-function fakeView({ me, players, revealRoles = true, distribution = ['vampir', 'doktor', 'kahin', 'gardiyan', 'koylu'], rolePool = null }) {
+function fakeView({ me, players, revealRoles = true, distribution = ['vampir', 'doktor', 'kahin', 'gardiyan', 'koylu'], rolePool = null, roles = {} }) {
   return {
     serverNow: NOW,
     me: { notes: [], ...me },
     players,
-    room: { phase: 'day', round: 2, deadline: NOW + 60000, settings: { revealRoles }, distribution, rolePool, event: null, trial: null },
+    room: { phase: 'day', round: 2, deadline: NOW + 60000, settings: { revealRoles, roles }, distribution, rolePool, event: null, trial: null },
     log: [], day: null, night: null,
   };
 }
@@ -212,13 +212,16 @@ const section = (user, tag) => user.match(new RegExp(`<${tag}>\\n([\\s\\S]*?)\\n
 test('istem: açıklanan ölünün rolü takımıyla yazılır (köy rolü = masumdu); meslek yalnızca süs', () => {
   const view = fakeView({
     me: { id: 'b1', name: 'Bot Cem', role: 'koylu', alive: true, job: { id: 'saatci', label: 'Saatçi' } },
-    distribution: ['vampir', 'iftiraci', 'doktor', 'gardiyan', 'koylu'],
+    distribution: ['vampir', 'doktor', 'gardiyan', 'koylu', 'koylu', 'koylu', 'koylu'],
+    roles: { iftiraci: true },
     players: [
       { id: 'b1', name: 'Bot Cem', role: 'koylu', alive: true, left: false, job: { id: 'saatci', label: 'Saatçi' } },
       { id: 'h1', name: 'Ahmet', role: 'gardiyan', alive: false, left: false, job: { id: 'firinci', label: 'Fırıncı' } },
       { id: 'b2', name: 'Bot Ayşe', role: 'vampir', alive: false, left: false, job: null },
       { id: 'b3', name: 'Bot Ali', role: null, alive: false, left: false, job: null },
       { id: 'b4', name: 'Bot Can', role: null, alive: true, left: false, job: { id: 'terzi', label: 'Terzi' } },
+      { id: 'b5', name: 'Bot Dilek', role: null, alive: true, left: false, job: null },
+      { id: 'b6', name: 'Bot Eda', role: null, alive: true, left: false, job: null },
     ],
   });
   const user = buildUser({ view, task: { kind: 'open' } });
@@ -226,9 +229,9 @@ test('istem: açıklanan ölünün rolü takımıyla yazılır (köy rolü = mas
   const line = (n) => players.find((l) => l.startsWith(`- ${n} `));
   assert.match(line('Ahmet'), /OUT · shown Gardiyan · village team, was innocent · role: Gardiyan$/);
   assert.equal(players[0], '(job = village profession, flavour only: never a role, a claim or evidence)');
-  assert.ok(players.includes('Living (2):') && players.some((l) => l.startsWith('OUT of the game (3)')), 'yaşayan ve dışarıdaki oyuncular ayrı listelenir');
+  assert.ok(players.includes('Living (4):') && players.some((l) => l.startsWith('OUT of the game (3)')), 'yaşayan ve dışarıdaki oyuncular ayrı listelenir');
   assert.match(line('Ahmet'), /job: Fırıncı \(flavour\)/);
-  assert.match(line('Bot Ayşe'), /OUT · shown Vampir · evil team, or a villager framed by the İftiracı · role: Vampir$/);
+  assert.match(line('Bot Ayşe'), /OUT · shown Vampir · evil team, or a villager framed by a vampire's İftira ability · role: Vampir$/);
   assert.match(line('Bot Ali'), /OUT · role hidden · role: \?$/);
   assert.match(line('Bot Can'), /job: Terzi \(flavour\) · alive · role: \?$/);
   assert.match(line('Bot Cem (you)'), /your team: village team · role: Köylü$/);

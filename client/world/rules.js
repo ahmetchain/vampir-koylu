@@ -31,7 +31,6 @@ export function selectable(state, p, witchMode) {
   if (act === 'vote' || act === 'shoot') return !isMe;
   switch (me.role) {
     case 'vampir': return !isMe && !EVIL[p.role];
-    case 'iftiraci': return !isMe && !EVIL[p.role];
     case 'doktor': return true;
     case 'gozcu': return true;
     case 'kahin': return !isMe;
@@ -58,11 +57,6 @@ export function visits(state) {
   } else if (n.mySelection && me.role !== 'vampir') {
     out.set(me.id, n.mySelection);
   }
-  // vampirler iftiracının hedefini de görür
-  if (me.role === 'vampir' && n.framer) {
-    const f = state.players.find((p) => p.role === 'iftiraci' && p.alive);
-    if (f) out.set(f.id, n.framer);
-  }
   // kendi evine "ziyaret" (doktor kendini korur, gözcü kendi evini izler): evde kalır
   for (const [a, t] of out) if (a === t && a !== me.id) out.delete(a);
   return out;
@@ -76,10 +70,12 @@ export function markFor(state, p, witchMode) {
       if (night.witch.poison === p.id) return ROLE_MARK.poison;
       if (night.witch.heal === p.id) return ROLE_MARK.heal;
       if ((night.witch.victims || []).includes(p.id)) return { label: '🩸 Saldırı altında', color: '#d7263d' };
-    } else if (night.mySelection === p.id && ROLE_MARK[me.role]) return ROLE_MARK[me.role];
+    } else if (night.mySelection === p.id && ROLE_MARK[me.role]) {
+      // vampir: kendi eylemi öldür / iftira / temizlik
+      return (me.role === 'vampir' && ROLE_MARK[night.myKind]) || ROLE_MARK[me.role];
+    }
     const names = (night.team || []).filter((t) => t.targetId === p.id && t.vampId !== me.id).map((t) => t.name);
     if (names.length) return { label: '🧛 ' + names.join(', '), color: '#d7263d' };
-    if (me.role === 'vampir' && night.framer === p.id) return { label: '🎭 İftira', color: '#b197fc' };
   }
   if (day && day.myVote === p.id) return ROLE_MARK.vote;
   if (room.phase === 'hunter' && p.id === room.hunterId) return { label: '🏹 Nişan alıyor', color: '#ff8364' };

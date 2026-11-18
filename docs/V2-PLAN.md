@@ -522,7 +522,7 @@ candidate pool (`distribution` + `rolePool`, plus `rolePool.maybe` for İftirac�
   show stage = HUD steps back so the animation is visible; result cards after.
 - "Nasıl oynanır": each role explained properly (what, when, limits, interactions, a tip).
 
-## 16. Round 7: stronger evil team (approved by the owner on 2026-11-17)
+## 16. Round 7: stronger evil team (approved by the owner on 2026-11-17) — superseded by §22 where it conflicts (İftiracı / Temizlikçi are no longer roles)
 
 ### 16.1 İftiracı upgrade (slander sticks)
 Besides the Kahin effect (unchanged), a framed player who **dies that same night** (any cause) or
@@ -657,3 +657,53 @@ Goal: keep every finished game's full history as text for later analysis (what h
   `scripts/game-logs.js --analyze [ids | --latest N] [--force]` now calls that endpoint (`ADMIN_TOKEN` + `REVIEW_URL`), polls, writes `analysis-<id>.md` and prints the cost; `--local-model` keeps the old local call.
   One numbers-only log line per analysis (`[ai-analyze] ...`), `/healthz` -> `aiAnalyze`. Failures never touch the game or crash the server. Details: `docs/GAME-LOGS.md` "Analysis runs on the server".
 - Privacy: humans' chat is stored; the lobby sheet now says "Oyun içi sohbet mesajları ve oyun geçmişi, oyunu geliştirmek için saklanır (IP adresi, oturum anahtarı ya da parola saklanmaz)". No IPs, tokens, passwords or user ids are in a record.
+
+## 21. Vampire count setting, hybrid tier, lock secrecy (owner requests 2026-11-18)
+
+### 21.1 `settings.vampires`
+
+- `'auto'` (default, the old numbers: 1 below 10 players, 2 at 10+, 3 at 15+) or an integer 1–4 (`"1"`–`"4"` strings are accepted; everything else becomes `'auto'`). Validated in `normalizeSettings`.
+- At game start (and in the lobby preview) the effective count is `vampireCount(players, setting)`: an integer is clamped to `[1, floor((players−1)/2)]` so the village keeps a majority (5 players → at most 2, 7 → 3, 8 → 3, 9 → 4). If the host asked for more than allowed, the log line says so (`Vampir sayısı: 2 (istenen 4; köy çoğunlukta kalsın diye en fazla 2 olabildi).`) and the lobby sheet note shows the real number.
+- It feeds both dealing modes (`rolePlan`, `randomPlan`, `rolesFor`, `distributionFor`, `assignRoles` take it as the last argument), so `room.vampireCount`, `room.distribution` / `rolePool` (the bots' public facts) and the real deal agree. Client mirror: `vampireCount` / `distributionPlan(n, roles, mode, vampires)` in `public/ui/data.js`.
+- UI: "Vampir sayısı" segmented control (Otomatik, 1–4) in the create form and the lobby settings sheet, with a live hint (the clamp is explained instead of disabling values; with the redesign of §22 the hint says N vampires = up to N kills a night); stored in the last-used settings.
+- Balance note (§22): since every vampire now kills each night, N vampires means up to N kills per night; the clamp only keeps the village numerically ahead at the start. The owner will tune the numbers after playing.
+
+### 21.2 Karma (hybrid) bot tier
+
+Sonnet only for bots whose real role is `vampir`, `gozcu` or `doktor` (every vampire, since vampires are the only evil role); everybody else is Haiku (kahin, hirsiz, koylu, cadi, avci, muhtar, gardiyan, soytari, deli). Roughly a third of the bots on a table are Sonnet.
+
+### 21.3 Gardiyan lock secrecy
+
+The owner of a locked door is **not told in advance** (no announce at night start, no `night.locked`; the new `night.lockFound` is false until he learns it; his `canAct` is unchanged). He learns it only (i) when he tries to go out: a selection of ANOTHER house is rejected with "Kapın dışarıdan kilitlendi, bu gece evinden çıkamazsın.", recorded as `triedToLeave` (`room.lockTried`), he gets the private `locked` announce + note and cannot act any more that night (a pass or a selection of his own house – Doktor self-protect, Gözcü own house – is accepted and reveals nothing), or (ii) when a visitor knocks (`rattled`, unchanged). Players without a night action never find out. The Gardiyan's `lockreport` now also says whether the owner tried to go out ("…; ev sahibi de dışarı çıkmak istedi" / "…; ev sahibi evden çıkmak istemedi"), so he can infer that the owner has a night action. Rule bots rejected by the lock simply stay home (no retry loop); smart bots count the rejection as a normal outcome (no fallback) and see "You tried to go out and found your door locked" on their next turn only after trying. Nothing about the lock reaches other seats; the 3D show needs no change (a locked player who tried to leave just stays home; visitors bounce as before).
+
+## 22. Vampire redesign: every vampire kills, abilities instead of helper roles (owner request 2026-11-18)
+
+Owner: "2 vampires should mean 2 kills… İftiracı and Temizlikçi stop being roles; they become abilities of vampires… if the Gözcü catches two vampires at the same house, both are caught." This **supersedes §16** (İftiracı / Temizlikçi roles, helper promotion, "the first vampire pick sets the team's one victim").
+
+### 22.1 What was removed
+
+- Roles `iftiraci` and `temizlikci`, `HELPER_ROLES`, helper dealing (`enabledHelpers`, "one guaranteed helper at 7+", the 13+ second-helper chance), `rolePool.maybe / helpers / helpersMax`, helper promotion (`promoteFramer`, the `promote` announce), the role cards / role-list entries / story texts that named them as roles, `teamTarget` / `framer` / `cleaner` in the night view. Evil team = living `vampir`s; village wins when no vampire is alive; evil wins when living vampires ≥ everyone else. A Hırsız who steals a Vampir becomes a `vampir` with no ability.
+
+### 22.2 Abilities
+
+- `player.ability: 'iftira' | 'temizlik' | null`. The two room switches keep their keys `settings.roles.iftiraci` / `temizlikci` (stored settings keep working); UI names "İftira yeteneği" / "Temizlik yeteneği" in their own "Vampir yetenekleri" section.
+- Dealing (`dealAbilities`, after the roles): only with ≥ 7 players; each enabled ability goes to a distinct random vampire; one vampire and both abilities enabled → one random ability; abilities beyond the vampire count are dropped. They never use a role slot.
+- Visibility: the owner (`me.ability`, role card), his evil team-mates (`players[i].ability`, "Vampir · iftira yeteneği") and everybody at `ended`; public reveals, the Kahin and everybody else only see "Vampir".
+
+### 22.3 Night
+
+- **Every living vampire acts independently**, one action per night, final: `kill` (default; goes to the victim's house and kills), or with the matching ability `frame` / `clean` on a non-evil player (not self). `night:select` `{ targetId, action }`: `action` `'frame'` / `'clean'` (needs the ability, else "İftira/Temizlik yeteneğin yok."), anything else = kill.
+- What a click means: a vampire without ability → kill that house. A vampire with ability → the mode toggle in the night UI ("Öldür" / "İftira at" or "İzleri sil", like the Cadı's heal/poison toggle) decides between kill and the ability.
+- Two vampires may pick the same victim (one death, both walk there, a Gözcü there sees both – the risk) or different victims (several deaths, each walks to his own victim's house). Resolution per victim as before: Doktor protects one player; Cadı heals one (she sees the **list** of current victims); a locked killer stays home (locked players are rejected, see §21.3); a locked victim door bounces every visitor; if the Doktor / Cadı is among the victims they are resolved first (their protection / heal no longer counts for others if they die). The rest of the order (Hırsız, poison, dying players never left home, announces) is unchanged; every walking vampire is a visitor for the Gözcü and counts for the Gardiyan.
+- `frame`: a Kahin inspecting the framed player that night sees "Vampir" as one of the two roles; if he dies that night or is hanged the next day he is shown as Vampir (not Avcı / Soytarı). `clean`: if the cleaned player dies that night **or is hanged the next day** (new), his role stays hidden ("izler silinmiş"); marks `room.frameMark` / `room.cleanMark` live for night N and day N.
+- Night view for vampires: `mySelection`, `myKind`, `ability`, `team: [{ vampId, name, targetId, kind, ability }]` – the team sees each other's picks as before. `show.team` generalises to several killers / victims (every other evil trip: `kill` / `frame` / `clean`). The 3D show needs no change: each killer walks to his own victim's house (killers on the same victim enter together), the `kill` interior scene belongs to the viewer's own trip.
+- Pacing: every vampire is awaited until he picks or passes; the night ends early when all awaited players decided.
+
+### 22.4 Bots
+
+- Rule bots: each vampire bot picks its own victim (prefers victims not already picked by team-mates, 25 % the same); with an ability it uses it ~40 % of the time (frame: a random villager; clean: a current victim if any, else a villager); the temizlik vampire acts later (5–7.5 s) to see the picks.
+- Smart bots: the night task (`lib/ai/prompt.js`) explains the per-vampire choice, the abilities and shows `Team picks tonight: …`; the answer's `target` is a name or `"iftira: Name"` / `"temizlik: Name"`; 2nd+ vampires and the temizlik vampire are asked ~3.5 s late. `lib/ai/rules.js` / `roles.js` / `facts.js` were rewritten for k vampires (up to k kills a night, abilities, no helpers in the role counts, "framed by a vampire's İftira ability", cleaned hanged players are not evil). Hybrid tier: §21.2.
+
+### 22.5 Tests
+
+`test/round7.test.js` (abilities, dealing, 2 victims / same victim seen by the Gözcü, frame / clean incl. clean + hanged, no promotion, bot games), `test/locksecret.test.js` (§21.3), `test/vampires.test.js` (setting), the seeded leak audit in `test/narration.test.js` (abilities and `myKind` never reach non-evil seats).

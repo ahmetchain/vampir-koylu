@@ -1,13 +1,13 @@
 // Seçim kuralları (window.VKRules): kim, hangi aşamada, kimi seçebilir.
 // Arayüz (oyuncu şeridi), 2B yedek dünya ve istenirse 3B dünya aynı kuralları kullanır.
 // Sunucu kuralları: docs/PROTOCOL.md §7 (night:select, day:vote, hunter:shoot).
-// 4. tur: gece seçimleri kesindir (seçim yapıldıysa başka kimse seçilemez), vampirlerin tek ortak
-// hedefi vardır (night.teamTarget), kilitli evdeki ya da tipide kalan köylü bir şey yapamaz
-// (night.canAct === false), mahkemede sadece iki sanığa oy verilebilir (room.trial.accused).
+// Gece seçimleri kesindir (seçim yapıldıysa başka kimse seçilemez); her vampir kendi eylemini seçer (öldür; yeteneği
+// varsa iftira / temizlik: night.ability + night.myAction), tipide kalan köylü bir şey yapamaz (night.canAct === false;
+// kilitli kapı önceden bildirilmez: night.lockFound ancak dışarı çıkmayı deneyince), mahkemede sadece iki sanığa oy verilebilir (room.trial.accused).
 (function () {
   'use strict';
 
-  var EVIL = { vampir: true, iftiraci: true, temizlikci: true };
+  var EVIL = { vampir: true };
 
   function trialVote(state) {
     var t = state.room.trial;
@@ -48,9 +48,7 @@
     var n = state.night || {};
     if (me.role !== 'cadi' && n.mySelection) return false;
     switch (me.role) {
-      case 'vampir': return !n.teamTarget && !isMe && !EVIL[p.role];
-      case 'iftiraci': return !isMe && !EVIL[p.role];
-      case 'temizlikci': return !isMe && !EVIL[p.role];
+      case 'vampir': return !isMe && !EVIL[p.role];
       case 'doktor': return true;
       case 'gozcu': return true;
       case 'kahin': return !isMe;
@@ -72,20 +70,13 @@
     var n = state && state.night;
     if (!n || state.room.phase !== 'night') return out;
     var me = state.me;
-    if (n.teamTarget && n.teamTarget.targetId) {
-      (state.players || []).forEach(function (p) { if (p.alive && p.role === 'vampir') out.set(p.id, n.teamTarget.targetId); });
-    } else if (n.team) {
-      n.team.forEach(function (t) { if (t.targetId) out.set(t.vampId, t.targetId); });
-    }
+    // team[]: her vampirin kendi seçimi (kurban / iftira / temizlik hedefi); seçen o eve gider
+    if (n.team) n.team.forEach(function (t) { if (t.targetId) out.set(t.vampId, t.targetId); });
     if (n.witch) {
       var t = n.witch.poison || n.witch.heal;
       if (t) out.set(me.id, t);
     } else if (n.mySelection && me.role !== 'vampir') {
       out.set(me.id, n.mySelection);
-    }
-    if (me.role === 'vampir' && n.framer) {
-      var f = (state.players || []).find(function (p) { return p.role === 'iftiraci'; });
-      if (f && f.alive) out.set(f.id, n.framer);
     }
     return out;
   }

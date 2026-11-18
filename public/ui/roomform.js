@@ -3,7 +3,7 @@ import { ctx, send, iAmHost } from './ctx.js';
 import { openSheet } from './kit.js';
 import { esc, clamp, sfx, store } from './util.js';
 import { icon, emblem } from './icons.js';
-import { ROLES, TOGGLE_ROLES, DEFAULT_ROLES, distribution, distributionPlan, countRoles, FRAMER_MIN, THIEF_MIN, MIN_PLAYERS, MAX_PLAYERS, EVENTS, EVENT_FREQ, EVENTS_UI } from './data.js';
+import { ROLES, TOGGLE_ROLES, ABILITY_TOGGLES, ABILITIES, ABILITY_OF_TOGGLE, DEFAULT_ROLES, VAMPIRE_OPTS, maxVampires, vampireCount, distribution, distributionPlan, countRoles, ABILITY_MIN, THIEF_MIN, MIN_PLAYERS, MAX_PLAYERS, EVENTS, EVENT_FREQ, EVENTS_UI } from './data.js';
 
 // v2: eski kayıtlarda yalnızca Doktor+Kahin açıktı; yeni varsayılan (bütün roller açık) bir kez uygulansın.
 const LAST_KEY = 'vk.lastSettings.v2';
@@ -12,6 +12,7 @@ const AI_KEY = 'vk.aiAvailable';
 // Düğmelerde kısa ad (dar telefonda taşmasın), açıklama altta küçük yazıyla.
 const BOT_MODEL_OPTS = [['haiku', 'Normal'], ['hybrid', 'Karma'], ['sonnet', 'Güçlü']];
 const BOT_MODEL_NOTE = { haiku: 'Normal: hepsi Haiku, ucuz.', hybrid: 'Karma: Vampir, Gözcü, Kahin, Doktor gibi önemli roller Sonnet, diğerleri Haiku.', sonnet: 'Güçlü: hepsi Sonnet, en akıllı ama pahalı.' };
+const vampOf = (v) => (VAMPIRE_OPTS.includes(v) ? v : (VAMPIRE_OPTS.includes(Number(v)) ? Number(v) : 'auto'));
 const bmOf = (v) => (v === 'sonnet' || v === 'hybrid' ? v : 'haiku');
 
 export function distChips(list) {
@@ -64,6 +65,10 @@ function formHTML(s, editable, withRoomFields, sampleN) {
     <div class="set-row"><label for="rf-random">Rastgele roller</label>
       <span class="switch"><input type="checkbox" id="rf-random" name="roleMode" ${s.roleMode !== 'all' ? 'checked' : ''} ${dis}><i></i></span>
       <small>Açıkken açık roller arasından her oyunda rastgele bir kısmı çıkar; kimse neyle karşılaşacağını tam bilemez. Kapalıysa açık rollerin hepsi (sığdığı kadar) dağıtılır.</small></div>
+    <div class="set-row"><label>Vampir sayısı</label>
+      <div class="seg" role="radiogroup" aria-label="Vampir sayısı" data-vampseg>
+        ${VAMPIRE_OPTS.map((k) => `<button type="button" role="radio" class="seg-btn${vampOf(s.vampires) === k ? ' on' : ''}" data-vamp="${k}" aria-checked="${vampOf(s.vampires) === k}" ${dis}>${k === 'auto' ? 'Otomatik' : k}</button>`).join('')}
+      </div><p class="muted small" style="margin:6px 0 0" data-vamphint></p></div>
     ${s.aiAvailable ? `<div class="set-row"><label for="rf-smart">Akıllı botlar</label>
       <span class="switch"><input type="checkbox" id="rf-smart" name="smartBots" ${s.smartBots !== false ? 'checked' : ''} ${dis}><i></i></span>
       <small>Botlar rolüne göre düşünür, konuşur, soru sorar, ikna edilebilir ve blöf yapar. Açıkken sohbet mesajları ve oyuncu adları bir yapay zekâ hizmetine gönderilir; biten oyunlar botları geliştirmek için bu hizmet tarafından incelenebilir.</small></div>` : ''}
@@ -82,15 +87,25 @@ function formHTML(s, editable, withRoomFields, sampleN) {
       ${TOGGLE_ROLES.map((r) => `
         <button type="button" class="rtoggle${s.roles[r] ? ' on' : ''}" data-role="${r}" aria-pressed="${!!s.roles[r]}" ${dis}>
           ${emblem(r, 'm')}
-          <span><b>${ROLES[r].name}</b><small>${ROLES[r].short}</small>${r === 'iftiraci' || r === 'temizlikci' || r === 'hirsiz' ? `<small class="warn">${r === 'hirsiz' ? THIEF_MIN : FRAMER_MIN}+ oyuncuda dağıtılır</small>` : ''}</span>
+          <span><b>${ROLES[r].name}</b><small>${ROLES[r].short}</small>${r === 'hirsiz' ? `<small class="warn">${THIEF_MIN}+ oyuncuda dağıtılır</small>` : ''}</span>
           <span class="check">${icon('check')}</span>
         </button>`).join('')}
     </div>
+    <div class="section-title">Vampir yetenekleri</div>
+    <div class="role-toggles">
+      ${ABILITY_TOGGLES.map((r) => { const ab = ABILITIES[ABILITY_OF_TOGGLE[r]]; return `
+        <button type="button" class="rtoggle${s.roles[r] ? ' on' : ''}" data-role="${r}" aria-pressed="${!!s.roles[r]}" ${dis}>
+          ${emblem(ab.icon, 'm')}
+          <span><b>${ab.name}</b><small>${ab.short}</small><small class="warn">${ABILITY_MIN}+ oyuncuda, farklı vampirlere verilir</small></span>
+          <span class="check">${icon('check')}</span>
+        </button>`; }).join('')}
+    </div>
+    <p class="muted small" style="margin:6px 0 0">Yetenek bir rol değildir: oyun başında rastgele bir vampire verilir. O vampir her gece öldürmek yerine yeteneğini kullanabilir. Yeteneği yalnızca vampirin kendisi ve takımı bilir.</p>
     <details class="box" open>
       <summary>${icon('info')}Roller nasıl dağıtılır?</summary>
       <div class="explain">
-        <p>Vampir sayısı oyuncu sayısına göre belirlenir: 5–9 kişide 1, 10–14 kişide 2, 15 ve üstünde 3 vampir.</p>
-        <p>İftiracı ve Temizlikçi vampirlerin yardımcılarıdır; en az ${FRAMER_MIN} oyuncuda dağıtılırlar. Rastgele dağıtımda açık olanlardan biri her zaman çıkar, 13 ve üstü oyuncuda ikisi de açıksa ikincisi %50 ihtimalle gelir. Klasik dağıtımda açık olanların hepsi gelir.</p>
+        <p>Vampir sayısı varsayılan olarak oyuncu sayısına göre belirlenir: 5–9 kişide 1, 10–14 kişide 2, 15 ve üstünde 3 vampir. Yukarıdan 1–4 arası sabit bir sayı da seçebilirsin; köy çoğunlukta kalsın diye en fazla (oyuncu − 1) / 2 vampir olur. Her vampir her gece kendi kurbanını seçer: N vampir, bir gecede en çok N ölüm demektir.</p>
+        <p>İftira ve Temizlik yetenekleri rol değildir: açıksa ve en az ${ABILITY_MIN} oyuncu varsa her biri farklı bir vampire verilir (tek vampir ve iki yetenek açıksa ona rastgele biri; vampirden fazla yetenek düşer).</p>
         <p>Açık özel roller şu sırayla, yer kaldıkça eklenir: Doktor, Kahin, Gözcü, Gardiyan, Cadı, Avcı, Muhtar, Soytarı, Deli, Hırsız. Hırsız sadece en az ${THIEF_MIN} oyuncuda dağıtılır. 8 kişiden az oyunda en az bir sade köylü kalır. Roller sığmazsa hangilerinin çıkacağı her oyun rastgele seçilir (kahin/gözcüden en az biri hep çıkar).</p>
       </div>
       <div class="row-between" style="margin-top:8px"><b class="small">Örnek: <span data-n>${sampleN}</span> oyuncu</b></div>
@@ -105,7 +120,15 @@ function bindForm(root, s, onChange) {
   const update = () => {
     const n = Number(root.querySelector('[data-sample]').value);
     root.querySelector('[data-n]').textContent = n;
-    const plan = distributionPlan(n, s.roles, s.roleMode === 'all' ? 'all' : 'random');
+    const plan = distributionPlan(n, s.roles, s.roleMode === 'all' ? 'all' : 'random', vampOf(s.vampires));
+    const hint = root.querySelector('[data-vamphint]');
+    if (hint) {
+      const v = vampOf(s.vampires);
+      const max = maxVampires(n);
+      hint.textContent = v === 'auto'
+        ? `Oyuncu sayısına göre: 5–9 kişide 1, 10–14'te 2, 15 ve üstünde 3 vampir. (${n} oyuncuda ${vampireCount(n)}.) Her vampir gecede kendi kurbanını öldürür: N vampir = en çok N ölüm.`
+        : `Köy çoğunlukta kalsın diye ${n} oyuncuda en fazla ${max} vampir olabilir${v > max ? `; ${v} istedin, ${max} olacak` : ''}. Her vampir gecede kendi kurbanını öldürür: N vampir = en çok N ölüm. Oyuncu sayısı azalırsa sayı da kendiliğinden düşer.`;
+    }
     root.querySelector('[data-dist]').innerHTML = distChips(plan.list) + poolNote(plan.pool);
     onChange && onChange();
   };
@@ -128,6 +151,14 @@ function bindForm(root, s, onChange) {
       if (hint) hint.textContent = (EVENT_FREQ.find((x) => x[0] === s.events) || EVENT_FREQ[1])[2];
       sfx('click');
       onChange && onChange();
+      return;
+    }
+    const vp = e.target.closest('[data-vamp]');
+    if (vp && !vp.disabled) {
+      s.vampires = vampOf(vp.dataset.vamp);
+      root.querySelectorAll('[data-vamp]').forEach((b) => { b.classList.toggle('on', b === vp); b.setAttribute('aria-checked', String(b === vp)); });
+      sfx('click');
+      update();
       return;
     }
     const bm = e.target.closest('[data-bm]');
@@ -161,7 +192,7 @@ export function openCreateRoom() {
   const last = store.get(LAST_KEY, null) || {};
   const s = {
     roomName: `${ctx.user.username} Köyü`.slice(0, 24),
-    nightSec: Math.min(60, last.nightSec || 20), daySec: last.daySec || 120, roleMode: last.roleMode || 'random',
+    nightSec: Math.min(60, last.nightSec || 20), daySec: last.daySec || 120, roleMode: last.roleMode || 'random', vampires: vampOf(last.vampires),
     revealRoles: last.revealRoles !== undefined ? last.revealRoles : true,
     events: EVENTS_UI ? (last.events || 'some') : 'off',
     roles: { ...DEFAULT_ROLES, ...(last.roles || {}) },
@@ -185,7 +216,7 @@ export function openCreateRoom() {
     const btn = sheet.foot.querySelector('[data-create]');
     btn.disabled = true;
     err.textContent = '';
-    const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, roles: s.roles, smartBots: s.smartBots };
+    const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, vampires: vampOf(s.vampires), roles: s.roles, smartBots: s.smartBots };
     store.set(LAST_KEY, settings);
     // Bot zekâsı kayıtlı son ayarlara yazılmaz (pahalı seçenek her odada kendiliğinden açılmasın).
     const res = await send('room:create', { roomName, password: form.password.value, settings: s.canChooseBotModel ? { ...settings, botModel: s.botModel } : settings }, { quiet: true });
@@ -207,7 +238,7 @@ export function openRoomSettings() {
   const cur = st.room.settings;
   const s = {
     nightSec: cur.nightSec, daySec: cur.daySec, revealRoles: cur.revealRoles, events: EVENTS_UI ? (cur.events || 'some') : 'off',
-    roleMode: cur.roleMode || 'random', roles: { ...cur.roles }, smartBots: cur.smartBots !== false, aiAvailable: Boolean(st.room.aiAvailable),
+    roleMode: cur.roleMode || 'random', vampires: vampOf(cur.vampires), roles: { ...cur.roles }, smartBots: cur.smartBots !== false, aiAvailable: Boolean(st.room.aiAvailable),
     canChooseBotModel: Boolean(st.me && st.me.canChooseBotModel), botModel: bmOf(cur.botModel),
   };
   store.set(AI_KEY, Boolean(st.room.aiAvailable));
@@ -223,7 +254,7 @@ export function openRoomSettings() {
   bindForm(form, s);
   if (host) {
     sheet.foot.querySelector('[data-save]').addEventListener('click', async () => {
-      const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, roles: s.roles, smartBots: s.smartBots };
+      const settings = { nightSec: s.nightSec, daySec: s.daySec, revealRoles: s.revealRoles, events: s.events, roleMode: s.roleMode, vampires: vampOf(s.vampires), roles: s.roles, smartBots: s.smartBots };
       const res = await send('room:settings', { settings: s.canChooseBotModel ? { ...settings, botModel: s.botModel } : settings });
       if (res.ok) {
         store.set(LAST_KEY, settings);

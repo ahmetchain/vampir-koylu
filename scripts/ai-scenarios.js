@@ -401,7 +401,7 @@ const SCENARIOS = [
     title: 'Asılan Vampir çıktı: köy tepkisi, savunanlar sorgulanır',
     expect: 'Bot bunu iyi haber sayar; Deniz\'i savunan Fatma\'yı sorgular, ona soru sorabilir; körü körüne oy yığmaz.',
     build(client) {
-      const g = new Game({ client, players: [...SIX(), { name: 'Gül', role: 'iftiraci', bot: true }] });
+      const g = new Game({ client, players: [...SIX(), { name: 'Gül', role: 'vampir', bot: true }] });
       g.night([]);
       g.talk([['Fatma', 'Deniz masum, ona dokunmayın.'], ['Ahmet', 'Bence Deniz şüpheli.']]);
       everyoneVotes(g, 'Deniz', ['Ahmet', 'Cem', 'Eren', 'Ece']);

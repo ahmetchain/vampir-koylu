@@ -273,7 +273,7 @@ test('gündüz bir köylü asılıp 1 vampir 1 köylü kalırsa vampir kazanır'
   room.destroy();
 });
 
-test('birden fazla vampir varsa en çok seçilen hedef saldırıya uğrar', (t) => {
+test('her vampir kendi kurbanını seçer: aynı kurban tek ölüm, farklı kurban ayrı ölüm', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { room } = setup(15);
   const roles = [V, V, V, D, ...Array(11).fill(K)];
@@ -283,7 +283,8 @@ test('birden fazla vampir varsa en çok seçilen hedef saldırıya uğrar', (t) 
   room.selectNight('p2', 'p6');
   room.endNight();
   assert.equal(room.players.get('p5').alive, false);
-  assert.equal(room.players.get('p6').alive, true);
+  assert.equal(room.players.get('p6').alive, false, 'üçüncü vampir ayrı bir kurban seçti: iki ölüm');
+  assert.equal([...room.players.values()].filter((p) => !p.alive).length, 2, 'p5 iki vampir seçse de tek ölüm');
   room.destroy();
 });
 

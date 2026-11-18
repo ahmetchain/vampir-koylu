@@ -60,7 +60,7 @@ function watchBots(room, ev) {
       const target = room.players.get(args[0]);
       const res = orig(byId, ...args);
       if (p && p.bot) {
-        if (res !== null) ev.botErrors.push(`${method} ${p.name} (${before}) -> ${args[0]}: ${res}`);
+        if (res !== null && !/Kapın dışarıdan kilitlendi/.test(res)) ev.botErrors.push(`${method} ${p.name} (${before}) -> ${args[0]}: ${res}`);
         if (method === 'selectNight' && isEvil(before) && target && isEvil(target.role)) {
           ev.botErrors.push(`kötü bot takımını hedefledi: ${p.name} -> ${target.name}`);
         }

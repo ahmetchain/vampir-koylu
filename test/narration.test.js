@@ -10,11 +10,15 @@ const {
 const { assignJobs } = require('../lib/story');
 
 const {
-  VAMPIRE: V, FRAMER: F, DOCTOR: D, SEER: S, WATCHER: G, WITCH: W, HUNTER: H, MAYOR: M, JESTER: J, VILLAGER: K,
+  VAMPIRE: V, DOCTOR: D, SEER: S, WATCHER: G, WITCH: W, HUNTER: H, MAYOR: M, JESTER: J, VILLAGER: K,
 } = ROLE;
 const SCENARIO_IDS = ['sisli-vadi', 'kanli-ay', 'hasat-senligi', 'kara-kis', 'veba-soylentisi', 'panayir'];
 const PRIVATE = new Set(['seer', 'watch', 'promote']);
 const NARRATED = new Set(['start', 'night', 'death', 'safe', 'hanged', 'nohang', 'sleep', 'hunter', 'shot', 'nohunt', 'left', 'win']);
+
+// İftiracı artık rol değil, iftira yetenekli vampirdir (F = yetenekli vampir).
+const F = 'iftiraci';
+const ABILITY = { iftiraci: 'iftira', temizlikci: 'temizlik' };
 
 function setup(count, { revealRoles = true, storySeed = 'test-tohum', roles, eventMode = 'off' } = {}) {
   const events = { announces: [], updates: 0 };
@@ -39,7 +43,11 @@ function setup(count, { revealRoles = true, storySeed = 'test-tohum', roles, eve
 
 function startWithRoles(room, roles) {
   assert.equal(room.start(room.hostId), null);
-  roles.forEach((role, i) => { room.players.get(`p${i}`).role = role; });
+  roles.forEach((role, i) => {
+    const p = room.players.get(`p${i}`);
+    p.role = ABILITY[role] ? V : role;
+    p.ability = ABILITY[role] || null;
+  });
   room.startNight();
 }
 
@@ -130,7 +138,7 @@ test('herkese açık duyurular anlatılır; sahneler geçerli; özel duyurular a
     'blocked', 'blockedCount', 'count', 'dark', 'deathAt', 'kind', 'ownerOut', 'ownerWent', 'saved', 'targets', 'text', 'title', 'to', 'visitors',
   ]);
 
-  // 1. gün: sabah dedikodusu, sonra p0 (vampir) çoğunlukla elenir → iftiracı dönüşür (özel, anlatısız).
+  // 1. gün: sabah dedikodusu, sonra p0 (vampir) çoğunlukla elenir (diğer vampir p1 kalır).
   assert.equal(room.phase, 'day');
   assert.equal(room.log.filter((e) => e.kind === 'rumor').length, 1, 'her gün başında bir dedikodu');
   for (const id of ['p2', 'p3', 'p4', 'p5']) room.vote(id, 'p0');
@@ -141,7 +149,6 @@ test('herkese açık duyurular anlatılır; sahneler geçerli; özel duyurular a
   assert.equal(hanged.text, `Oyuncu0 4 oyla ${verb}! Rolü: Vampir.`);
   assert.ok(room.log.some((e) => e.kind === 'death' && e.text === `1. gün Oyuncu0 4 oyla ${verb}. Rolü: Vampir.`));
   assert.ok(hanged.story.length > 0);
-  assert.equal(of(events, 'promote')[0].story, undefined);
 
   // 2. gece: yeni vampir avcıyı öldürür → avcı son atışı.
   room.selectNight('p1', 'p4');
@@ -385,9 +392,13 @@ function playAndAudit(seed, revealRoles, count) {
             const real = r.players.get(p.id);
             if (real.shownRole && (real.alive || isEvil(real.role) || ['avci', 'soytari'].includes(real.role) || real.roleHidden)) problems.push(`iftira kuralı dışı: ${p.id}`);
             if (r.phase === 'ended' && p.framed !== Boolean(real.framedReveal)) problems.push('framed bayrağı yanlış');
+            // Vampir yeteneği: yalnızca sahibi, vampir takımı (ve oyun bitince herkes) bilir.
+            if (p.ability && r.phase !== 'ended' && p.id !== viewerId && !isEvil(v.me.role)) problems.push(`state(${viewerId}): ${p.id} yeteneği sızdı`);
+            if (p.ability && real.ability !== p.ability) problems.push(`state(${viewerId}): yetenek yanlış`);
           }
           const meEvil = isEvil(v.me.role);
-          if (v.night && !meEvil && (v.night.framer || v.night.team.length || v.night.teamTarget)) problems.push(`state(${viewerId}): gece seçimi sızdı`);
+          if (v.night && !meEvil && (v.night.team.length || v.night.myKind || v.night.ability)) problems.push(`state(${viewerId}): gece seçimi sızdı`);
+          if (v.me.ability && !meEvil) problems.push(`state(${viewerId}): me.ability sızdı`);
           // Gözcünün canlı paneli yok; gösterimde (show) izleyici sadece hakkı olanı görür.
           if (v.night && v.night.watch !== undefined) problems.push(`state(${viewerId}): canlı gözcü paneli var`);
           if (v.night && v.night.show) auditShow(viewerId, v, problems);
@@ -458,14 +469,17 @@ function playAndAudit(seed, revealRoles, count) {
   }
   room.start('p0');
   // Rolleri tohumdan yeniden dağıt (oyun tekrarlanabilir olsun).
-  const list = rolesFor(count, [D, S, G, 'gardiyan', W, H, M, J, 'deli', 'hirsiz', F, 'temizlikci']);
+  const list = rolesFor(count, [D, S, G, 'gardiyan', W, H, M, J, 'deli', 'hirsiz']);
   const ids = [...room.players.keys()];
   for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
   ids.forEach((id, i) => {
     const p = room.players.get(id);
     p.role = list[i];
     p.fakeRole = p.role === 'deli' ? pick(['doktor', 'kahin', 'gozcu', 'gardiyan']) : null;
+    p.ability = null;
   });
+  // 7+ oyuncuda ilk iki vampire sırayla iftira / temizlik yeteneği (yeniden dağıtılan roller için).
+  if (count >= 7) [...room.players.values()].filter((p) => p.role === V).slice(0, 2).forEach((p, i) => { p.ability = ['iftira', 'temizlik'][i]; });
   room.startNight();
 
   const alive = () => [...room.players.values()].filter((p) => p.alive);
@@ -475,7 +489,8 @@ function playAndAudit(seed, revealRoles, count) {
       for (const p of alive()) {
         if (rng() < 0.08) room.passNight(p.id);
         for (let tries = 0; tries < 4; tries++) {
-          if (room.selectNight(p.id, pick(alive()).id, rng() < 0.4 ? 'poison' : 'heal') === null) break;
+          const act = p.ability && rng() < 0.5 ? (p.ability === 'iftira' ? 'frame' : 'clean') : (rng() < 0.4 ? 'poison' : 'heal');
+          if (room.selectNight(p.id, pick(alive()).id, act) === null) break;
         }
         if (rng() < 0.3) room.chat(p.id, 'gece fısıltısı');
       }

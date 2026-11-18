@@ -29,20 +29,8 @@ export const colorOf = (look) => COLORS[(look && look.color) || 0] || COLORS[0];
 export const ROLES = {
   vampir: {
     name: 'Vampir', team: 'vampir', teamName: 'Vampirler', color: '#d7263d',
-    short: 'Geceleri kurban seçer.',
-    desc: 'Her gece takımınla tek bir kurbana gidersiniz: ilk onaylayan vampir hedefi belirler. Gündüz köylü gibi davran, yakalanma. Sayınız diğer oyunculara eşitlenince kazanırsınız.',
-  },
-  iftiraci: {
-    name: 'İftiracı', team: 'vampir', teamName: 'Vampirler', color: '#b0408a',
-    short: 'Masumlara iftira atar.',
-    desc: 'Vampirlerin gizli yardımcısısın: onları tanırsın, onlar da seni; gece onlarla yazışırsın ama öldürme seçimine katılmazsın. Her gece vampir olmayan birine iftira at: Kahin o gece ona bakarsa "Vampir" iki seçenekten biri olur. İftiraya uğrayan kişi o gece ölürse ya da ertesi gün oyla elenirse köye "Vampir" olarak duyurulur; gerçek oyun sonunda ortaya çıkar. Son vampir düşerse sen vampire dönüşürsün.',
-    note: 'Sadece 7 ve üstü oyuncuda dağıtılır.',
-  },
-  temizlikci: {
-    name: 'Temizlikçi', team: 'vampir', teamName: 'Vampirler', color: '#7d4fb0',
-    short: 'Ölenin izlerini siler.',
-    desc: 'Vampirlerin gizli yardımcısısın: onları tanırsın, onlar da seni; gece onlarla yazışırsın ama öldürme seçimine katılmazsın. Her gece vampir olmayan birinin evine git: o kişi o gece ölürse rolü oyun sonuna kadar köyden gizlenir. Son vampir düşerse sen vampire dönüşürsün.',
-    note: 'Sadece 7 ve üstü oyuncuda dağıtılır.',
+    short: 'Geceleri kurbanını seçer.',
+    desc: 'Her gece her vampir kendi kurbanını seçer ve o eve gider: iki vampir aynı kişiyi seçerse tek ölüm olur, ayrı kişileri seçerse iki ölüm. Oyun başında bir vampire İftira ya da Temizlik yeteneği verilebilir: o gece öldürmek yerine iftira atar ya da bir kişinin izini siler. Gündüz köylü gibi davran, yakalanma. Sayınız diğer oyunculara eşitlenince kazanırsınız.',
   },
   doktor: {
     name: 'Doktor', team: 'koylu', teamName: 'Köylüler', color: '#3fb58a',
@@ -52,7 +40,7 @@ export const ROLES = {
   kahin: {
     name: 'Kahin', team: 'koylu', teamName: 'Köylüler', color: '#8f7cff',
     short: 'İki rolden birini bulur.',
-    desc: 'Her gece birine kristal küreyle bak: iki rol görürsün, biri onun gerçek rolü ("X şu ikisinden biri: A ya da B"). Sonuç sadece sana gelir; aynı kişiye yine bakarsan aynı ikiliyi görürsün. İftiracı o gece ona iftira attıysa "Vampir" seçeneklerden biri olur.',
+    desc: 'Her gece birine kristal küreyle bak: iki rol görürsün, biri onun gerçek rolü ("X şu ikisinden biri: A ya da B"). Sonuç sadece sana gelir; aynı kişiye yine bakarsan aynı ikiliyi görürsün. Bir vampir o gece ona iftira attıysa "Vampir" seçeneklerden biri olur.',
   },
   gozcu: {
     name: 'Gözcü', team: 'koylu', teamName: 'Köylüler', color: '#e8a33a',
@@ -62,7 +50,7 @@ export const ROLES = {
   gardiyan: {
     name: 'Gardiyan', team: 'koylu', teamName: 'Köylüler', color: '#7f9cc4',
     short: 'Gündüz bir kapıyı kilitler.',
-    desc: 'Gündüz, gelecek gece hangi evi kilitleyeceğini seçersin (gün bitene kadar değiştirebilirsin). Kilitli evin sahibi dışarı çıkamaz, gelen herkes kapıyı kilitli bulup geri döner. Kendi evini ya da arka arkaya iki gece aynı evi kilitleyemezsin; ilk gece kilit olmaz. Sabah kapıyı kaç kişinin zorladığını öğrenirsin, kimin olduğunu değil.',
+    desc: 'Gündüz, gelecek gece hangi evi kilitleyeceğini seçersin (gün bitene kadar değiştirebilirsin). Kilitli evin sahibi dışarı çıkamaz (bunu önceden bilmez; çıkmaya çalışınca öğrenir), gelen herkes kapıyı kilitli bulup geri döner. Kendi evini ya da arka arkaya iki gece aynı evi kilitleyemezsin; ilk gece kilit olmaz. Sabah kapıyı kaç kişinin zorladığını ve ev sahibinin dışarı çıkmak isteyip istemediğini öğrenirsin, kimin olduğunu değil.',
   },
   cadi: {
     name: 'Cadı', team: 'koylu', teamName: 'Köylüler', color: '#6cc04a',
@@ -102,53 +90,63 @@ export const ROLES = {
     desc: 'Gece uyursun. Gündüz tartış, şüphelendiğin kişiye oy ver ve vampirleri bul.',
   },
 };
-export const ROLE_LIST = ['vampir', 'iftiraci', 'temizlikci', 'doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz', 'koylu'];
+export const ROLE_LIST = ['vampir', 'doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz', 'koylu'];
 // Sunucunun özel rolleri ekleme sırası (PROTOCOL §3).
 export const SPECIAL_ORDER = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz'];
-export const TOGGLE_ROLES = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz', 'iftiraci', 'temizlikci'];
+// İftira / Temizlik artık rol değil, vampir yeteneğidir; oda anahtarları eski adlarla ('iftiraci', 'temizlikci') saklanır.
+export const TOGGLE_ROLES = ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'soytari', 'deli', 'hirsiz'];
+export const ABILITY_TOGGLES = ['iftiraci', 'temizlikci'];
+export const ABILITIES = {
+  iftira: { toggle: 'iftiraci', icon: 'iftiraci', name: 'İftira yeteneği', short: 'Öldürmek yerine masuma iftira atar.',
+    desc: 'Bir vampir, o gece öldürmek yerine vampir olmayan birine iftira atabilir: Kahin o gece ona bakarsa "Vampir" iki seçenekten biri olur; o kişi o gece ölürse ya da ertesi gün oyla elenirse köye "Vampir" olarak duyurulur (gerçek oyun sonunda çıkar).' },
+  temizlik: { toggle: 'temizlikci', icon: 'temizlikci', name: 'Temizlik yeteneği', short: 'Öldürmek yerine bir kişinin izini siler.',
+    desc: 'Bir vampir, o gece öldürmek yerine vampir olmayan birinin evine gidip izlerini silebilir: o kişi o gece ölürse ya da ertesi gün oyla elenirse rolü oyun sonuna kadar köyden gizlenir.' },
+};
+export const ABILITY_OF_TOGGLE = { iftiraci: 'iftira', temizlikci: 'temizlik' };
 // Yeni odada bütün roller açık gelir: rastgele dağıtımda her oyun farklı bir karışım çıkar (kapalı kalırsa herkes köylü olur).
 export const DEFAULT_ROLES = { doktor: true, kahin: true, gozcu: true, gardiyan: true, cadi: true, avci: true, muhtar: true, soytari: true, deli: true, hirsiz: true, iftiraci: true, temizlikci: true };
 export const MIN_PLAYERS = 5;
 export const MAX_PLAYERS = 20;
-export const FRAMER_MIN = 7;
+export const ABILITY_MIN = 7;   // yetenekler ancak bu kadar oyuncuyla verilir
 export const THIEF_MIN = 7;
 export const TEAM_NAME = { koylu: 'Köylüler', vampir: 'Vampirler', soytari: 'Soytarı', hirsiz: 'Tarafsız' };
 export const WIN_TITLE = { koylu: 'Köylüler kazandı!', vampir: 'Vampirler kazandı!', soytari: 'Soytarı kazandı!' };
-export const isEvil = (role) => role === 'vampir' || role === 'iftiraci' || role === 'temizlikci';
+export const isEvil = (role) => role === 'vampir';
 
-export function vampireCount(n) {
+// Oda ayarı `vampires`: 'auto' ya da 1–4 (sunucudaki game.js vampireCount ile aynı).
+export const VAMPIRE_OPTS = ['auto', 1, 2, 3, 4];
+// Köy çoğunlukta kalsın: en fazla floor((oyuncu − 1) / 2) vampir (5 kişide 2, 8'de 3 …).
+export function maxVampires(n) {
+  return Math.max(1, Math.floor((n - 1) / 2));
+}
+export function vampireCount(n, setting = 'auto') {
+  if (Number.isInteger(setting) && setting > 0) return Math.max(1, Math.min(setting, maxVampires(n)));
   return n >= 15 ? 3 : n >= 10 ? 2 : 1;
 }
 
-// Sunucudaki önizlemenin aynısı: { list: [vampirler, iftiracı?, kesin özel roller..., köylüler], pool }.
-// Özel roller sığmazsa pool = { pick, from } (hangilerinin çıkacağı oyunda rastgele belirlenir).
-// mode 'random' (§15.3): vampirler kesin, sade köylü = max(1, round(n × 0,2)), kalan yerler açık köy
-// rollerinden rastgele; İftiracı (açıksa, 7+) %60 ihtimalle. 'all': eski kural.
-export function distributionPlan(n, roles, mode = 'all') {
-  if (mode === 'random') {
-    const list = [];
-    for (let i = 0; i < vampireCount(n); i++) list.push('vampir');
-    // Yardımcılar (7+): açık olanlardan biri hep gelir; 13+ ve ikisi de açıksa ikincisi belki.
-    const maybe = ['iftiraci', 'temizlikci'].filter((r) => roles[r] && n >= FRAMER_MIN);
-    const helpersMax = maybe.length >= 2 && n >= 13 ? 2 : (maybe.length ? 1 : 0);
-    if (maybe.length === 1) list.push(maybe[0]);
-    const plain = Math.max(1, Math.round(n * 0.2));
-    const slots = Math.max(0, n - vampireCount(n) - helpersMax - plain);
-    const village = SPECIAL_ORDER.filter((r) => roles[r] && !(r === 'hirsiz' && n < THIEF_MIN));
-    let pool = null;
-    if (village.length && slots > 0) pool = { pick: Math.min(slots, village.length), from: village };
-    const openHelpers = maybe.length >= 2 ? helpersMax : 0;
-    if (openHelpers) pool = { ...(pool || { pick: 0, from: [] }), maybe, helpers: 1, helpersMax };
-    if (pool && openHelpers) pool.pick += helpersMax;
-    while (list.length < n - (pool ? pool.pick : 0)) list.push('koylu');
-    return { list, pool };
-  }
-  const out = [];
-  const v = vampireCount(n);
-  for (let i = 0; i < v; i++) out.push('vampir');
-  for (const h of ['iftiraci', 'temizlikci']) if (roles[h] && n >= FRAMER_MIN) out.push(h);
-  const slots = Math.max(0, n - out.length - (n < 8 ? 1 : 0));
+// Sunucudaki önizlemenin aynısı: { list: [vampirler, kesin özel roller..., köylüler], pool }.
+// Özel roller sığmazsa pool = { pick, from } (hangilerinin çıkacağı oyunda rastgele belirlenir). Yetenekler (iftira,
+// temizlik) rol dağıtımına karışmaz; oyun başında vampirlere ayrıca verilir.
+// mode 'random' (§15.3): sade köylü = max(1, round(n × 0,2)), kalan yerler açık köy rollerinden rastgele. 'all': eski kural.
+export function distributionPlan(n, roles, mode = 'all', vampires = 'auto') {
+  const vc = vampireCount(n, vampires);
   const village = SPECIAL_ORDER.filter((r) => roles[r] && !(r === 'hirsiz' && n < THIEF_MIN));
+  if (mode === 'random') {
+    const plain = Math.max(1, Math.round(n * 0.2));
+    const slots = Math.max(0, n - vc - plain);
+    let sure;
+    if (village.length <= slots) sure = village;
+    else {
+      const must = village.filter((r) => r === 'kahin' || r === 'gozcu');
+      sure = must.length === 1 && slots >= 1 ? must : [];
+    }
+    const koylu = plain + (village.length <= slots ? slots - village.length : 0);
+    const list = [...Array(vc).fill('vampir'), ...sure, ...Array(koylu).fill('koylu')].slice(0, n);
+    const open = n - list.length;
+    return { list, pool: open > 0 ? { pick: open, from: village.filter((r) => !sure.includes(r)) } : null };
+  }
+  const out = Array(vc).fill('vampir');
+  const slots = Math.max(0, n - out.length - (n < 8 ? 1 : 0));
   let pool = null;
   if (village.length <= slots) out.push(...village);
   else if (slots > 0) pool = { pick: slots, from: village };
@@ -206,31 +204,17 @@ export function checkPassword(raw) {
 
 // "Nasıl Oynanır" rol rehberi: ne yapar, ne zaman, sınırları, diğer rollerle, bir ipucu.
 export const ROLE_GROUPS = [
-  ['vampir', 'Vampir takımı', ['vampir', 'iftiraci', 'temizlikci']],
+  ['vampir', 'Vampir takımı', ['vampir']],
   ['koylu', 'Köy', ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'deli', 'koylu']],
   ['soytari', 'Tek başına', ['soytari', 'hirsiz']],
 ];
 export const ROLE_GUIDE = {
   vampir: {
-    what: 'Takımınla birlikte her gece bir kişiyi öldürmeye gidersin.',
-    when: 'Gece, seçim bölümünde. İlk onaylayan vampirin seçimi takımın tek hedefi olur; diğer vampirler de oraya yürür.',
-    limits: 'Kendini, diğer vampirleri, İftiracı\'yı ve Temizlikçi\'yi seçemezsin. Seçim kesindir.',
-    with: 'Doktor korursa ya da Cadı hayat iksiri verirse kurban yaşar. Gardiyanın kilitlediği kapıdan geri dönersin. Gözcü o eve gelenleri görür. Kahin sana bakarsa "Vampir" iki seçenekten biri olur.',
-    tip: 'Gündüz susmak da şüphe çeker: tartışmaya katıl, oyları başkasına yönlendir.',
-  },
-  iftiraci: {
-    what: 'Vampirlerin gizli yardımcısısın. Her gece vampir olmayan birine iftira atarsın.',
-    when: 'Gece, seçim bölümünde. Gece vampirlerle yazışabilirsin.',
-    limits: 'Öldürme seçimine katılmazsın; kendine ve takım arkadaşına iftira atamazsın. Sadece 7 ve üstü oyuncuda dağıtılır.',
-    with: 'Kahin o gece iftira attığın kişiye bakarsa "Vampir" iki seçenekten biri olur. İftiraya uğrayan kişi o gece ölürse ya da ertesi gün oyla elenirse köye "Vampir" olarak duyurulur; gerçek oyun sonunda ortaya çıkar. Son vampir ölürse sen vampire dönüşürsün.',
-    tip: 'Kahin olduğunu söyleyen birinin bakacağı kişiyi tahmin et ve ona iftira at.',
-  },
-  temizlikci: {
-    what: 'Vampirlerin gizli yardımcısısın. Her gece vampir olmayan birinin evine gidersin.',
-    when: 'Gece, seçim bölümünde. Gece vampirlerle yazışabilirsin; takımı ve takımın hedefini görürsün.',
-    limits: 'Öldürme seçimine katılmazsın; kendini ve takım arkadaşlarını seçemezsin. Sadece 7 ve üstü oyuncuda dağıtılır. Evine gittiğin kişi o gece ölmezse hiçbir şey olmaz.',
-    with: 'Gittiğin kişi o gece ölürse rolü oyun sonuna kadar açıklanmaz ("izler silinmiş"). Gözcü evine geldiğini görebilir; Gardiyanın kilitlediği kapıdan geri dönersin. Avcı yine de son atışını yapar ve rolü görünür. Kahin sana bakarsa Temizlikçi görünür. Son vampir ölürse sen vampire dönüşürsün.',
-    tip: 'Vampirlerin hedefini seç: böylece köy kimi kaybettiğini anlasa da rolünü bilemez.',
+    what: 'Her gece kendi kurbanını seçer ve o eve gidersin. Takımındaki her vampir de kendi kurbanını seçer.',
+    when: 'Gece, seçim bölümünde. Kimi seçtiğini takım arkadaşların da görür. Aynı kişiyi seçerseniz tek ölüm olur ve ikiniz de o eve gidersiniz; ayrı kişileri seçerseniz iki ölüm olur. Yeteneğin varsa (İftira ya da Temizlik) gece sağ alttaki düğmeden öldürmek yerine yeteneğini seçebilirsin.',
+    limits: 'Kendini ve diğer vampirleri seçemezsin; yeteneğin hedefi de vampir olamaz. Her gece tek eylem; seçim kesindir. Yetenekler en az 7 oyuncuyla, açıksa ve vampirlere dağılabildiği kadar verilir.',
+    with: 'Doktor korursa ya da Cadı hayat iksiri verirse kurban yaşar. Gardiyanın kilitlediği kapıdan geri dönersin. Gözcü o eve gelenleri görür: aynı eve iki vampir giderse ikisini birden yakalar. Kahin sana bakarsa "Vampir" iki seçenekten biri olur. İftira: kurbanın Kahin\'e "Vampir" görünür, ölürse ya da ertesi gün asılırsa köye "Vampir" diye duyurulur. Temizlik: ölürse ya da ertesi gün asılırsa rolü gizli kalır ("izler silinmiş").',
+    tip: 'Gündüz susmak da şüphe çeker: tartışmaya katıl, oyları başkasına yönlendir. İki vampir aynı eve gitmek Gözcü varsa risklidir.',
   },
   doktor: {
     what: 'Her gece bir kişiyi korursun; kendini de seçebilirsin.',
@@ -243,7 +227,7 @@ export const ROLE_GUIDE = {
     what: 'Her gece bir kişiye bakarsın ve iki rol öğrenirsin: biri onun gerçek rolü, öteki yanıltıcı. ("X şu ikisinden biri: A ya da B.")',
     when: 'Gece, seçim bölümünde seçersin; sonuç gece yaşanırken sadece sana gelir.',
     limits: 'Kendine bakamazsın. Aynı kişiye yine bakarsan aynı ikiliyi görürsün. O gece ölürsen ya da kilitli kapıdan dönersen sonuç gelmez.',
-    with: 'İftiracı o kişiye iftira attıysa "Vampir" seçeneklerden biri olur. Deli, kendini hangi rol sanıyorsa öyle görünür. Masum biri çoğu zaman iki masum rolle görünür (yanıltıcı rol sadece yaklaşık yarı ihtimalle öbür taraftan gelir).',
+    with: 'Bir vampir o kişiye iftira attıysa "Vampir" seçeneklerden biri olur. Deli, kendini hangi rol sanıyorsa öyle görünür. Masum biri çoğu zaman iki masum rolle görünür (yanıltıcı rol sadece yaklaşık yarı ihtimalle öbür taraftan gelir).',
     tip: 'İkilileri gündüz söylenenlerle karşılaştır: kendini Doktor diyen birinin ikilisinde Doktor yoksa yalan söylüyordur.',
   },
   gozcu: {
@@ -257,7 +241,7 @@ export const ROLE_GUIDE = {
     what: 'Gündüz, gelecek gece kilitlenecek kapıyı seçersin.',
     when: 'Gündüz; gün bitene kadar değiştirebilir ya da vazgeçebilirsin. İlk gece kilit olmaz.',
     limits: 'Kendi kapını ve bir önceki gece kilitlenen kapıyı seçemezsin.',
-    with: 'Kilitli evin sahibi o gece dışarı çıkamaz; gelen herkes (vampir, İftiracı, Doktor, Kahin, Cadı, Hırsız) kapıdan döner ve hiçbir etkisi olmaz. Gözcü yine de gelenleri görür. Sabah kaç kişinin zorladığını öğrenirsin, kim olduklarını değil.',
+    with: 'Kilitli evin sahibi o gece dışarı çıkamaz; gelen herkes (vampir, Doktor, Kahin, Cadı, Hırsız) kapıdan döner ve hiçbir etkisi olmaz. Ev sahibine kilit önceden söylenmez: kilidi ancak dışarı çıkmaya çalışınca ya da biri kapıyı zorlayınca öğrenir. Gözcü yine de gelenleri görür. Sabah kaç kişinin zorladığını ve ev sahibinin de dışarı çıkmak isteyip istemediğini (yani gece görevi olup olmadığını) öğrenirsin, kim olduklarını değil.',
     tip: 'Kendini Kahin diye açıklayan birini kilitlemek onu korur, ama o gece o da bakamaz.',
   },
   cadi: {

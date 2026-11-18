@@ -221,3 +221,15 @@ test('manners: robot kalıpları süzülür, dürüst bot itirafı geçer; kişi
   assert.equal(PERSONAS.length, 12);
   for (const p of PERSONAS) assert.match(p, /Writing:/, p);
 });
+
+// Rol çağrısı: "Gözcü gözlem yaptı mı?" gibi sorular o rolü çağırır; sıradan cümleler çağırmaz.
+test('rolecall: rol adı + soru/bilgi isteği o rolü çağırır', () => {
+  const { rolesCalled } = require('../lib/ai/rolecall');
+  assert.deepEqual([...rolesCalled('Gözcü bir gözleme yaptı mı')], ['gozcu']);
+  assert.deepEqual([...rolesCalled('Doktor kendisi mi korudu ve saldırı oldu mu')], ['doktor']);
+  assert.deepEqual([...rolesCalled('kahin varsa bilgi versin')], ['kahin']);
+  assert.deepEqual([...rolesCalled('Gözcü kim? Kahin kim?')].sort(), ['gozcu', 'kahin']);
+  assert.equal(rolesCalled('ben doktorum, asmayın').size, 0);
+  assert.equal(rolesCalled('bence uyuyalım').size, 0);
+  assert.equal(rolesCalled('').size, 0);
+});

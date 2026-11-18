@@ -129,7 +129,7 @@ test('sahne seçimi metinle tutarlı', () => {
 });
 
 // Gizli rollerde: olay girdilerindeki roller değiştirilse bile çıktı birebir aynı olmalı.
-const ROLES = ['vampir', 'iftiraci', 'doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'koylu', 'soytari'];
+const ROLES = ['vampir', 'doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi', 'avci', 'muhtar', 'koylu', 'soytari'];
 function scramble(script, seed) {
   let k = seed * 7 + 3;
   const next = (list) => { k = (k * 1103515245 + 12345) % 2147483648; return list[k % list.length]; };
@@ -312,8 +312,8 @@ function verify(fact, h, round, snap) {
       assert.equal(d.ballots.get(fact.fact.voter), fact.fact.target);
       const role = snap.publicRole.get(fact.fact.target);
       if (fact.family === 'bandwagon') assert.equal(role, undefined);
-      if (fact.family === 'bandwagonEvil') assert.ok(['vampir', 'iftiraci'].includes(role));
-      if (fact.family === 'bandwagonInnocent') assert.ok(role && !['vampir', 'iftiraci', 'soytari'].includes(role));
+      if (fact.family === 'bandwagonEvil') assert.ok(role === 'vampir');
+      if (fact.family === 'bandwagonInnocent') assert.ok(role && !['vampir', 'soytari'].includes(role));
       break;
     }
     case 'consistent':

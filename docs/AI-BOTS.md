@@ -37,7 +37,7 @@ own previous memory note, its persona and the task. Everything derived (timeline
 computed by code from exactly these inputs: public log lines, shown roles, the public lobby rule
 (`distribution` + `rolePool`, captured once at game start), public day votes (the last public snapshot of the
 day/court vote; secret on Sis days), the bot's own night view and notes. A team-mate list for an evil bot is
-fixed at game start (a villager framed by the İftiracı and later shown as "Vampir" is not a team-mate, and the
+fixed at game start (a villager framed by a vampire's İftira ability and later shown as "Vampir" is not a team-mate, and the
 bot is told so).
 
 **Game separation.** A `SeatRecord` is created per bot at the start of every game (`onPhase('reveal')`) and only
@@ -54,7 +54,7 @@ no evil-team night info for non-evil bots, no other player's private note, only 
 a Deli never sees "Deli".
 
 The player list is split into living and OUT players and states the team of every role the bot can see (`OUT · shown
-Gardiyan · village team, was innocent`; `shown Vampir · evil team, or a villager framed by the İftiracı` when an İftiracı is
+Gardiyan · village team, was innocent`; `shown Vampir · evil team, or a villager framed by a vampire's İftira ability` when the İftira ability is
 possible; `role hidden` for hidden roles) and marks village jobs as flavour. The same tag follows every chat speaker who is
 out (`Ahmet [OUT · shown Vampir · evil team]: ...`). When a Deli is possible in the game and the bot believes
 it is Doktor/Kahin/Gözcü/Gardiyan, `<game>` says it might be the Deli itself; a real holder of that role gets the
@@ -62,8 +62,8 @@ same line, so nothing leaks.
 
 ## When bots act
 
-- **Night:** each bot that can act is asked at the start of the night (walk stage; the Cadı and the Temizlikçi
-  ~3.5 s after the walk so they can see the victim / team target). The answer is applied no earlier than
+- **Night:** each bot that can act is asked at the start of the night (walk stage; the Cadı, a Temizlik-ability vampire and the 2nd/3rd vampire
+  ~3.5 s after the walk so they can see the victims / the team's picks; a vampire answers `target` = a victim name, or `"iftira: Name"` / `"temizlik: Name"` to use its ability). The answer is applied no earlier than
   1.2–4.5 s after the walk (human-like) and the random choice is used at the deadline
   `min(walk end + 7 s (Cadı 9 s), pick end − 1.5 s)`; so even a 10 s pick stage ends early. Evil bots may
   whisper one line in the `vampir` channel.
@@ -94,7 +94,7 @@ same line, so nothing leaks.
 
 ## Request shape
 
-`messages.create` with `model` (default `claude-haiku-5-5`, override with `AI_BOT_MODEL`; a room whose host account is the owner (`owner: true` in lib/banter.js PEOPLE, default `ahmetchain`) may set `settings.botModel = 'sonnet'` ("Güçlü": every bot) or `'hybrid'` ("Karma": per call, Sonnet only for bots whose REAL role is vampir, iftiraci, temizlikci, gozcu, kahin, doktor or hirsiz – after a theft the thief's new role counts, a Deli who believes he is a Doktor is a deli – and Haiku for koylu, cadi, avci, muhtar, gardiyan, soytari, deli; `Room.botTier(botId)`) → `claude-sonnet-5-5`, effort `low`, priced from its own table per call (cost is accounted per call by the tier actually used; hybrid is roughly half the Sonnet cost of `sonnet`, since about half of the bots on a typical table are Sonnet roles); the setting is hidden from and rejected for everybody else; the game log line shows the model(s) actually used, `model=claude-haiku-5-5+claude-sonnet-5-5` if both), `max_tokens` 4096 (thinking counts towards it),
+`messages.create` with `model` (default `claude-haiku-5-5`, override with `AI_BOT_MODEL`; a room whose host account is the owner (`owner: true` in lib/banter.js PEOPLE, default `ahmetchain`) may set `settings.botModel = 'sonnet'` ("Güçlü": every bot) or `'hybrid'` ("Karma": per call, Sonnet only for bots whose REAL role is vampir, gozcu or doktor – after a theft the thief's new role counts, a Deli who believes he is a Doktor is a deli – and Haiku for kahin, hirsiz, koylu, cadi, avci, muhtar, gardiyan, soytari, deli; `Room.botTier(botId)`) → `claude-sonnet-5-5`, effort `low`, priced from its own table per call (cost is accounted per call by the tier actually used; hybrid is still roughly a third of the Sonnet cost of `sonnet`: about 1/3 of the bots on a typical table are Sonnet roles – every vampire plus the Gözcü and Doktor); the setting is hidden from and rejected for everybody else; the game log line shows the model(s) actually used, `model=claude-haiku-5-5+claude-sonnet-5-5` if both), `max_tokens` 4096 (thinking counts towards it),
 `output_config: { effort: 'medium', format: { type: 'json_schema', schema } }`, the system prompt as one text block
 with `cache_control: { type: 'ephemeral' }` (≈ 7 K tokens; Haiku 5.5 caches from 512 tokens – correctness does
 not depend on it), one user message (≈ 1.2–2 K tokens on average, up to ≈ 3.5 K late in a long game). No sampling parameters, no prefill, no server-side fallbacks (not available

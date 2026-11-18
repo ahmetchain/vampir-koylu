@@ -11,9 +11,13 @@ const {
 } = require('../game');
 
 const {
-  VAMPIRE: V, FRAMER: F, CLEANER: C, DOCTOR: D, SEER: S, WATCHER: G, JAILER: L, WITCH: W, HUNTER: H, MAYOR: M, JESTER: J,
+  VAMPIRE: V, DOCTOR: D, SEER: S, WATCHER: G, JAILER: L, WITCH: W, HUNTER: H, MAYOR: M, JESTER: J,
   MAD: X, THIEF: T, VILLAGER: K,
 } = ROLE;
+// İftiracı / Temizlikçi artık rol değil: iftira / temizlik yetenekli vampir (startWithRoles kurar).
+const F = 'iftiraci';
+const C = 'temizlikci';
+const ABILITY = { [F]: 'iftira', [C]: 'temizlik' };
 
 function mulberry(seed) {
   let a = 0;
@@ -52,7 +56,12 @@ function startWithRoles(room, roles) {
   assert.equal(room.start(room.hostId), null);
   roles.forEach((r, i) => {
     const p = room.players.get(`p${i}`);
-    if (Array.isArray(r)) { p.role = r[0]; p.fakeRole = r[1]; } else { p.role = r; p.fakeRole = null; }
+    p.ability = null;
+    if (Array.isArray(r)) { p.role = r[0]; p.fakeRole = r[1]; } else {
+      p.role = ABILITY[r] ? V : r;
+      p.ability = ABILITY[r] || null;
+      p.fakeRole = null;
+    }
   });
   room.startNight();
 }
@@ -198,7 +207,7 @@ test('hırsız vampiri öldürürse: saldırı yine olur, hırsız vampir olur v
   t.mock.timers.tick(NIGHT_RESULT_MS);
   assert.equal(room.players.get('p2').role, V, '9. saniyede rolü aldı');
   assert.equal(to(ev, 'steal', 'p2').length, 1);
-  assert.deepEqual(show(room, 'p2').team.map((x) => x.id).sort(), ['p0', 'p1']);
+  assert.deepEqual(show(room, 'p2').team.map((x) => x.id).sort(), ['p0'], 'p1 seçim yapmadı, evde kaldı');
   t.mock.timers.tick(NIGHT_SHOW_MS - NIGHT_RESULT_MS);
   assert.equal(alive(room, 'p0'), false);
   assert.equal(alive(room, 'p5'), false);
@@ -215,17 +224,19 @@ test('hırsız vampiri öldürürse: saldırı yine olur, hırsız vampir olur v
   r2.destroy();
 });
 
-test('son vampiri hırsız öldürürse iftiracı sabah dönüşür; avcı ölürse avcı evresi gösterimden sonra', (t) => {
+test('hırsız vampiri soyarsa vampir olur (yeteneksiz); öteki vampir kendi kurbanını öldürür; avcı ölürse avcı evresi gösterimden sonra', (t) => {
   clock(t);
   const { room, ev } = setup(8);
   startWithRoles(room, [V, F, T, H, K, K, K, K]);
   room.selectNight('p2', 'p0');
   room.selectNight('p1', 'p5');
   room.endPick();
-  assert.equal(room.players.get('p1').role, F, 'gösterimde henüz dönüşmedi');
+  assert.equal(room.players.get('p2').role, T, 'gösterimde henüz rol almadı');
   room.endNight();
-  assert.equal(of(ev, 'promote').length, 0, 'hırsız vampir oldu: dönüşme yok');
+  assert.equal(of(ev, 'promote').length, 0, 'terfi yok');
   assert.equal(room.players.get('p2').role, V);
+  assert.equal(room.players.get('p2').ability, null, 'çalınan vampir rolü yetenek taşımaz');
+  assert.equal(room.players.get('p1').ability, 'iftira');
   room.destroy();
 
   const { room: r2 } = setup(8);
@@ -267,7 +278,7 @@ test('gösterim: sadece show aşamasında; köylü de kendi evini görür; iftir
   clock(t);
   const { room } = setup(8);
   startWithRoles(room, [V, F, D, K, K, K, K, K]);
-  room.selectNight('p1', 'p6');
+  room.selectNight('p1', 'p6', 'frame');
   room.selectNight('p0', 'p5');
   assert.equal(room.viewFor('p5').night, null, 'seçim aşamasında köylünün gece görünümü yok');
   assert.equal(room.viewFor('p0').night.show, null);
@@ -386,22 +397,20 @@ test('erken bitiş: herkes seçince 1,5 sn sonra (yürüyüşten önce değil); 
   r3.destroy();
 });
 
-test('erken bitiş geri alınır: son vampir ayrılınca dönüşen iftiracı yeniden beklenir', (t) => {
+test('erken bitiş: her vampir ayrı beklenir; seçip ayrılan vampirin saldırısı olmaz', (t) => {
   clock(t);
   const { room } = setup(8);
   startWithRoles(room, [V, F, K, K, K, K, K, K]);
   t.mock.timers.tick(NIGHT_WALK_MS);
-  room.selectNight('p1', 'p4');
   room.selectNight('p0', 'p3');
+  assert.equal(room.night.early, false, 'ikinci vampir hâlâ bekleniyor');
+  assert.equal(room.viewFor('p1').night.canAct, true);
+  room.selectNight('p1', 'p4');
   assert.equal(room.night.early, true);
   room.removePlayer('p0');
-  assert.equal(room.players.get('p1').role, V);
-  assert.equal(room.night.early, false);
-  assert.equal(room.viewFor('p1').night.canAct, true);
-  room.selectNight('p1', 'p5');
-  assert.equal(room.night.early, true);
   room.endNight();
-  assert.equal(alive(room, 'p5'), false);
+  assert.equal(alive(room, 'p3'), true, 'ayrılan vampirin saldırısı yok');
+  assert.equal(alive(room, 'p4'), false);
   room.destroy();
 });
 
@@ -409,7 +418,7 @@ test('erken bitiş geri alınır: son vampir ayrılınca dönüşen iftiracı ye
 
 test('kahin şaşırtmacası: 1/2 karşı taraftan (§16.4), gerçek rol ve kahin asla; tohumla tekrarlanır', () => {
   const settings = normalizeSettings({ roles: { gozcu: true, cadi: true, avci: true, iftiraci: true, hirsiz: true, deli: true } });
-  const counts = { koylu: { opp: 0, n: 0 }, vampir: { opp: 0, n: 0 }, iftiraci: { opp: 0, n: 0 } };
+  const counts = { koylu: { opp: 0, n: 0 }, vampir: { opp: 0, n: 0 } };
   const draws = (seed) => {
     const { room } = setup(8, settings, { seerRng: mulberry(seed) });
     room.gameSize = 8;
@@ -434,12 +443,11 @@ test('kahin şaşırtmacası: 1/2 karşı taraftan (§16.4), gerçek rol ve kahi
   assert.deepEqual(draws('kahin-1'), a, 'aynı tohum aynı çekiliş');
   for (const [real, c] of Object.entries(counts)) {
     const share = c.opp / c.n;
-    assert.ok(share > 0.44 && share < 0.56, `${real}: karşı taraf oranı ${share.toFixed(2)}`);
+    // Vampirin aynı taraftan (kötü) adayı yok (yardımcı rol kalmadı): şaşırtmaca hep masum bir roldür.
+    if (real === 'vampir') assert.equal(share, 1, 'vampir: hep karşı taraf');
+    else assert.ok(share > 0.44 && share < 0.56, `${real}: karşı taraf oranı ${share.toFixed(2)}`);
   }
-  // İftiracı kapalıyken vampirin aynı taraftan adayı yok: hep masum bir rol.
-  const { room } = setup(8, normalizeSettings({}), { seerRng: mulberry('x') });
-  for (let i = 0; i < 50; i++) assert.ok(!isEvil(room.drawDecoy(V)));
-  room.destroy();
+  assert.ok(!possibleRoles(8, settings).includes('iftiraci'), 'yetenek anahtarı rol değildir');
 });
 
 test('kahin: aynı hedefe tekrar bakınca aynı ikili; hedefin rolü değişirse şaşırtmaca yenilenir', (t) => {
@@ -459,17 +467,14 @@ test('kahin: aynı hedefe tekrar bakınca aynı ikili; hedefin rolü değişirse
 
 // ---------- rastgele dağıtım ----------
 
-test('rastgele dağıtım: vampir sayısı, köylü payı, yardımcı güvencesi (13+ ikincisi ~%50), kahin/gözcü güvencesi, lobi alanları kesin', () => {
+test('rastgele dağıtım: vampir sayısı, köylü payı, kahin/gözcü güvencesi, lobi alanları kesin; yetenek anahtarları rol dağıtmaz', () => {
   const m = mulberry('dagitim');
   const rng = (n) => Math.floor(m() * n);
-  const allSpecials = [...SPECIAL_ROLES, F];
   for (const count of [5, 7, 8, 10, 12, 15, 20]) {
     for (const specials of [[D, S], [D, S, G, W, H, M, J, X, T, F], [G, F, L], [], [D, S, F, C], [D, S, C], [D, S, G, W, H, M, J, X, T, F, C]]) {
       const { distribution, rolePool } = distributionFor(count, specials, 'random');
       assert.deepEqual(distributionFor(count, specials, 'random'), { distribution, rolePool }, 'deterministik');
-      let framers = 0;
-      let twoHelpers = 0;
-      const N = 300;
+      const N = 200;
       for (let i = 0; i < N; i++) {
         const list = rolesFor(count, specials, rng, 'random');
         assert.equal(list.length, count);
@@ -477,42 +482,22 @@ test('rastgele dağıtım: vampir sayısı, köylü payı, yardımcı güvencesi
         assert.equal(n(V), count >= 15 ? 3 : (count >= 10 ? 2 : 1));
         assert.ok(n(K) >= Math.max(1, Math.round(count * 0.2)), `köylü payı ${count}`);
         if (specials.includes(S) || specials.includes(G)) assert.ok(n(S) + n(G) >= 1);
-        if (count < 7) assert.equal(n(F) + n(T) + n(C), 0);
-        const enabled = [F, C].filter((h) => specials.includes(h)).length;
-        const helpers = n(F) + n(C);
-        if (count < 7 || !enabled) assert.equal(helpers, 0);
-        else if (count < 13 || enabled === 1) assert.equal(helpers, 1, 'tam bir yardımcı');
-        else assert.ok(helpers === 1 || helpers === 2);
-        if (helpers === 2) twoHelpers += 1;
-        assert.ok(list.every((r) => r === V || r === K || specials.includes(r)));
+        assert.equal(n(F) + n(C), 0, 'yetenek anahtarları rol dağıtmaz');
+        assert.ok(list.every((r) => r === V || r === K || (specials.includes(r) && r !== F && r !== C)));
         assert.ok(list.every((r, j) => r === K || r === V || list.indexOf(r) === j), 'özel roller tekil');
-        // distribution'daki her rol her çekilişte var.
         const rest = [...list];
         for (const r of distribution) {
           const at = rest.indexOf(r);
           assert.ok(at >= 0, `${count} ${specials}: kesin ${r} yok`);
           rest.splice(at, 1);
         }
-        assert.ok(rest.every((r) => r === K || (rolePool && (rolePool.from.includes(r) || rolePool.maybe.includes(r)))), 'kalanlar havuzdan');
-        framers += n(F);
+        assert.ok(rest.every((r) => r === K || (rolePool && rolePool.from.includes(r))), 'kalanlar havuzdan');
       }
-      const both = specials.includes(F) && specials.includes(C);
-      if (count >= 7 && both) {
-        // Hangisi olduğu rastgele: lobide 'kesin 1 yardımcı, adaylar: …'.
-        assert.deepEqual(rolePool.maybe, [F, C]);
-        assert.equal(rolePool.helpers, 1);
-        assert.equal(rolePool.helpersMax, count >= 13 ? 2 : 1);
-        assert.ok(!distribution.includes(F) && !distribution.includes(C));
-        if (count >= 13) assert.ok(twoHelpers / N > 0.4 && twoHelpers / N < 0.6, `ikinci yardımcı ${twoHelpers / N}`);
-        else assert.ok(framers / N > 0.4 && framers / N < 0.6, `iftiracı/temizlikçi ${framers / N}`);
-      } else if (count >= 7 && (specials.includes(F) || specials.includes(C))) {
-        assert.ok(distribution.includes(specials.includes(F) ? F : C), 'tek aday kesin');
-        assert.ok(!rolePool || (rolePool.maybe.length === 0 && rolePool.helpers === 0));
-      } else assert.equal(framers, 0);
       assert.equal(distribution.length + (rolePool ? rolePool.pick : 0), count);
+      assert.ok(!distribution.includes(F) && !distribution.includes(C));
+      assert.ok(!rolePool || (!('maybe' in rolePool) && !('helpers' in rolePool)), 'havuzda yardımcı alanı yok');
     }
   }
-  void allSpecials;
 });
 
 test('rastgele dağıtım odada: varsayılan, günlükte çekiliş yazmaz; "all" eski kural', (t) => {
@@ -524,7 +509,7 @@ test('rastgele dağıtım odada: varsayılan, günlükte çekiliş yazmaz; "all"
   room.destroy();
   const { room: r2 } = setup(7, { roleMode: 'all', roles: { iftiraci: true, gozcu: true } });
   r2.start('p0');
-  assert.ok(r2.log.some((e) => /^Oyun başladı: 7 oyuncu \(1 vampir, İftiracı, Doktor, Kahin, Gözcü, 2 köylü\)\.$/.test(e.text)));
+  assert.ok(r2.log.some((e) => /^Oyun başladı: 7 oyuncu \(1 vampir, Doktor, Kahin, Gözcü, 3 köylü\)\.$/.test(e.text)));
   assert.equal(normalizeSettings({ roleMode: 'xyz' }).roleMode, 'random');
   assert.equal(normalizeSettings({ nightSec: 5 }).nightSec, 10);
   assert.equal(normalizeSettings({ nightSec: 500 }).nightSec, 60);

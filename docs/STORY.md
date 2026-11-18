@@ -66,7 +66,7 @@ Also exported: `assignJobs(playerIds, seed)` (the same assignment the chronicle 
 
 ```ts
 type Id = string;                  // player id (players[i].id)
-type Role = 'vampir'|'iftiraci'|'doktor'|'kahin'|'gozcu'|'cadi'|'avci'|'muhtar'|'soytari'|'koylu';
+type Role = 'vampir'|'doktor'|'kahin'|'gozcu'|'cadi'|'avci'|'muhtar'|'soytari'|'koylu';
 
 createChronicle(opts: {
   seed?: string|number;            // default: random. One new seed per game.

@@ -36,7 +36,7 @@ function allowedFor(key) {
   if (key.startsWith('win.')) return BASE;
   if (key.startsWith('rumor.')) return [...BASE, ...A, ...B, 'c', ...N];
   if (key === 'epi.open') return [...BASE, 'nights', 'nightsw'];
-  if (key.startsWith('epi.first.') || key === 'epi.iftiraci' || key === 'epi.end.soytari') return [...BASE, ...A];
+  if (key.startsWith('epi.first.') || key === 'epi.end.soytari') return [...BASE, ...A];
   if (key === 'epi.shot') return [...BASE, ...A, ...B];
   if (['epi.elims.some', 'epi.poison', 'epi.left', 'epi.mask', 'epi.mask.one', 'epi.survivors'].includes(key)) return [...BASE, 'list'];
   if (key.startsWith('epi.')) return [...BASE, ...N];
@@ -78,7 +78,7 @@ function fullCtx(names, job) {
     list: names.map(person),
     vars: {
       r: 12, rw: 'on iki', rord: 'on ikinci', alive: 17, alivew: 'on yedi', n: 17, nw: 'on yedi', Nw: 'On yedi',
-      streakw: 'üç', nights: 12, nightsw: 'on iki', role: 'iftiracı', Role: 'İftiracı',
+      streakw: 'üç', nights: 12, nightsw: 'on iki', role: 'doktor', Role: 'Doktor',
     },
     jobRate: 1,
   };

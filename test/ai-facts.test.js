@@ -152,12 +152,12 @@ test('kötü takım: iftiraya uğrayan masum "Vampir" görünse de kendi takım�
       { name: 'Eren', role: 'doktor', bot: true }, { name: 'Ece', role: 'kahin', bot: true }, { name: 'Fatma', role: 'koylu', bot: true }, { name: 'Gül', role: 'koylu', bot: true },
     ],
   });
-  g.night([['Cem', 'Eren'], ['Deniz', 'Eren']]);   // Eren hem iftira hem kurban: "Vampir" diye açıklanır
+  g.night([['Cem', 'Eren'], ['Deniz', 'Eren', 'frame']]);   // Eren hem iftira hem kurban: "Vampir" diye açıklanır
   const user = g.prompt('Cem', { kind: 'open' });
-  assert.match(section(user, 'players'), /Eren · .*shown Vampir · but YOU know he was not on your team: a villager framed by the İftiracı/);
-  assert.match(section(user, 'me'), /Your evil team-mates: Deniz \(İftiracı\)\./);
+  assert.match(section(user, 'players'), /Eren · .*shown Vampir · but YOU know he was not on your team: a villager framed by a vampire's İftira ability/);
+  assert.match(section(user, 'me'), /Your evil team-mates: Deniz \(Vampir · İftira ability\)\./);
   const notEvil = g.prompt('Fatma', { kind: 'open' });
-  assert.match(section(notEvil, 'players'), /Eren · .*shown Vampir · a villager framed by the İftiracı \(the vampires never kill a Vampir\), was innocent/);
+  assert.match(section(notEvil, 'players'), /Eren · .*shown Vampir · a villager framed by a vampire's İftira ability \(the vampires never kill a Vampir\), was innocent/);
   assert.doesNotMatch(notEvil, /your team-mate|YOU know/);
   g.destroy();
 });
@@ -195,25 +195,25 @@ function fakeView(me, players, rule, extra = {}) {
   };
 }
 
-test('rolesInPlay: kesin roller + havuzdan "N bilinmeyen"; açıklanan rol ve kendi rolün düşülür; yardımcı yeri dolunca öteki aday çıkar', () => {
+test('rolesInPlay: kesin roller + havuzdan "N bilinmeyen"; açıklanan rol ve kendi rolün düşülür', () => {
   const rule = {
     distribution: ['vampir', 'vampir', 'koylu', 'koylu'],
-    rolePool: { pick: 4, from: ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi'], maybe: ['iftiraci', 'temizlikci'], helpers: 1, helpersMax: 1 },
+    rolePool: { pick: 4, from: ['doktor', 'kahin', 'gozcu', 'gardiyan', 'cadi'] },
   };
   const P = (id, name, role, alive = true) => ({ id, name, role, alive, left: false, job: null });
-  const players = [P('me', 'Ben', 'koylu'), ...Array.from({ length: 5 }, (_, i) => P(`l${i}`, `L${i}`, null)), P('d1', 'Ölü', 'iftiraci', false), P('d2', 'Ölü2', 'kahin', false)];
+  const players = [P('me', 'Ben', 'koylu'), ...Array.from({ length: 5 }, (_, i) => P(`l${i}`, `L${i}`, null)), P('d1', 'Ölü', 'doktor', false), P('d2', 'Ölü2', 'kahin', false)];
   const view = fakeView({ id: 'me', name: 'Ben', role: 'koylu' }, players, rule);
   const rec = new SeatRecord('me');
   rec.sync(view);
   const r = rolesInPlay(view, rec);
   // 8 oyuncu: ben + 2 ölü + 5 diğer yaşayan.
-  assert.match(r.text, /Roles still unaccounted for among the 5 other living players: 2 Vampir, 1 Köylü \+ 2 unknown from: Doktor, Gözcü, Gardiyan, Cadı \(or Köylü\)\./);
-  assert.ok(!/Temizlikçi/.test(r.text), 'tek yardımcı yeri İftiracı ile doldu');
+  assert.match(r.text, /Roles still unaccounted for among the 5 other living players: 2 Vampir, 1 Köylü \+ 2 unknown from: Gözcü, Gardiyan, Cadı \(or Köylü\)\./);
+  assert.ok(!/İftiracı|Temizlikçi/.test(r.text), 'yardımcı rol yok');
   assert.equal(r.off, false);
 });
 
 test('rolesInPlay: Deli olabilirken Doktor/Kahin/Gözcü/Gardiyan bilen bot için uyarı; vampire dönen yardımcı "yaklaşık" der', () => {
-  const rule = { distribution: ['vampir', 'doktor', 'kahin', 'koylu', 'koylu'], rolePool: { pick: 1, from: ['deli', 'gozcu'], maybe: [], helpers: 0, helpersMax: 0 } };
+  const rule = { distribution: ['vampir', 'doktor', 'kahin', 'koylu', 'koylu'], rolePool: { pick: 1, from: ['deli', 'gozcu'] } };
   const P = (id, name, role, alive = true) => ({ id, name, role, alive, left: false, job: null });
   const view = fakeView({ id: 'me', name: 'Ben', role: 'kahin' }, [P('me', 'Ben', 'kahin'), P('a', 'A', null), P('b', 'B', null), P('c', 'C', null), P('d', 'D', null), P('e', 'E', null)], rule);
   const rec = new SeatRecord('me');
