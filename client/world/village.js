@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import * as A from './assets.js';
 import { HOUSE_INFO, toWorld } from './layout.js';
 import { outlineMat } from './style.js';
-import { buildPalace, goldMaterial, bodyMaterial, goldNightIntensity, bodyNightIntensity } from './palace.js';
+import { buildManor, hasManor, manorMaterials, setManorNight } from './manors.js';
 import { rng, TAU, clamp, damp, lerp, COLOR_HEX, smooth } from './constants.js';
 
 const MAXH = 20;
@@ -182,12 +182,16 @@ class HouseBatches {
   }
 }
 
-const palaceMats = {};   // paylaşılan saray malzemeleri: tek toplu ağ
-const palaceGold = [];
-const palaceBody = [];
-const PALACE_HALO = new THREE.Color('#f7c82a');   // saray altın malzemeleri (gece emissive için kare başı güncellenir)
-const HOUSE_DOME_SKIN = 5;   // look.house 5 (Saray): altın kubbe (lib/houses.js sahibe özel ev)
-
+// Prosedürel ev eklentileri (manors.js: Saray + 6..11): malzeme türü başına TEK paylaşılan kaynak malzeme -> tek toplu ağ.
+// Toplu ağların malzeme kopyaları gece/gündüz için kare başı bir kez güncellenir (manorLive).
+let manorSrc = null;
+const manorLive = { deco: [], glow: [], gold: [], pbody: [] };
+const PALACE_HALO = new THREE.Color('#f7c82a');   // saray: gece altın hale
+const HOUSE_DOME_SKIN = 5;   // look.house 5 (Saray, sahibe özel)
+const MANOR_EXTRA_H = { 5: 5, 6: 0.6, 9: 1.2 };   // eklentinin evin üstüne taştığı yükseklik (görünürlük kutusu)
+const tmpSpin = new THREE.Matrix4();
+const tmpSpinQ = new THREE.Quaternion();
+const ZAXIS = new THREE.Vector3(0, 0, 1);
 // Tür+doku başına ev grubu (parçalar ortak toplu ağlarda)
 class HouseGroup {
   constructor(type, variant, skin, root, batches) {
@@ -234,28 +238,43 @@ class HouseGroup {
         this.parts.push(part);
       });
     }
-    if (skin === HOUSE_DOME_SKIN) this.addDome(HOUSE_INFO[type], batches);
+    if (hasManor(skin)) this.addManor(skin, HOUSE_INFO[type], batches);
     root.add(this.group);
   }
-  // Saray görünümü (palace.js): ev üstüne prosedürel kuleler/kubbe; iki toplu ağ (altın + gövde), ek çizim çağrısı yok denecek kadar az
-  addDome(info, batches) {
-    let pal;
-    try { pal = buildPalace(info); } catch (e) { return; /* saray eklentisi yoksa ev yine çizilir */ }
-    for (const [geo, mat, isGold] of [[pal.gold, palaceMats.gold || (palaceMats.gold = goldMaterial()), true], [pal.body, palaceMats.body || (palaceMats.body = bodyMaterial()), false]]) {
-      const nodeM = new THREE.Matrix4();
-      const part = { kind: 'extra', nodeM, local: new THREE.Matrix4(), colorMode: null, nodePos: new THREE.Vector3(), nodeQ: new THREE.Quaternion(), ids: [] };
+  // Saray ve 6..11 görünümleri (manors.js): ev üstüne prosedürel parçalar; malzeme türü başına bir toplu ağ (deco/glow/
+  // gold/pbody), ek çizim çağrısı yok denecek kadar az. 'spin' parçası (değirmen kanadı) her karede döndürülür.
+  addManor(skin, info, batches) {
+    let ex;
+    try { ex = buildManor(skin, info); } catch (e) { return; /* eklenti yoksa ev yine çizilir */ }
+    if (!ex) return;
+    if (!manorSrc) manorSrc = manorMaterials();
+    for (const p of ex.parts) {
+      const part = { kind: p.spin ? 'spin' : 'extra', nodeM: new THREE.Matrix4(), local: new THREE.Matrix4(), colorMode: null, nodePos: new THREE.Vector3(), nodeQ: new THREE.Quaternion(), ids: [] };
+      if (p.spin) { part.pivot = new THREE.Vector3(...p.spin.pivot); part.speed = p.spin.speed || 1; this.hasSpin = true; }
       try {
-        const b = batches.batchFor(mat, false);
+        const glow = p.mat === 'glow';
+        const b = batches.batchFor(manorSrc[p.mat], glow);
         part.batch = b; part.batches = batches;
-        part.gid = batches.geometryId(b, geo);
-        b.mesh.castShadow = true; b.mesh.receiveShadow = false;
-        const lst = isGold ? palaceGold : palaceBody;
-        if (lst.indexOf(b.mesh.material) < 0) lst.push(b.mesh.material);
+        part.gid = batches.geometryId(b, p.geo);
+        b.mesh.castShadow = !glow; b.mesh.receiveShadow = false;
+        const lst = manorLive[p.mat];
+        if (lst && lst.indexOf(b.mesh.material) < 0) lst.push(b.mesh.material);
         this.parts.push(part);
-      } catch (e) { /* kubbe yoksa ev yine çizilir */ }
+      } catch (e) { /* eklenti yoksa ev yine çizilir */ }
     }
   }
-  // örnek sayısını listeye eşitle (fazlası gizlenir)
+  spinMatrix(p, hm, angle) {
+    return tmpSpin.compose(p.pivot, tmpSpinQ.setFromAxisAngle(ZAXIS, angle * p.speed), tmpS.set(1, 1, 1)).premultiply(hm);
+  }
+  // Yalnızca dönen parçaların matrislerini yaz (kare başı; evin kendisi değişmediyse tüm ev yeniden yazılmaz)
+  writeSpin(angle) {
+    if (!this.hasSpin) return;
+    for (let i = 0; i < this.list.length; i++) {
+      const h = this.list[i];
+      const hm = tmpM2.compose(tmpV.set(h.cx, 0, h.cz), tmpQ.setFromAxisAngle(UP, h.crot), tmpS.set(h.scale, h.scale * h.scaleY, h.scale));
+      for (const p of this.parts) if (p.kind === 'spin' && p.ids.length > i) this.setM(p, i, this.spinMatrix(p, hm, angle + h.seat * 0.7));
+    }
+  }  // örnek sayısını listeye eşitle (fazlası gizlenir)
   ensure(p, n) {
     if (!p.batch) { p.im.count = n; return; }
     const mesh = p.batch.mesh;
@@ -278,7 +297,9 @@ class HouseGroup {
       const hm = tmpM2.compose(tmpV.set(h.cx, 0, h.cz), tmpQ.setFromAxisAngle(UP, h.crot), tmpS.set(h.scale, h.scale * h.scaleY, h.scale));
       for (const p of this.parts) {
         let m;
-        if (p.kind === 'door') {
+        if (p.kind === 'spin') {
+          m = tmpM.copy(this.spinMatrix(p, hm, (this.spinA || 0) + h.seat * 0.7));
+        } else if (p.kind === 'door') {
           const q = tmpQ2.setFromAxisAngle(UP, h.doorAngle).premultiply(p.nodeQ);
           m = tmpM.compose(p.nodePos, q, tmpS.set(1, 1, 1)).multiply(p.local);
           m.premultiply(hm);
@@ -360,6 +381,7 @@ export function createVillage(scene, q, fx, terrain) {
   const glowColor = new THREE.Color('#ffc46b');
   const poolColor = new THREE.Color('#ff9a3c');
   const winGlow = new THREE.Color('#ffb85a');
+  let spinA = 0;
 
   function groupFor(type, variant, skin) {
     // Ev görünümü olan evlerde doku varyantı yok sayılır (görünüm kendi dokusunu getirir).
@@ -743,7 +765,10 @@ export function createVillage(scene, q, fx, terrain) {
       }
     }
     // saray altını: gece emissive yükselir (tek paylaşılan malzeme, kare başı bir kez)
-    if (palaceGold.length || palaceBody.length) { const gi = goldNightIntensity(tod.night); for (const m of palaceGold) m.emissiveIntensity = gi; const bi = bodyNightIntensity(tod.night); for (const m of palaceBody) m.emissiveIntensity = bi; }
+    for (const k in manorLive) for (const m of manorLive[k]) setManorNight({ [k]: m }, tod.night);
+    // değirmen kanatları: yalnızca dönen parçaların örnek matrisleri yazılır
+    spinA += dt * 0.9;
+    for (const g of groups.values()) if (g.hasSpin) { g.spinA = spinA; if (g.list.length) g.writeSpin(spinA); }
     // kapılar ve pencereler
     const lampK = tod.lamps;
     for (const h of houses.values()) {
@@ -934,7 +959,7 @@ export function createVillage(scene, q, fx, terrain) {
       const ox = o.x - h.cx, oz = o.z - h.cz;
       const lox = ox * c + oz * s, loz = -ox * s + oz * c;
       const ldx = d.x * c + d.z * s, ldz = -d.x * s + d.z * c;
-      const min = [-h.info.hx - 0.3, 0, -h.info.hz - 0.3], max = [h.info.hx + 0.3, h.info.height + (h.skin === HOUSE_DOME_SKIN ? 5 : 0), h.info.hz + 1.2];
+      const min = [-h.info.hx - 0.3, 0, -h.info.hz - 0.3], max = [h.info.hx + 0.3, h.info.height + (MANOR_EXTRA_H[h.skin] || 0), h.info.hz + 1.2];
       const lo = [lox, o.y, loz], ld = [ldx, d.y, ldz];
       let t0 = -Infinity, t1 = Infinity;
       for (let a = 0; a < 3; a++) {
@@ -979,7 +1004,7 @@ export function createVillage(scene, q, fx, terrain) {
       setFrost(false);
       for (const g of groups.values()) g.dispose();
       houseBatches.dispose();
-      palaceGold.length = 0; palaceBody.length = 0;
+      for (const k in manorLive) manorLive[k].length = 0;
       if (dressing) disposeGroup(dressing);
       if (graveRoot) disposeGroup(graveRoot);
       if (themeRoot) themeRoot.traverse((o) => { if (o.userData.merged || o.userData.themeGeo) o.geometry.dispose(); if (o.userData.themeMat) o.material.dispose(); });

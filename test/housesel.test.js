@@ -35,12 +35,14 @@ async function addResults(store, userId, { wins = 0, losses = 0 }) {
 
 const patchLook = (srv, token, look) => http(srv, 'PATCH', '/api/me', { token, body: { look } });
 
-test('tablo ve puan: eşikler 0/3/8/15/25, saray özel; puan = oyun + 2 x galibiyet', () => {
-  assert.equal(HOUSE_COUNT, 6);
-  assert.deepEqual(HOUSES.filter((h) => !h.owner).map((h) => h.min), [0, 3, 8, 15, 25]);
+test('tablo ve puan: eşikler 0/3/8/15/25/35/50/70/100/140/200, saray özel; puan = oyun + 2 x galibiyet', () => {
+  assert.equal(HOUSE_COUNT, 12);
+  // eski eşikler değişmez; yeni prosedürel evler artan eşiklerle sona eklenir
+  assert.deepEqual(HOUSES.filter((h) => !h.owner).map((h) => h.min), [0, 3, 8, 15, 25, 35, 50, 70, 100, 140, 200]);
+  assert.deepEqual(HOUSES.slice(6).map((h) => h.name), ['Değirmen', 'Cumbalı ev', 'Osmanlı konağı', 'Demirci', 'Çeşmeli taş ev', 'Taç kapılı taş ev']);
   assert.equal(HOUSES[5].owner, true);
   assert.equal(KING_ACC, 6);
-  assert.equal(ACC_COUNT, 7);
+  assert.equal(ACC_COUNT, 12);
   assert.equal(pointsOf({ games: 5, wins: 2 }), 9);
   assert.equal(pointsOf(null), 0);
   const nobody = { username: 'Ali', points: 8 };
@@ -50,7 +52,9 @@ test('tablo ve puan: eşikler 0/3/8/15/25, saray özel; puan = oyun + 2 x galibi
   assert.equal(canUseHouse(0, { username: null, points: 0 }), true);
   assert.equal(canUseHouse(5, { username: 'Ali', points: 9999 }), false, 'saray puanla açılmaz');
   assert.equal(canUseHouse(5, { username: 'AhmetChain', points: 0 }), true, 'büyük/küçük harf fark etmez');
-  assert.equal(canUseHouse(6, { username: OWNER }), false);
+  assert.equal(canUseHouse(HOUSE_COUNT, { username: OWNER }), false);
+  assert.equal(canUseHouse(11, { username: 'Ali', points: 199 }), false);
+  assert.equal(canUseHouse(11, { username: 'Ali', points: 200 }), true);
   assert.equal(canUseAcc(KING_ACC, { username: 'Ali' }), false);
   assert.equal(canUseAcc(KING_ACC, { username: OWNER }), true);
   assert.equal(canUseAcc(3, {}), true);
@@ -68,8 +72,9 @@ test('istemci tablosu (public/ui/data.js) sunucuyla aynı: adlar, eşikler, sahi
   assert.equal(data.ACC_NAMES.length, ACC_COUNT);
   assert.equal(data.ACC_NAMES[KING_ACC], 'Kral tacı');
   assert.equal(data.pointsOf({ games: 5, wins: 2 }), pointsOf({ games: 5, wins: 2 }));
+  // 3B dünya adları aynı tablodan türetir (public/ui/cosmetics.js)
   const src = fs.readFileSync(path.join(__dirname, '..', 'client', 'world', 'constants.js'), 'utf8');
-  assert.match(src, /'Papyon', 'Kral tacı'\]/);
+  assert.match(src, /ACC_NAMES = ACC_ITEMS\.map/);
 });
 
 test('HTTP profil: açık ev kaydedilir, puanı yetmeyen ve sahibe özel olanlar reddedilir', async (t) => {
@@ -95,7 +100,7 @@ test('HTTP profil: açık ev kaydedilir, puanı yetmeyen ve sahibe özel olanlar
   assert.equal((await http(srv, 'GET', '/api/me', { token: ali.token })).json.user.look.house, 1, 'reddedilen seçim görünümü değiştirmez');
 
   // Geçersiz değerler 400
-  for (const bad of [-1, 6, 1.5, '1', null]) {
+  for (const bad of [-1, HOUSE_COUNT, 1.5, '1', null]) {
     res = await patchLook(srv, ali.token, { house: bad });
     assert.equal(res.status, 400, JSON.stringify(bad));
   }
@@ -126,10 +131,16 @@ test('HTTP profil: ahmetchain saray evini ve kral tacını seçer; profilde kal�
   assert.equal(res.status, 200);
   assert.equal(res.json.user.look.acc, KING_ACC);
   assert.equal((await store.getUser(owner.user.id)).look.house, 5);
-  // başka alanı değiştirmek özel seçimleri bozmaz
-  res = await patchLook(srv, owner.token, { hat: 2 });
+  // başka alanı (renk) değiştirmek özel seçimleri bozmaz
+  res = await patchLook(srv, owner.token, { color: 3 });
   assert.equal(res.json.user.look.house, 5);
   assert.equal(res.json.user.look.acc, KING_ACC);
+  assert.equal(res.json.user.look.hat, 0, 'kral tacı başı doldurur: şapka çıkmıştır');
+  // şapka seçmek tacı çıkarır (aynı yuva: baş)
+  res = await patchLook(srv, owner.token, { hat: 2 });
+  assert.equal(res.json.user.look.hat, 2);
+  assert.equal(res.json.user.look.acc, undefined);
+  assert.equal(res.json.user.look.house, 5);
   // sahip olmayan hesapta ownerLooks yok
   assert.equal((await register(srv, 'Veli')).user.ownerLooks, undefined);
 });
@@ -228,7 +239,8 @@ test('oda: setLook ve addPlayer sahip dışında özel görünümü düşürür;
   assert.equal(r.addPlayer('a', 'Ali', { userId: 'u1', look: { color: 1, hat: 1, skin: 1, house: 5, acc: KING_ACC } }), null);
   assert.deepEqual(r.players.get('a').look, { color: 1, hat: 1, skin: 1 });
   assert.equal(r.addPlayer('o', OWNER, { userId: 'u2', look: { color: 2, hat: 1, skin: 1, house: 5, acc: KING_ACC } }), null);
-  assert.deepEqual(r.players.get('o').look, { color: 2, hat: 1, skin: 1, acc: KING_ACC, house: 5 });
+  // eski kayıt: şapka + kral tacı aynı yuvada -> tacı kalır (aksesuar önceliği), şapka 0
+  assert.deepEqual(r.players.get('o').look, { color: 2, hat: 0, skin: 1, acc: KING_ACC, house: 5 });
   // hesapsız (misafir) koltuk: puan verilse de varsayılan ev
   r.players.get('a').userId = null;
   assert.match(r.setLook('a', { house: 1 }, { points: 500 }), /kilitli/);

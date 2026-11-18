@@ -1,5 +1,6 @@
 // Ortak sabitler: oyuncu renkleri, şapkalar, karakter modelleri ve sanat yönetimi paleti.
 // Sıra ve indeksler docs/V2-PLAN.md §4 ile birebir aynıdır (look.color / look.hat / look.skin).
+import { HAT_ITEMS, ACC_ITEMS, TOP_ITEMS, BOTTOM_ITEMS } from '../../public/ui/cosmetics.js';
 
 export const COLOR_HEX = [
   '#d7263d', '#2b59c3', '#2f9e44', '#f06595', '#f76707', '#f2c12e', '#3b3b46', '#e9ecef', '#7048e8', '#8d5a3b',
@@ -10,13 +11,15 @@ export const COLOR_NAMES = [
   'Camgöbeği', 'Fıstık', 'Bordo', 'Gül', 'Lacivert', 'Gri', 'Bej', 'Mercan', 'Zeytin', 'Lavanta',
 ];
 
-// look.hat 0 = şapkasız; 1..8 hats.glb düğümleri; 9..18 kodla üretilir (hats.js)
+// look.hat 0 = şapkasız; 1..8 hats.glb düğümleri; 9.. kodla üretilir (hats.js)
 export const HAT_NODES = [null, 'hat-1-hasir', 'hat-2-bere', 'hat-3-cicek', 'hat-4-silindir',
   'hat-5-bandana', 'hat-6-filiz', 'hat-7-kasket', 'hat-8-kulaklik'];
-export const HAT_NAMES = ['Şapkasız', 'Hasır şapka', 'Bere', 'Çiçek', 'Silindir', 'Bandana', 'Filiz', 'Kasket', 'Kulaklık',
-  'Takke', 'Örgü takke', 'Fes', 'Yemeni', 'Keçe külah', 'Kalpak', 'Ponponlu bere', 'Çiçek tacı', 'Aşçı başlığı', 'Taç'];
-// look.acc 0 = aksesuarsız (eski kayıtlarda alan yoksa 0 sayılır)
-export const ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon', 'Kral tacı'];
+// Adlar ve yuva (slot) kuralları tek tablodan: public/ui/cosmetics.js (sunucu kopyası lib/cosmetics.js)
+export const HAT_NAMES = HAT_ITEMS.map((it) => it.name);
+// look.acc / look.top / look.bottom 0 = yok / modelin kendi giysisi (eski kayıtlarda alan yoksa 0 sayılır)
+export const ACC_NAMES = ACC_ITEMS.map((it) => it.name);
+export const TOP_NAMES = TOP_ITEMS.map((it) => it.name);
+export const BOTTOM_NAMES = BOTTOM_ITEMS.map((it) => it.name);
 
 // look.skin 0..11 (manifest.characters.skins sırası)
 export const SKIN_NAMES = [
@@ -34,6 +37,8 @@ export const HAT_Y_OFFSET = [0, 0.052, -0.01, 0.105, 0, 0.105, 0, 0.045, 0.051, 
 export const COLORS = COLOR_HEX.map((hex, i) => ({ id: i, hex, name: COLOR_NAMES[i] }));
 export const HATS = HAT_NAMES.map((name, i) => ({ id: i, name, node: HAT_NODES[i] || null }));
 export const ACCS = ACC_NAMES.map((name, i) => ({ id: i, name }));
+export const TOPS = TOP_NAMES.map((name, i) => ({ id: i, name }));
+export const BOTTOMS = BOTTOM_NAMES.map((name, i) => ({ id: i, name }));
 export const SKINS = SKIN_NAMES.map((name, i) => ({ id: i, name, desc: SKIN_DESC[i] }));
 
 // Sanat yönetimi paleti (§4)

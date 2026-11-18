@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as A from './assets.js';
 import { HAT_NODES, HAT_NAMES, ACC_NAMES, HAT_Y_OFFSET, clamp } from './constants.js';
+import { bodyFit, ACC_FIT_BUILD } from './outfits.js';
 
 const TAU = Math.PI * 2;
 const tmpC = new THREE.Color();
@@ -96,7 +97,8 @@ function merge(parts) {
 
 // Belirlenimci küçük gürültü (yün dokusu, örgü)
 const hash = (i, j) => { const x = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return x - Math.floor(x); };
-const shadeHex = (hex, f) => { tmpC.set(hex); if (f < 0) tmpC.lerp(new THREE.Color(0, 0, 0), -f); else tmpC.lerp(new THREE.Color(1, 1, 1), f); return '#' + tmpC.getHexString(); };
+export { lathe, paint, part, stick, merge, hash };
+export const shadeHex =(hex, f) => { tmpC.set(hex); if (f < 0) tmpC.lerp(new THREE.Color(0, 0, 0), -f); else tmpC.lerp(new THREE.Color(1, 1, 1), f); return '#' + tmpC.getHexString(); };
 
 // ---------- şapkalar ----------
 // Başa oturan şapkalar (kind 'cap') aynı taban ölçüsünü paylaşır: alt kenar y≈0.2, yuvarlak kare kesit
@@ -240,6 +242,56 @@ function tac() {
   return merge(parts);
 }
 
+// ---------- Osmanlı / Selçuklu başlıkları ----------
+// Kavuk: kırmızı keçe külahın çevresine sarılmış beyaz tülbent (sargı izleri çapraz şeritlerle), tepede kırmızı keçe.
+// sorguc: önde altın sorguçluk + yakut ve yukarı kalkan beyaz tüyler (Sorguçlu kavuk).
+function kavuk(sorguc) {
+  const w1 = '#f7f3ea', w2 = '#e4dccb', w3 = '#d3c8b2';
+  const prof = [[0.2, 0.194], [0.214, 0.21], [0.236, 0.25], [0.25, 0.3], [0.256, 0.35], [0.254, 0.395], [0.244, 0.43], [0.222, 0.452], [0.17, 0.462]];
+  const parts = [lathe(prof, { seg: 18, p: 3.2, color: (i, j) => (j >= 7 ? w2 : ((i + j * 2) % 5 < 2 ? w2 : (i + j * 2) % 5 === 2 ? w3 : w1)) })];
+  parts.push(lathe([[0.172, 0.45], [0.166, 0.49], [0.13, 0.52], [0.07, 0.537], [0, 0.541]], { seg: 14, p: 3, color: (i, j) => (j === 0 ? '#7f1a22' : '#a3242c') }));
+  if (sorguc) {
+    const gold = '#f2c12e';
+    parts.push(part(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 10), gold, { pos: [0, 0.36, 0.258], rot: [Math.PI / 2 - 0.15, 0, 0], scale: [0.85, 1, 1.15] }));
+    parts.push(part(new THREE.OctahedronGeometry(0.022, 0), '#c0283a', { pos: [0, 0.36, 0.272], scale: [1, 1.2, 0.6] }));
+    for (const s of [-1, 1]) parts.push(part(new THREE.OctahedronGeometry(0.01, 0), '#e9f4ff', { pos: [s * 0.03, 0.39, 0.262] }));
+    parts.push(part(new THREE.CylinderGeometry(0.012, 0.018, 0.06, 6), gold, { pos: [0, 0.41, 0.25], rot: [-0.2, 0, 0] }));
+    // tüyler: ortada uzun, yanlarda kısa; arkaya doğru kıvrık
+    for (const [x, h, rz, rx] of [[0, 0.24, 0, -0.32], [-0.022, 0.18, 0.22, -0.25], [0.022, 0.18, -0.22, -0.25]]) {
+      parts.push(part(new THREE.ConeGeometry(0.028, h, 5), '#fbfaf5', { pos: [x, 0.43 + h * 0.45, 0.235 - h * 0.15], rot: [rx, 0, rz], scale: [1, 1, 0.45] }));
+    }
+    parts.push(part(new THREE.ConeGeometry(0.012, 0.06, 4), '#20314f', { pos: [0, 0.7, 0.16], rot: [-0.5, 0, 0] }));
+  }
+  return merge(parts);
+}
+
+// Selçuklu börkü: uzun, ucu yuvarlak kırmızı keçe börk; dibinde kalın kürk kenar, tepede küçük altın topuz
+function selcukluBorku() {
+  const felt = '#8c2a22', fur = '#6b4a2e';
+  const furRing = lathe([[0.2, 0.19], [0.232, 0.2], [0.244, 0.235], [0.236, 0.27], [0.205, 0.285]], {
+    seg: 18, p: 3.4, wob: (i, j) => (j >= 1 && j <= 3 ? 1 + (hash(i, j) - 0.5) * 0.1 : 1),
+    color: (i, j) => shadeHex(fur, (hash(i * 2, j) - 0.5) * 0.3),
+  });
+  const body = lathe([[0.2, 0.28], [0.196, 0.34], [0.182, 0.43], [0.158, 0.52], [0.12, 0.6], [0.07, 0.65], [0, 0.668]], {
+    seg: 16, p: 3, color: (i, j) => (j === 2 && i % 2 ? '#d9a63a' : shadeHex(felt, (hash(i, j) - 0.5) * 0.08)),
+  });
+  return merge([furRing, body, part(new THREE.IcosahedronGeometry(0.026, 0), '#e2b23c', { pos: [0, 0.682, 0] })]);
+}
+
+// Yeniçeri börkü: beyaz keçe, uzun gövde; tepeden arkaya katlanıp enseye sarkan "yatırtma", önde altın "kaşıklık"
+function yeniceriBorku() {
+  const felt = '#f4f1ea', shade = '#ddd7cb', gold = '#e2b23c';
+  const prof = [[0.2, 0.194], [0.212, 0.21], [0.214, 0.26], [0.204, 0.36], [0.19, 0.46], [0.174, 0.54], [0.15, 0.585], [0.09, 0.6], [0, 0.604]];
+  const parts = [lathe(prof, { seg: 18, p: 3.4, color: (i, j) => (j <= 1 ? gold : j === 2 ? shade : felt) })];
+  // yatırtma: tepeden arkaya katlanıp aşağı sarkan keçe kol (yassı, hafif kıvrık)
+  const pts = [[0, 0.585, -0.06], [0, 0.6, -0.16], [0, 0.53, -0.235], [0, 0.38, -0.258], [0, 0.22, -0.258], [0, 0.08, -0.246]];
+  for (let k = 0; k < pts.length - 1; k++) parts.push(stick(pts[k], pts[k + 1], 0.17 - k * 0.008, 0.026, k % 2 ? shade : felt));
+  // kaşıklık: önde altın, uzun damla biçimli levha ve ortada kırmızı taş
+  parts.push(part(new THREE.CylinderGeometry(0.035, 0.022, 0.16, 6), gold, { pos: [0, 0.32, 0.214], rot: [-0.1, 0, 0], scale: [1, 1, 0.35] }));
+  parts.push(part(new THREE.OctahedronGeometry(0.018, 0), '#c0283a', { pos: [0, 0.34, 0.228], scale: [1, 1.3, 0.5] }));
+  return merge(parts);
+}
+
 // ---------- aksesuarlar ----------
 // bone: hangi kemiğe takılır ('head' kafa-yerel, 'torso' gövde-yerel: gövde üstü y≈0.167, ön z≈0.134)
 
@@ -334,6 +386,10 @@ const HAT_BUILD = [
   { kind: 'top', fit: 'wreath', build: cicekTaci },
   { kind: 'cap', build: asci },
   { kind: 'top', fit: 'crown', build: tac },
+  { kind: 'cap', build: () => kavuk(false) },          // 19 Kavuk
+  { kind: 'cap', build: () => kavuk(true) },           // 20 Sorguçlu kavuk
+  { kind: 'cap', build: selcukluBorku },               // 21 Selçuklu börkü
+  { kind: 'cap', hair: 'scarf', build: yeniceriBorku }, // 22 Yeniçeri börkü (yatırtma enseye sarkar: arka saç içeri)
 ];
 export const HAT_DEFS = HAT_NAMES.map((name, i) => ({ name, node: HAT_NODES[i] || null, ...(HAT_BUILD[i] || {}) }));
 export const HAT_COUNT = HAT_DEFS.length;
@@ -355,6 +411,10 @@ const TOP_FIT = {
   wreath: [[0, 1], [0, 1.1], [-0.005, 1], [0.01, 1.06], [0, 1], [0.01, 1.06], [0, 1.02], [0, 1.06], [0.02, 1], [0, 1.1], [0, 1], [0, 1.06]],
   crown: [[0, 1], [0, 1], [-0.01, 1], [0.02, 1], [0, 1], [0.02, 1], [0, 1], [0.012, 1], [0.03, 1], [0, 1.04], [0.004, 1], [0.012, 1]],
 };
+
+// Başa oturan şapkalar için deri başına [y kayması, yatay ölçek]: 3 (Bereli) modelinin kendi beresi yanlardan
+// şapkanın altından taşmasın diye şapka biraz geniş ve aşağıda oturur.
+const CAP_FIT = { 3: [-0.022, 1.1] };
 
 // Başa oturan şapkalarda saç (topuz, kabarık saç, diken saç) şapkanın içinden taşmasın: kafa
 // kemiğine bağlı köşeler bu profilin (y -> en büyük yuvarlak-kare yarıçapı, p=4) içine bastırılır.
@@ -465,7 +525,7 @@ export function makeHat(index, skin = 0) {
   if (!g) return null;
   const hat = new THREE.Mesh(g, hatMaterial());
   hat.name = 'hat-' + i;
-  const [dy, k] = def.kind === 'top' ? TOP_FIT[def.fit][s] : [0, 1];
+  const [dy, k] = def.kind === 'top' ? TOP_FIT[def.fit][s] : (CAP_FIT[s] || [0, 1]);
   hat.position.set(0, dy, 0);
   hat.scale.set(k, 1, k);
   hat.userData.top = g.boundingBox.max.y + dy;
@@ -473,16 +533,33 @@ export function makeHat(index, skin = 0) {
   return hat;
 }
 
-// Aksesuar nesnesi ve takılacağı kemik adı. Yoksa null.
-export function makeAcc(index) {
+// Aksesuar geometrisi (kemik-yerel, paylaşılan) ve kemik adı: { geo, bone } ya da null.
+export function accGeometry(index, skin = 0) {
   const i = index | 0;
+  const fitDef = ACC_FIT_BUILD[i];
+  if (fitDef) {
+    // gövdeye oturan yeni aksesuarlar (outfits.js): deri başına ölçülür
+    const s = clamp(skin | 0, 0, 11);
+    const F = fitDef.fit ? bodyFit(s) : null;
+    if (fitDef.fit && !F) return null;
+    const g = geoFor('a' + i + (fitDef.fit ? '|' + s : ''), () => fitDef.build(F));
+    return g ? { geo: g, bone: fitDef.bone } : null;
+  }
   const def = ACC_DEFS[i];
   if (!def || i === 0) return null;
   const g = geoFor('a' + i, def.build);
-  if (!g) return null;
-  const m = new THREE.Mesh(g, hatMaterial());
-  m.name = 'acc-' + i;
-  return { obj: m, bone: def.bone };
+  return g ? { geo: g, bone: def.bone } : null;
+}
+// Elde tutulan aksesuar (sol kol) kıyafet ağına katılmaz: oyun içi el nesnesi tutulunca gizlenebilsin
+export const accOnHand = (index) => !!(ACC_FIT_BUILD[index | 0] && ACC_FIT_BUILD[index | 0].bone === 'arm-left');
+
+// Aksesuar nesnesi ve takılacağı kemik adı. Yoksa null.
+export function makeAcc(index, skin = 0) {
+  const a = accGeometry(index, skin);
+  if (!a) return null;
+  const m = new THREE.Mesh(a.geo, hatMaterial());
+  m.name = 'acc-' + (index | 0);
+  return { obj: m, bone: a.bone };
 }
 
 // Paylaşılan GPU kaynaklarını bırak (nesneler bozulmaz; sonraki çizimde yeniden yüklenir)

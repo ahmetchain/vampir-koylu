@@ -2,7 +2,7 @@
 // 2B tuvaline kopyalanır. Varlıklar ana dünyayla ortaktır; düşük kare hızıyla ve yalnızca görünürken çizilir.
 import * as THREE from 'three';
 import * as A from './assets.js';
-import { buildPalace, goldMaterial, bodyMaterial } from './palace.js';
+import { buildManor, hasManor, manorMaterials, setManorNight } from './manors.js';
 import { HOUSE_INFO } from './layout.js';
 import { Character } from './character.js';
 
@@ -138,8 +138,8 @@ export function preview(el, look, opts = {}) {
 
   return {
     setLook(l) { cur = { ...cur, ...l }; build(); },
-    // 'head': baş ve şapka yakın plan (şapka/aksesuar seçimi), 'body': tüm boy
-    setFocus(f) { zoomTo = f === 'head' ? 1 : 0; },
+    // 'head': baş ve şapka yakın plan (şapka/aksesuar seçimi), 'wear': kıyafet (yarı yakın), 'body': tüm boy
+    setFocus(f) { zoomTo = f === 'head' ? 1 : f === 'wear' ? 0.45 : 0; },
     dispose() {
       if (disposed) return;
       disposed = true;
@@ -157,6 +157,7 @@ export function preview(el, look, opts = {}) {
 // Gerçek 3B ev modeli (house-0.glb) her ev görünümüyle tek paylaşılan WebGL bağlamında bir kez çizilir ve dataURL olarak
 // önbelleğe alınır: kartlar düz <img>'dir, sayfada ek WebGL bağlamı ya da sürekli çizim yoktur.
 const snapCache = new Map();
+let snapMats = null;
 let snapPromise = null;
 export function houseSnapshots(count) {
   if (snapPromise) return snapPromise;
@@ -188,14 +189,19 @@ export function houseSnapshots(count) {
       });
       const grp = new THREE.Group();
       grp.add(house);
-      if (skin === 5) {
-        const pal = buildPalace(HOUSE_INFO[0]);   // oyundaki Saray ile aynı prosedürel eklentiler
-        const gm = goldMaterial(); gm.emissiveIntensity = 0.3;
-        grp.add(new THREE.Mesh(pal.gold, gm), new THREE.Mesh(pal.body, bodyMaterial()));
+      // Saray ve 6..11: oyundaki ile aynı prosedürel eklentiler (manors.js); değirmen kanadı hafif dönük durur
+      const ex = hasManor(skin) ? buildManor(skin, HOUSE_INFO[0]) : null;
+      if (ex) {
+        if (!snapMats) { snapMats = manorMaterials(); setManorNight(snapMats, 0.25); }
+        for (const p of ex.parts) {
+          const m = new THREE.Mesh(p.geo, snapMats[p.mat]);
+          if (p.spin) { m.position.set(...p.spin.pivot); m.rotation.z = 0.35; }
+          grp.add(m);
+        }
       }
       grp.rotation.y = 0;
       // Saray kulelerle daha uzun: kamera biraz geride ve yukarıda
-      if (skin === 5) { cam.position.set(-12.6, 10.6, 18.0); cam.lookAt(0, 3.5, 0); } else { cam.position.set(-9.5, 8.5, 13.5); cam.lookAt(0, 2.3, 0); }
+      if (skin === 5) { cam.position.set(-12.6, 10.6, 18.0); cam.lookAt(0, 3.5, 0); } else if (skin === 6 || skin === 9) { cam.position.set(-10.8, 9.4, 15.4); cam.lookAt(0, 2.9, 0); } else { cam.position.set(-9.5, 8.5, 13.5); cam.lookAt(0, 2.3, 0); }
       const ground = new THREE.Mesh(new THREE.CircleGeometry(4.6, 32), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.28, depthWrite: false }));
       ground.rotation.x = -Math.PI / 2; ground.position.y = -0.02;
       scene.add(grp, ground);

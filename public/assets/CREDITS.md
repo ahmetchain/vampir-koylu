@@ -25,7 +25,7 @@ some faces were split into recolourable materials (`cloth`, `tint-*`); the shape
 | Pirate Kit (2.1) | Kenney | CC0 1.0 | https://kenney.nl/assets/pirate-kit | crates |
 | Furniture Kit (2.0) | Kenney | CC0 1.0 | https://kenney.nl/assets/furniture-kit | beds, bookcases, rugs, small tables |
 | Nature Kit (2.1) | Kenney | CC0 1.0 | https://kenney.nl/assets/nature-kit | flower hat |
-| Procedural (this project) | Vampir Köylü | CC0 1.0 | built by the asset scripts | bat, straw hat, bandana, earmuffs, house interior "window glow" box, `tint.png`; hats 9–18 (takke, örgü takke, fes, yemeni, keçe külah, kalpak, ponponlu bere, çiçek tacı, aşçı başlığı, taç) and accessories (bıyık, gözlük, sakal, atkı, papyon, nazarlık), built in code in `client/world/hats.js` |
+| Procedural (this project) | Vampir Köylü | CC0 1.0 | built by the asset scripts | bat, straw hat, bandana, earmuffs, house interior "window glow" box, `tint.png`; hats 9–18 (takke, örgü takke, fes, yemeni, keçe külah, kalpak, ponponlu bere, çiçek tacı, aşçı başlığı, taç) and accessories (bıyık, gözlük, sakal, atkı, papyon, nazarlık), built in code in `client/world/hats.js`; hats 19–22 (kavuk, sorguçlu kavuk, Selçuklu börkü, Yeniçeri börkü) in `hats.js`; accessories 7–11 (hançer, kese, tesbih, madalyon, doğan), tops (cepken, kuşaklı entari, çintemani yelek, kaftan, kürklü kapaniçe, kraliyet kaftanı) and bottoms (şalvar, potur, çakşır, lale desenli şalvar puffs and boot cuffs; çarık/mest/çizme leg recolouring) in `client/world/outfits.js`; house looks Saray (`palace.js`) and Değirmen, Cumbalı ev, Osmanlı konağı, Demirci, Çeşmeli taş ev, Taç kapılı taş ev (`client/world/manors.js`) |
 
 ## Audio (`public/assets/audio/`)
 

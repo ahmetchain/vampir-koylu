@@ -102,6 +102,11 @@ const HATS = [
   '<ellipse cx="12" cy="14.5" rx="8.5" ry="3.5"/><circle cx="5.5" cy="12.5" r="1.9"/><circle cx="12" cy="10.8" r="1.9"/><circle cx="18.5" cy="12.5" r="1.9"/>',
   '<path d="M7.5 20.5h9V14.6a4 4 0 0 0-1-7.9 4 4 0 0 0-7 0 4 4 0 0 0-1 7.9z"/><path d="M7.5 17.3h9"/>',
   '<path d="M4.8 17.5L3.5 8.5l5 3.8L12 6l3.5 6.3 5-3.8-1.3 9z"/><path d="M4.8 20.5h14.4"/><circle cx="12" cy="14.8" r=".9" fill="currentColor"/>',
+  // 19 kavuk, 20 sorguçlu kavuk, 21 Selçuklu börkü, 22 Yeniçeri börkü
+  '<path d="M4 18.5c-.6-3.3.4-6.5 2.6-7.5 3.4-1.6 7.4-1.6 10.8 0 2.2 1 3.2 4.2 2.6 7.5z"/><path d="M8.5 10.6c.5-2.2 1.8-3.4 3.5-3.4s3 1.2 3.5 3.4"/><path d="M5 14.5c4-1.6 10-1.6 14 0M5.2 17c4-1.4 9.6-1.4 13.6 0"/>',
+  '<path d="M4 19c-.6-3.3.4-6.5 2.6-7.5 3.4-1.6 7.4-1.6 10.8 0 2.2 1 3.2 4.2 2.6 7.5z"/><path d="M12 11.5V9"/><path d="M12 9c-1.2-2-1-4.3.3-6 .8 2 .9 4-.3 6z"/><circle cx="12" cy="13.6" r="1.4" fill="currentColor"/>',
+  '<path d="M5 18.5h14"/><path d="M5.5 18.5c-.6-1.4-.4-2.6.6-3.2M18.5 18.5c.6-1.4.4-2.6-.6-3.2"/><path d="M6.6 15.3c.2-6 2.4-11 5.4-11.8 3 .8 5.2 5.8 5.4 11.8z"/><path d="M7.6 11h8.8"/>',
+  '<path d="M6 19.5V8.5C6 5.5 8.7 3.5 12 3.5s6 2 6 5v11z"/><path d="M6 17h12"/><path d="M18 6.5c2 .6 3 2.6 3 5.5v7"/><path d="M12 9.5v5"/>',
 ];
 
 // Aksesuar simgeleri: 0 yok, 1 bıyık, 2 gözlük, 3 sakal, 4 atkı, 5 papyon, 6 kral tacı
@@ -113,6 +118,33 @@ const ACCS = [
   '<path d="M4.5 8c2.2 1.5 4.7 2.2 7.5 2.2S17.3 9.5 19.5 8v3.2c-2.2 1.5-4.7 2.2-7.5 2.2s-5.3-.7-7.5-2.2z"/><path d="M14 13.3v7.2h3.5v-8.3"/><path d="M14 17h3.5"/>',
   '<path d="M12 12L4.5 8v8zM12 12l7.5-4v8z"/><rect x="10.4" y="10.4" width="3.2" height="3.2" rx=".9"/>',
   '<path d="M4 17.5L3 8l5 4 4-7 4 7 5-4-1 9.5z"/><path d="M4.5 20.5h15"/>',
+  // 7 hançer, 8 kese, 9 tesbih, 10 madalyon, 11 doğan
+  '<path d="M15.5 3.5l1.6 1.6-2.4 2.4"/><path d="M13 6.5l4.5 4.5"/><path d="M14.7 8.7L7 16.4c-1 1-1.4 2.6-1 4 1.4.4 3 0 4-1l7.2-7.2"/>',
+  '<path d="M9 7.5h6"/><path d="M9.5 7.5C6.5 10 5 13 5 15.5 5 19 8 21 12 21s7-2 7-5.5c0-2.5-1.5-5.5-4.5-8"/><path d="M10 4.5l2 3 2-3"/>',
+  '<circle cx="12" cy="10" r="6.5" stroke-dasharray="1.6 2.2"/><path d="M12 16.5v3"/><path d="M10.8 21.5h2.4"/>',
+  '<path d="M7 3.5l5 6 5-6"/><circle cx="12" cy="15" r="5.5"/><path d="M12 11.5l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z"/>',
+  '<path d="M4 20.5l4-1.5"/><path d="M8 19c-1-3 .5-6.5 4-8.5l3-1.5c1.5-.7 3.5-.2 4.5 1.5l-2.5 1c1 2.5-.5 5.5-3 7z"/><path d="M15 9.5c-.5-2 .3-4 2-5"/><circle cx="16.8" cy="9.5" r=".7" fill="currentColor"/>',
+];
+// Üst giysi simgeleri: 0 kendi, 1 cepken, 2 kuşaklı entari, 3 çintemani yelek, 4 kaftan, 5 kürklü kapaniçe, 6 kraliyet kaftanı
+const TOPS = [
+  '<path d="M8.5 4L4 6.5l1.5 4 2-.8V20h9V9.7l2 .8 1.5-4L15.5 4a3.5 3.5 0 0 1-7 0z"/>',
+  '<path d="M8 4.5L4.5 7l1 6h2.5V16h8v-3h2.5l1-6L16 4.5"/><path d="M8 4.5l4 5 4-5"/><path d="M10 12h.01M14 12h.01"/>',
+  '<path d="M8.5 4L5 6.5l1 4 1.8-.6L7 20.5h10l-.8-10.6 1.8.6 1-4L15.5 4l-3.5 3z"/><path d="M7.4 13.5h9.2v2.2H7.4z"/><path d="M14 15.7l1 3"/>',
+  '<path d="M8 4L5 6v14h14V6l-3-2-4 4z"/><circle cx="10.6" cy="12" r=".9" fill="currentColor"/><circle cx="13.4" cy="12" r=".9" fill="currentColor"/><circle cx="12" cy="9.8" r=".9" fill="currentColor"/><path d="M9 15.5c1-.8 2-.8 3 0s2 .8 3 0"/>',
+  '<path d="M8.5 3.5L5 6l-1.5 15h7.5l1-11.5 1 11.5h7.5L19 6l-3.5-2.5L12 8z"/><path d="M8 16.5l.8-1.6.8 1.6M15.2 16.5l.8-1.6.8 1.6"/>',
+  '<path d="M6 7.5c1.5-2.4 3.6-3.5 6-3.5s4.5 1.1 6 3.5"/><path d="M5.5 7c-.6.5-1 1.3-1 2.2L3.5 20.5h17l-1-11.3c0-.9-.4-1.7-1-2.2"/><path d="M5.5 7.5c2 1.5 4 2 6.5 2s4.5-.5 6.5-2"/><circle cx="12" cy="11.5" r="1"/>',
+  '<path d="M8.5 3.5L5 6l-1.5 15h7.5l1-11.5 1 11.5h7.5L19 6l-3.5-2.5L12 8z"/><path d="M8.5 3.5L12 8l3.5-4.5"/><path d="M11 4.5l1-2 1 2"/><circle cx="12" cy="11" r=".9" fill="currentColor"/>',
+];
+// Alt giysi simgeleri: 0 kendi, 1 şalvar, 2 potur, 3 çakşır, 4 lale desenli şalvar, 5 çarık, 6 mest, 7 sarı çizme
+const BOTTOMS = [
+  '<path d="M7 3.5h10l1.5 17h-4.5L12 9l-2 11.5H5.5z"/>',
+  '<path d="M7 3.5h10l1.5 6c1.5 3 1 6.5-.5 9.5l-.5 1.5H14l-2-8-2 8H6.5L6 19c-1.5-3-2-6.5-.5-9.5z"/><path d="M7 3.5h10"/>',
+  '<path d="M6.5 3.5h11l1 5c.5 2.5-.5 4-2 5l-.5 7h-3L12 12l-1 8.5H8l-.5-7c-1.5-1-2.5-2.5-2-5z"/>',
+  '<path d="M7 3.5h10l1.5 17h-4.5L12 9l-2 11.5H5.5z"/><path d="M6.6 6l-.9 13M17.4 6l.9 13" stroke-dasharray="1.5 1.5"/>',
+  '<path d="M7 3.5h10l1.5 6c1.5 3 1 6.5-.5 9.5l-.5 1.5H14l-2-8-2 8H6.5L6 19c-1.5-3-2-6.5-.5-9.5z"/><path d="M8.2 13.5l.8-1.6.8 1.6M14.2 13.5l.8-1.6.8 1.6"/>',
+  '<path d="M4 17.5c0-1.5 1-2.5 2.5-2.5H10l2 1.5h6c1.5 0 2.5 1 2.5 2.5v.5H4z"/><path d="M8 15l1.5-5M11 15.5L9.5 10M8 12.5h3"/>',
+  '<path d="M7 4.5h5v9l6 2.5c1.5.6 2.5 1.6 2.5 3v.5H5v-3z"/><path d="M7 9.5h5"/>',
+  '<path d="M7 3.5h5.5v10l5.5 2.5c1.5.7 2.5 1.7 2.5 3v.5H5v-3z"/><path d="M6.5 6.5h6.5"/><path d="M12.5 3.5l1-1"/>',
 ];
 
 function svg(body, cls, label) {
@@ -136,6 +168,12 @@ export function hatIcon(i, cls = '') {
 }
 export function accIcon(i, cls = '') {
   return svg(ACCS[i] || ACCS[0], cls);
+}
+export function topIcon(i, cls = '') {
+  return svg(TOPS[i] || TOPS[0], cls);
+}
+export function bottomIcon(i, cls = '') {
+  return svg(BOTTOMS[i] || BOTTOMS[0], cls);
 }
 
 const ROLE_COLORS = {

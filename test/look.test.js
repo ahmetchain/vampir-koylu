@@ -5,6 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const { Room, HAT_COUNT, ACC_COUNT, SKIN_COUNT, COLOR_COUNT } = require('../game');
 
 function room() {
@@ -19,12 +20,16 @@ function namesIn(file, name) {
   return JSON.parse(m[1].replace(/'/g, '"').replace(/,\s*\]/, ']'));
 }
 
-test('şapka ve aksesuar sayıları istemci listeleriyle aynı', () => {
-  assert.equal(HAT_COUNT, 19);
-  assert.equal(ACC_COUNT, 7);
-  for (const file of ['client/world/constants.js', 'public/ui/data.js', 'public/ui/world-fallback.js']) {
-    const hats = namesIn(file, 'HAT_NAMES');
-    const accs = namesIn(file, 'ACC_NAMES');
+test('şapka ve aksesuar sayıları istemci listeleriyle aynı', async () => {
+  assert.equal(HAT_COUNT, 23);
+  assert.equal(ACC_COUNT, 12);
+  const lists = {};
+  for (const file of ['client/world/constants.js', 'public/ui/data.js']) {
+    const m = await import(pathToFileURL(path.join(__dirname, '..', file)).href);
+    lists[file] = { hats: m.HAT_NAMES, accs: m.ACC_NAMES };
+  }
+  lists['public/ui/world-fallback.js'] = { hats: namesIn('public/ui/world-fallback.js', 'HAT_NAMES'), accs: namesIn('public/ui/world-fallback.js', 'ACC_NAMES') };
+  for (const [file, { hats, accs }] of Object.entries(lists)) {
     assert.equal(hats.length, HAT_COUNT, `${file} şapka sayısı`);
     assert.equal(accs.length, ACC_COUNT, `${file} aksesuar sayısı`);
     assert.equal(hats[9], 'Takke');
@@ -48,13 +53,14 @@ test('eski kayıtlı görünüm (acc yok) aynen yüklenir; yeni alanlar sınır 
   assert.deepEqual(r.players.get('a').look, { color: 3, hat: 18, skin: 7, acc: 2 });
   assert.equal(r.setLook('a', { acc: 5 }), null);
   assert.equal(r.players.get('a').look.acc, 5);
-  assert.match(r.setLook('a', { acc: 99 }), /sahibine özel/, 'aralık dışı değer en üst aksesuara (kral tacı, yalnızca sahip) sıkışır ve reddedilir');
+  assert.match(r.setLook('a', { acc: 99 }), /kilitli|sahibine özel/, 'aralık dışı değer en üst aksesuara (puanla açılan) sıkışır ve puansız hesapta reddedilir');
   assert.equal(r.players.get('a').look.acc, 5, 'reddedilince görünüm değişmez');
   assert.equal(r.setLook('a', { acc: 'gözlük' }), null);
   assert.equal(r.players.get('a').look.acc, 5, 'sayı olmayan değer görünümü değiştirmez');
   assert.equal(r.setLook('a', { acc: 0 }), null);
   assert.deepEqual(r.players.get('a').look, { color: 3, hat: 18, skin: 7 }, 'acc 0 -> alan silinir');
-  assert.equal(r.setLook('a', { hat: 19 }), null);
+  assert.match(r.setLook('a', { hat: 99 }), /kilitli/, 'aralık dışı şapka en üst şapkaya (Yeniçeri börkü, 30 puan) sıkışır');
+  assert.equal(r.setLook('a', { hat: 99 }, { points: 30 }), null);
   assert.equal(r.players.get('a').look.hat, HAT_COUNT - 1);
   assert.ok(r.viewFor('a').players.every((p) => p.look.skin < SKIN_COUNT && p.look.color < COLOR_COUNT));
   r.destroy();

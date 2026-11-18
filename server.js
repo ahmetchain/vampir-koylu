@@ -483,7 +483,7 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
       if (!c) return reply({ ok: false, error: 'Bir odada değilsin.' });
       const { room, player } = c;
       let points = 0;
-      if (player.userId && data && data.house !== undefined) {
+      if (player.userId && data && ['house', 'hat', 'acc', 'top', 'bottom'].some((f) => data[f] !== undefined)) {
         try {
           const rec = await store.getUser(player.userId);
           points = rec ? pointsOf(rec.stats) : 0;

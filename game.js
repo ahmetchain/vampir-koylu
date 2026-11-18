@@ -19,7 +19,8 @@ try {
 } catch (err) { /* düz isimle devam */ }
 
 const { BotBrain, botName } = require('./lib/bots');
-const { HOUSES, HOUSE_COUNT, canUseHouse, canUseAcc } = require('./lib/houses');   // ev görünümleri (look.house) ve sahibe özel görünüm
+const { HOUSES, HOUSE_COUNT, canUseHouse, canUseItem, lockMessage } = require('./lib/houses');   // ev görünümleri (look.house) ve kilitli öğeler
+const { HAT_ITEMS, ACC_ITEMS, TOP_ITEMS, BOTTOM_ITEMS, resolveLook, skinBlock, OPTIONAL_FIELDS } = require('./lib/cosmetics');   // yuva (slot) kuralları
 const { Banter, isOwnerName } = require('./lib/banter');   // lobi/oyun sonu muhabbeti (şablonlu, modelsiz)
 const { GameRecorder } = require('./lib/ai/gamerec');   // oyun geçmişi kaydı (docs/GAME-LOGS.md)
 
@@ -111,10 +112,16 @@ function pickScene(value, allowed, fallback) {
 
 // Karakter görünümü: renk, şapka ve model sadece sıra numarasıyla tutulur, çizimi tarayıcı yapar.
 const COLOR_COUNT = 20;
-const HAT_COUNT = 19;
+const HAT_COUNT = HAT_ITEMS.length;
 const SKIN_COUNT = 12;
-// Aksesuar (bıyık, gözlük…): isteğe bağlı alan, 0 = yok. 0 ise look'ta hiç tutulmaz (eski kayıtlarla aynı biçim).
-const ACC_COUNT = 7;   // 6 = kral tacı: yalnızca sahip hesap (lib/houses.js KING_ACC)
+// Aksesuar (bıyık, gözlük…), üst giysi (top), alt giysi (bottom): isteğe bağlı alanlar, 0 = yok/modelin kendi giysisi.
+// 0 ise look'ta hiç tutulmaz (eski kayıtlarla aynı biçim). Tablolar ve yuva (slot) kuralları: lib/cosmetics.js.
+const ACC_COUNT = ACC_ITEMS.length;   // 6 = kral tacı: yalnızca sahip hesap (lib/houses.js KING_ACC)
+const TOP_COUNT = TOP_ITEMS.length;
+const BOTTOM_COUNT = BOTTOM_ITEMS.length;
+const ITEM_COUNTS = { hat: HAT_COUNT, acc: ACC_COUNT, top: TOP_COUNT, bottom: BOTTOM_COUNT };
+// Puan/sahiplik istemeyen öğeler (botlar ve rastgele görünüm bunlardan seçer).
+const freeItems = (list) => list.map((it, i) => i).filter((i) => i > 0 && !list[i].min && !list[i].owner);
 
 // Meydan koordinatları 0-1 arası; (0.5, 0.5) kamp ateşi. Karakterler ateşle evler arasındaki halkada durur.
 const PLAZA = { cx: 0.5, cy: 0.5, minR: 0.10, maxR: 0.48, spawnMinR: 0.22, spawnMaxR: 0.42 };
@@ -640,16 +647,24 @@ class Room {
     let color;
     if (validIndex(want.color, COLOR_COUNT) && !taken.has(want.color)) color = want.color;
     else color = free.length ? free[crypto.randomInt(free.length)] : crypto.randomInt(COLOR_COUNT);
-    const hat = validIndex(want.hat, HAT_COUNT) ? want.hat : crypto.randomInt(HAT_COUNT);
-    const skin = validIndex(want.skin, SKIN_COUNT) ? want.skin : crypto.randomInt(SKIN_COUNT);
-    // Kayıtlı görünümde aksesuar/ev yoksa 0. Sahibe özel görünümler (kral tacı, saray) başkasında düşürülür.
+    // Kayıtlı görünüm puanla doğrulanmış gelir (server.js profileLook); burada yalnızca sahibe özel öğeler denetlenir.
+    // Sahibe özel görünümler (kral tacı, saray, kraliyet kaftanı) başkasında düşürülür.
     const who = { username: name, points: Infinity };   // botlar "Bot ..." adıyla gelir: sahip sayılmaz
-    const acc = validIndex(want.acc, ACC_COUNT) && canUseAcc(want.acc, who) ? want.acc : 0;
+    const freeHats = [0, ...freeItems(HAT_ITEMS)];
+    const hat = validIndex(want.hat, HAT_COUNT) && canUseItem('hat', want.hat, who) ? want.hat : freeHats[crypto.randomInt(freeHats.length)];
+    const skin = validIndex(want.skin, SKIN_COUNT) ? want.skin : crypto.randomInt(SKIN_COUNT);
+    const opt = {};
+    for (const f of OPTIONAL_FIELDS) {
+      const v = want[f];
+      if (validIndex(v, ITEM_COUNTS[f]) && v > 0 && canUseItem(f, v, who)) opt[f] = v;
+    }
     const house = validIndex(want.house, HOUSE_COUNT) && canUseHouse(want.house, who) ? want.house : 0;
+    // Yuva çakışmaları (ör. şapka + kral tacı, sakallı karakter + sakal) eski kayıtlarda da burada giderilir.
+    const fixed = resolveLook({ color, hat, skin, ...opt, ...(house ? { house } : {}) }).look;
     this.players.set(id, {
       id, name, userId, bot: Boolean(bot), seat: this.freeSeat(), role: null, job: null, alive: true, connected: true, left: false,
       socketId: null, graceTimer: null, notes: [],
-      look: { color, hat, skin, ...(acc ? { acc } : {}), ...(house ? { house } : {}) },
+      look: fixed,
       pos: spawnSpot(),
     });
     if (!this.hostId && !bot) this.hostId = id;
@@ -670,7 +685,13 @@ class Room {
     const name = botName([...this.players.values()].map((p) => p.name), this.botRng);
     // Botlar köyde rastgele AÇIK (puansız/ucuz) bir ev görünümü alabilir; sahibe özel olan asla.
     const openHouses = HOUSES.map((h, i) => i).filter((i) => !HOUSES[i].owner && HOUSES[i].min <= 8);
-    const error = this.addPlayer(id, name, { bot: true, look: { house: openHouses[crypto.randomInt(openHouses.length)] } });
+    // Botlar puansız (açık) öğelerden rastgele giyinir: yarı yarıya aksesuar, üst ve alt giysi. Çakışan öğe addPlayer'da düşer.
+    const look = { house: openHouses[crypto.randomInt(openHouses.length)] };
+    for (const [f, list] of [['acc', ACC_ITEMS], ['top', TOP_ITEMS], ['bottom', BOTTOM_ITEMS]]) {
+      const free = freeItems(list);
+      if (free.length && crypto.randomInt(2)) look[f] = free[crypto.randomInt(free.length)];
+    }
+    const error = this.addPlayer(id, name, { bot: true, look });
     if (error) return { error };
     this.banterDo((b) => b.botJoined(id));
     return { id };
@@ -854,19 +875,32 @@ class Room {
       if (taken) return 'Bu renk başka bir oyuncuda.';
       next.color = color;
     }
-    if (look.hat !== undefined) next.hat = clampInt(look.hat, 0, HAT_COUNT - 1, p.look.hat);
+    const changed = [];
     if (look.skin !== undefined) next.skin = clampInt(look.skin, 0, SKIN_COUNT - 1, p.look.skin);
-    if (look.acc !== undefined) {
-      const acc = clampInt(look.acc, 0, ACC_COUNT - 1, p.look.acc || 0);
-      if (!canUseAcc(acc, who)) return 'Bu aksesuar yalnızca sahibine özel.';
-      if (acc) next.acc = acc; else delete next.acc;
+    // Şapka/aksesuar/üst/alt: aralığa sıkıştırılır; kilitli (puan/sahip) değer reddedilir.
+    for (const f of ['hat', 'acc', 'top', 'bottom']) {
+      if (look[f] === undefined) continue;
+      const v = clampInt(look[f], 0, ITEM_COUNTS[f] - 1, p.look[f] || 0);
+      if (v !== (p.look[f] || 0) && !canUseItem(f, v, who)) {
+        return f === 'acc' && ACC_ITEMS[v] && ACC_ITEMS[v].owner ? 'Bu aksesuar yalnızca sahibine özel.' : lockMessage(f, v);
+      }
+      if (f === 'hat') next.hat = v;
+      else if (v) next[f] = v; else delete next[f];
+      if (v !== (p.look[f] || 0)) changed.push(f);
+    }
+    // Karakterin kendi parçasıyla çakışan yeni öğe (ör. sakallı karaktere sakal) seçilemez.
+    for (const f of changed) {
+      const b = skinBlock(next.skin, f, next[f] | 0);
+      if (b) return `Bu karakterin zaten ${b.what} var.`;
     }
     if (look.house !== undefined) {
       if (!Number.isInteger(look.house) || look.house < 0 || look.house >= HOUSE_COUNT) return 'Geçersiz ev görünümü.';
       if (!canUseHouse(look.house, who)) return HOUSES[look.house].owner ? 'Bu ev yalnızca sahibine özel.' : 'Bu ev görünümü henüz kilitli.';
       if (look.house) next.house = look.house; else delete next.house;
     }
-    p.look = next;
+    // Yuva çakışması: yeni seçilen öğe aynı yuvadaki eskisini çıkarır (ör. kral tacı -> şapka 0); karakter değişince
+    // yeni karakterin kendi parçasıyla çakışan öğe çıkar.
+    p.look = resolveLook(next, changed).look;
     this.changed();
     return null;
   }
@@ -2695,7 +2729,7 @@ class Room {
 
 module.exports = {
   Room, ROLE, SLEEP, MIN_PLAYERS, MAX_PLAYERS, ABILITY_MIN_PLAYERS, ABILITY, ABILITIES, ABILITY_TOGGLE, SPECIAL_ROLES, OPTIONAL_ROLES,
-  DEFAULT_ROLES, ROLE_LABEL, COLOR_COUNT, HAT_COUNT, SKIN_COUNT, ACC_COUNT, HOUSE_COUNT, PLAZA, MOVE_PHASES,
+  DEFAULT_ROLES, ROLE_LABEL, COLOR_COUNT, HAT_COUNT, SKIN_COUNT, ACC_COUNT, TOP_COUNT, BOTTOM_COUNT, HOUSE_COUNT, PLAZA, MOVE_PHASES,
   HOST_GRACE_MS, REVEAL_MS, ALL_VOTED_MS, HUNTER_MS, NIGHT_WALK_MS, NIGHT_SHOW_MS, NIGHT_RESULT_MS, PICK_GRACE_MS, ROLE_MODES, TRIAL_TURN_MS, TRIAL_VOTE_MS, TRIAL_ALL_VOTED_MS,
   EVENTS, EVENT_MODES, EVENT_GAP, EVENT_CHANCE, chooseEvent, LOBBY_GRACE_MS, EMPTY_ROOM_MS,
   LOG_MAX, SCENES,

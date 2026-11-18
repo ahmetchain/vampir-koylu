@@ -11,6 +11,7 @@ import { registerCinematics } from './cine.js';
 import { moodFor } from './moods.js';
 import { Character } from './character.js';
 import { releaseHatsGPU } from './hats.js';
+import { releaseOutfitsGPU } from './outfits.js';
 import { CameraRig } from './camera.js';
 import { createOverlay } from './overlay.js';
 import { createControls } from './control.js';
@@ -1697,7 +1698,7 @@ export function create(container, handlers = {}) {
     renderer.dispose();
     renderer.forceContextLoss();
     A.releaseGPU();
-    releaseHatsGPU();
+    releaseHatsGPU(); releaseOutfitsGPU();
     root.remove();
     clearTimeout(flashT);
   }

@@ -104,6 +104,26 @@ function clothShade(o) {
   } catch (e) { /* doku okunamazsa düz renk */ }
   return out;
 }
+// Köşe başına baskın kemik ve o kemiğin bind pozundaki yerel konumu: aBone = (etiket, x, y, z).
+// Etiket: 1 gövde, 2 sol bacak, 3 sağ bacak, 4 kol, 5 kafa, 0 diğer. Alt giysi boyaması (villagerTinted) ve kıyafet
+// ölçüleri (outfits.js bodyFit) bunu kullanır; geometri ve animasyon değişmez.
+export const BONE_TAG = { torso: 1, 'leg-left': 2, 'leg-right': 3, 'arm-left': 4, 'arm-right': 4, head: 5 };
+function boneTags(o, g) {
+  const P = g.attributes.position, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight;
+  const out = new Float32Array(P.count * 4);
+  if (!SI || !SW || !o.skeleton) return out;
+  const bones = o.skeleton.bones;
+  const mats = bones.map((b, i) => o.skeleton.boneInverses[i].clone().multiply(o.bindMatrix));
+  const v = new THREE.Vector3();
+  for (let i = 0; i < P.count; i++) {
+    let best = 0, bw = -1;
+    for (let k = 0; k < 4; k++) { const w = SW.getComponent(i, k); if (w > bw) { bw = w; best = SI.getComponent(i, k); } }
+    const b = bones[best];
+    v.fromBufferAttribute(P, i).applyMatrix4(mats[best]);
+    out[i * 4] = (b && BONE_TAG[b.name]) || 0; out[i * 4 + 1] = v.x; out[i * 4 + 2] = v.y; out[i * 4 + 3] = v.z;
+  }
+  return out;
+}
 function mergeSkin(gltf) {
   const skinned = [];
   gltf.scene.traverse((o) => { if (o.isSkinnedMesh) skinned.push(o); });
@@ -119,6 +139,7 @@ function mergeSkin(gltf) {
       for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'skinIndex', 'skinWeight'].includes(k)) g.deleteAttribute(k);
       const isCloth = o.material.name === 'cloth';
       g.setAttribute('aCloth', new THREE.BufferAttribute(isCloth ? clothShade(o) : new Float32Array(g.attributes.position.count), 1));
+      g.setAttribute('aBone', new THREE.BufferAttribute(boneTags(o, g), 4));
       return g;
     });
     const merged = mergeGeometries(geos, false);
@@ -131,22 +152,46 @@ function mergeSkin(gltf) {
 }
 
 // Birleşik gövde malzemesi: kumaş köşeleri oyuncu rengini alır (renk başına bir malzeme, tek program)
+// leg (isteğe bağlı, look.bottom): { a: [r, g, b, kip], b: [r, g, b, çizgi] } — bacak (aBone etiketi 2/3) bölgesini
+// yeniden boyar. Kip 1: pantolon (çizginin üstü), 2: yan şeritli pantolon, 3: çizme/ayakkabı (çizginin altı),
+// 4: çarık (ayak + bağcıklar). Tek program; renk/kip yalnızca uniform (oyuncu rengi x alt giysi başına bir malzeme).
 const villCache = new Map();
-export function villagerTinted(hex) {
-  if (villCache.has(hex)) return villCache.get(hex);
+const LEG_GLSL = `
+  // pantolon kiplerinde kalça (gövde kemiğinde, gömlek altında kalan şort/kemer bölgesi) de boyanır
+  if (uLegA.w > 0.5 && uLegA.w < 2.5 && vBone.x > 0.5 && vBone.x < 1.5 && vCloth < 0.01 && vBone.z < 0.035) {
+    diffuseColor.rgb = uLegA.rgb * (0.8 + 0.4 * dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)));
+  }
+  if (uLegA.w > 0.5 && vBone.x > 1.5 && vBone.x < 3.5) {
+    vec3 c = diffuseColor.rgb;
+    float shade = 0.8 + 0.4 * dot(c, vec3(0.299, 0.587, 0.114));
+    float lx = vBone.y, ly = vBone.z, lz = vBone.w;
+    if (uLegA.w < 1.5) { if (ly > uLegB.w) c = uLegA.rgb * shade; }
+    else if (uLegA.w < 2.5) { if (ly > uLegB.w) c = (abs(lx) > 0.05 && abs(lz - 0.02) < 0.05 ? uLegB.rgb : uLegA.rgb) * shade; }
+    else if (uLegA.w < 3.5) { if (ly < uLegB.w) c = uLegA.rgb * shade; }
+    else {
+      if (ly < -0.135) c = uLegA.rgb * shade;
+      else if (ly < uLegB.w) { float s = step(0.55, fract((ly * 1.6 + abs(lx) + lz * 0.6) * 26.0)); c = mix(vec3(0.86, 0.8, 0.68), uLegB.rgb, s) * shade; }
+    }
+    diffuseColor.rgb = c;
+  }`;
+export function villagerTinted(hex, leg = null) {
+  const key = hex + (leg ? '|' + leg.a.join(',') + '|' + leg.b.join(',') : '');
+  if (villCache.has(key)) return villCache.get(key);
   const src = mats.get('villager');
   if (!src) return null;
   const m = src.clone();
   m.name = 'villager';
   const u = { value: new THREE.Color(hex) };
+  const la = { value: new THREE.Vector4(...(leg ? leg.a : [0, 0, 0, 0])) };
+  const lb = { value: new THREE.Vector4(...(leg ? leg.b : [0, 0, 0, 0])) };
   m.userData.uCloth = u;
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.uCloth = u;
-    sh.vertexShader = 'attribute float aCloth;\nvarying float vCloth;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vCloth = aCloth;');
-    sh.fragmentShader = 'uniform vec3 uCloth;\nvarying float vCloth;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n  if (vCloth > 0.01) diffuseColor.rgb = uCloth * vCloth;');
+    sh.uniforms.uCloth = u; sh.uniforms.uLegA = la; sh.uniforms.uLegB = lb;
+    sh.vertexShader = 'attribute float aCloth;\nattribute vec4 aBone;\nvarying float vCloth;\nvarying vec4 vBone;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vCloth = aCloth; vBone = aBone;');
+    sh.fragmentShader = 'uniform vec3 uCloth;\nuniform vec4 uLegA;\nuniform vec4 uLegB;\nvarying float vCloth;\nvarying vec4 vBone;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n  if (vCloth > 0.01) diffuseColor.rgb = uCloth * vCloth;' + LEG_GLSL);
   };
-  m.customProgramCacheKey = () => 'vkw-villager-cloth';
-  villCache.set(hex, m);
+  m.customProgramCacheKey = () => 'vkw-villager-cloth2';
+  villCache.set(key, m);
   return m;
 }
 
@@ -241,7 +286,21 @@ const HOUSE_SKIN_RULES = [
   (h, s, l) => (s > 0.28 && ((h < 38 && l < 0.7 && s > 0.42) || (h > 150 && h < 310)) ? [105 + (h % 30), s * 0.62, l * 0.88] : [h, s, l]),
   // 5 Saray (yalnızca sahip): mor çatı, krem-lavanta duvar
   (h, s, l) => (s > 0.28 && ((h < 38 && l < 0.7 && s > 0.42) || (h > 150 && h < 310)) ? [268 + (h % 16), s * 0.72, l * 0.86] : [h, s * 0.85, l]),
+  // 6..11: prosedürel eklentili evler (manors.js); doku yalnızca zemin rengini verir
+  // 6 Değirmen: ahşap kahve çatı, krem duvar
+  (h, s, l) => (roofish(h, s, l) ? [26 + (h % 8), s * 0.5, l * 0.72] : (h > 170 && h < 300 ? [40, 0.12 + s * 0.3, Math.min(0.9, 0.3 + l * 0.7)] : [h, s * 0.8, l])),
+  // 7 Cumbalı ev: kırmızı kiremit, beyaz badanalı duvar
+  (h, s, l) => (roofish(h, s, l) ? [8 + (h % 10), Math.min(1, s * 1.05), l * 0.85] : [h, s * 0.35, Math.min(0.95, 0.25 + l * 0.85)]),
+  // 8 Osmanlı konağı: aşı boyası (toprak sarısı) duvar, koyu kiremit
+  (h, s, l) => (roofish(h, s, l) ? [4 + (h % 8), s * 0.95, l * 0.75] : [36, Math.max(0.42, s * 0.8), 0.3 + l * 0.6]),
+  // 9 Demirci: kurum tutmuş koyu taş
+  (h, s, l) => [24, s * 0.16, 0.18 + l * 0.48],
+  // 10 Çeşmeli taş ev: açık kesme taş, kahve çatı
+  (h, s, l) => (roofish(h, s, l) ? [22, s * 0.45, l * 0.7] : [34, 0.16 + s * 0.22, 0.36 + l * 0.52]),
+  // 11 Taç kapılı taş ev: sıcak kum taşı
+  (h, s, l) => (roofish(h, s, l) ? [18, s * 0.5, l * 0.68] : [32, 0.26 + s * 0.3, 0.36 + l * 0.5]),
 ];
+function roofish(h, s, l) { return s > 0.28 && ((h < 38 && l < 0.7 && s > 0.42) || (h > 150 && h < 310)); }
 function rgb2hsl(r, g, b) {
   const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
   if (!d) return [0, 0, l];

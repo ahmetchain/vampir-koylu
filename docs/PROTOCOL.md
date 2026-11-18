@@ -71,12 +71,18 @@ connection · 7 Client → server events · 8 Server → client events · 9 The 
 | session token lifetime | 30 days, sliding | §5.3 |
 | rate limit | register 20 / 10 min / IP, login 40 / 10 min / IP | §5.4 |
 
-## 2a. House looks (`look.house`) and owner-only looks
+## 2a. Looks: houses, hats, accessories, clothes, slots and owner-only looks
 
-Every player's house in the village is drawn with the look that player chose (everyone sees everyone's house; it
-travels inside `players[].look` like the rest of the look). `look.house` is an integer, `0` (Klasik, the default)
-is never stored, old records without the field are `0`. Houses differ only by material/colour (the palace adds a
-small gold dome); no heavy geometry. Table (single source: `lib/houses.js`, mirrored for display in
+Every player's look travels inside `players[].look` (everyone sees everyone's look and house):
+`{ color, hat, skin, acc?, top?, bottom?, house? }`. `acc`, `top`, `bottom` and `house` are optional integers;
+`0` is never stored and old records without the field are `0`.
+
+### Houses (`look.house`)
+
+Classic looks differ only by material/colour; looks 5–11 add low-poly procedural parts on top of the normal house
+(`client/world/palace.js`, `client/world/manors.js`: shared materials, one BatchedMesh per material, night glow via
+emissive/vertex-colour "glow" batch, no PointLight/bloom; ≤ ~600 triangles per house; the windmill sails turn). House
+anchors (door, windows, footprint, paths) never change. Table (single source: `lib/houses.js`, mirrored for display in
 `public/ui/data.js` and checked by `test/housesel.test.js`):
 
 | `house` | Name | Unlock |
@@ -87,24 +93,65 @@ small gold dome); no heavy geometry. Table (single source: `lib/houses.js`, mirr
 | 3 | Kış evi | 15 points |
 | 4 | Çiçekli çatı | 25 points |
 | 5 | Saray | **owner only** (cannot be unlocked with points) |
+| 6 | Değirmen | 35 points |
+| 7 | Cumbalı ev | 50 points |
+| 8 | Osmanlı konağı | 70 points |
+| 9 | Demirci | 100 points |
+| 10 | Çeşmeli taş ev | 140 points |
+| 11 | Taç kapılı taş ev | 200 points |
+
+### Hats, accessories, clothes and slots (`look.hat`, `look.acc`, `look.top`, `look.bottom`)
+
+Item tables, unlocks and **slot rules** live in ONE table: `public/ui/cosmetics.js` (client: look editor and 3D world)
+with a byte-identical server copy `lib/cosmetics.js` (`test/cosmetics.test.js` checks both the data and the code).
+Every item fills one or more body **slots**:
+`head, eyes, mouth, chin, neck, collar, chest, shoulder, back, torso, waist, hand, legs, feet`.
+
+- Two items that share a slot cannot be worn together. The newly chosen item wins and the old one is removed
+  (e.g. choosing `acc = 6` Kral tacı clears the hat; choosing a hat clears the crown; Kürklü kapaniçe (shoulder) clears
+  Doğan and vice versa; Kuşaklı entari (waist) and Hançer/Kese (waist)). The editor shows a short note
+  ("Kral tacı takıldı, Takke çıkarıldı.").
+- Character models have **built-in parts** that fill slots (`SKIN_FEATURES`): skins 0 and 10 glasses (eyes),
+  2 beard (chin+mouth), 3 necklace (chest), 6 eye patch + beard, 8 tie (collar). An item that collides with the
+  model's own part cannot be chosen (`player:look` → `{ ok: false, error: "Bu karakterin zaten sakalı var." }`,
+  `PATCH /api/me` → **409** `look_conflict`); switching to such a skin removes the colliding item.
+- Old/hand-edited records with conflicts are fixed when read (`sanitizeLook`, on profile read and seat creation) with
+  priority `acc > hat > top > bottom`.
+
+| field | new values (name, unlock) |
+|---|---|
+| `hat` (0–22) | 19 Kavuk; 20 Sorguçlu kavuk (20 p); 21 Selçuklu börkü (10 p); 22 Yeniçeri börkü (30 p). 1–18 unchanged, all free |
+| `acc` (0–11) | 1 Bıyık, 2 Gözlük, 3 Sakal, 4 Atkı, 5 Papyon, **6 Kral tacı (owner only)**, 7 Hançer (5 p), 8 Kese, 9 Tesbih (small, on the wrist), 10 Madalyon (12 p), 11 Doğan (30 p) |
+| `top` (0–6) | 0 own clothes, 1 Cepken, 2 Kuşaklı entari, 3 Çintemani yelek (15 p), 4 Kaftan (10 p), 5 Kürklü kapaniçe (25 p), **6 Kraliyet kaftanı (owner only)** |
+| `bottom` (0–7) | 0 own, 1 Şalvar, 2 Potur (5 p), 3 Çakşır, 4 Lale desenli şalvar (12 p), 5 Çarık, 6 Mest (8 p), 7 Sarı çizme (18 p) |
+
+Clothes are drawn without new models: one extra skinned mesh per character bound to the character's skeleton
+(tops on the torso bone, bottom puffs/cuffs on the leg bones, the accessory merged in, ≤ ~300 triangles for most
+combinations) plus leg recolouring in the body material (`aBone` attribute). The player colour stays on the shirt and
+sleeves. Patterns are geometric/floral only (lale, çintemani, eight-pointed star); no scripture or religious symbols,
+and no religious buildings as houses.
+
+### Points and validation
 
 **Points** = games played + 2 × wins (from the account `stats`; computed **on the server only**, the client never
-sends a score). Guests (no account) can only use house 0. The owner account is `ahmetchain` by default
-(`lib/banter.js` `PEOPLE` with `owner: true`, replaceable through `BANTER_PEOPLE`); it alone may choose house 5 and
-`look.acc = 6` (**Kral tacı**, a gold crown accessory). Everything is validated on the server:
+sends a score). Guests (no account) can only use house 0 and point-free items. The owner account is `ahmetchain` by
+default (`lib/banter.js` `PEOPLE` with `owner: true`, replaceable through `BANTER_PEOPLE`); it alone may choose house 5,
+`acc = 6` and `top = 6`, and sees every item unlocked. Everything is validated on the server:
 
-- `PATCH /api/me`: a locked house/accessory → **403** `look_locked`; out-of-range or non-integer → 400 `invalid_look`.
-- `player:look` `{ house? }` / `{ acc? }`: the server reads the account stats from the store and checks
-  `points >= threshold` itself; a locked or owner-only value → `{ ok: false, error }` and the look stays unchanged
-  (an out-of-range `acc`/`house` is never clamped into an owner-only value).
+- `PATCH /api/me`: a locked house/item → **403** `look_locked`; out-of-range or non-integer → 400 `invalid_look`;
+  an item colliding with the character's own part → **409** `look_conflict`. Slot conflicts between items are resolved
+  (changed fields win). The look editor sends the whole look, with removed optional items as explicit `0`.
+- `player:look` `{ color?, hat?, skin?, acc?, top?, bottom?, house? }`: the server reads the account stats from the
+  store and checks `points >= threshold` itself; a locked or owner-only value → `{ ok: false, error }` and the look stays
+  unchanged (out-of-range values are clamped and then checked like any other value, so they are never silently allowed).
 - Saved looks are re-checked when a seat is created (`room:create` / `room:join`) and when the profile is read:
-  an entitlement that is no longer valid (e.g. hand-edited record, owner list changed) is dropped.
-- Bots get a random open (non-owner, ≤ 8 points) house, never an owner-only one.
-- The owner's `user` has `ownerLooks: true` (display only: the UI shows the locks); points for the "Evim" tab are
-  derived by the client from `user.stats` for display; the server's check is the one that counts.
-- Storage: `vk_users.look_house INTEGER NOT NULL DEFAULT 0` (added with `ALTER TABLE` on old databases, like `look_acc`);
-  the JSON store keeps the field in `look`.
-
+  an entitlement that is no longer valid (e.g. hand-edited record, owner list changed) is dropped, slot conflicts fixed.
+- Bots get a random open (non-owner, ≤ 8 points) house and random point-free accessory/top/bottom (about half each),
+  never a locked one; conflicting picks are dropped.
+- The owner's `user` has `ownerLooks: true` (display only: the UI shows the locks); points for the editor are derived
+  by the client from `user.stats` for display; the server's check is the one that counts.
+- Storage: `vk_users.look_house`, `look_top`, `look_bottom INTEGER NOT NULL DEFAULT 0` (added with `ALTER TABLE` on old
+  databases, like `look_acc`); the JSON store keeps the fields in `look`.
 ## 3. Roles
 
 | id | label (`ROLE_LABEL`) | team (`teamOf`) | night action | dealt when |
@@ -339,7 +386,7 @@ player is marked `left`, dies (announce `left`) and their seat stays in the list
 | `hunter:shoot` | `{ targetId }` | the dying hunter, phase `hunter` | "Şu an atış zamanı değil.", "Sadece avcı ateş edebilir.", "Kendini vuramazsın.", "Bu oyuncu vurulamaz." |
 | `day:vote` | `{ targetId }` = player id, `null` (withdraw) or `'sleep'` | alive, day (and the mahkeme re-vote) | "Oylama sadece gündüz yapılır.", "Ölüler oy veremez.", "Bu oyuncuya oy verilemez.", "Kendine oy veremezsin."; re-vote only: "Savunmalar bitmeden oy verilemez.", "Mahkemede Hızlı Uyu yok; iki sanıktan birini seç.", "Mahkemede yalnızca iki sanıktan birine oy verebilirsin." Voting the same value again withdraws it. |
 | `day:lock` | `{ targetId }` = player id or `null` (clear) | the Gardiyan, alive, day (incl. a mahkeme) | "Kilitlenecek kapı sadece gündüz seçilir.", "Ölüler kapı kilitleyemez.", "Sadece gardiyan kapı kilitleyebilir.", "Bu kapı kilitlenemez.", "Kendi kapını kilitleyemezsin.", "Aynı kapıyı iki gece üst üste kilitleyemezsin." Changeable until the day ends; secret (only in the Gardiyan's `day.lock`). §12.7 |
-| `player:look` | `{ color?, hat?, skin?, acc?, house? }` | lobby or ended | "Görünüm sadece lobide değiştirilebilir.", "Bu renk başka bir oyuncuda.", "Bu ev görünümü henüz kilitli.", "Bu ev yalnızca sahibine özel.", "Bu aksesuar yalnızca sahibine özel.", "Geçersiz ev görünümü." (§2a). Values are parsed as integers and clamped to range (unparsable → unchanged). On success the full look is also saved to the account profile (background, failures only logged). |
+| `player:look` | `{ color?, hat?, skin?, acc?, top?, bottom?, house? }` | lobby or ended | "Görünüm sadece lobide değiştirilebilir.", "Bu renk başka bir oyuncuda.", "Bu ev görünümü henüz kilitli.", "Bu ev yalnızca sahibine özel.", "Bu aksesuar yalnızca sahibine özel.", "Geçersiz ev görünümü." (§2a). Values are parsed as integers and clamped to range (unparsable → unchanged). On success the full look is also saved to the account profile (background, failures only logged). |
 | `player:move` | `{ x, y }` | living players: `lobby` and `ended` only; **dead players (ghosts): every phase of a running game** (`night` all stages, `day`, `trial`, `hunter`) and `ended` | "Şu an meydanda dolaşamazsın." for a living player outside `lobby`/`ended` (the UI need not show it), "Geçersiz konum." Every move is applied (clamped to the ring, §12.1); the resulting `state` broadcast is coalesced (≤ 1 per 100 ms per room). A ghost's position is visible only to dead viewers until the game ends (§9 `pos`). |
 | `chat:send` | `{ text }` | see §11 | "Biraz yavaş yaz :)", "Boş mesaj gönderilemez.", "Gece köy uyur, konuşamazsın." |
 

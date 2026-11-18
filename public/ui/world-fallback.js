@@ -9,8 +9,12 @@
   var COLOR_NAMES = ['Kırmızı', 'Mavi', 'Yeşil', 'Pembe', 'Turuncu', 'Sarı', 'Siyah', 'Beyaz', 'Mor', 'Kahverengi',
     'Camgöbeği', 'Fıstık', 'Bordo', 'Gül', 'Lacivert', 'Gri', 'Bej', 'Mercan', 'Zeytin', 'Lavanta'];
   var HAT_NAMES = ['Şapkasız', 'Hasır şapka', 'Bere', 'Çiçek', 'Silindir', 'Bandana', 'Filiz', 'Kasket', 'Kulaklık',
-    'Takke', 'Örgü takke', 'Fes', 'Yemeni', 'Keçe külah', 'Kalpak', 'Ponponlu bere', 'Çiçek tacı', 'Aşçı başlığı', 'Taç'];
-  var ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon', 'Kral tacı'];
+    'Takke', 'Örgü takke', 'Fes', 'Yemeni', 'Keçe külah', 'Kalpak', 'Ponponlu bere', 'Çiçek tacı', 'Aşçı başlığı', 'Taç',
+    'Kavuk', 'Sorguçlu kavuk', 'Selçuklu börkü', 'Yeniçeri börkü'];
+  var ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon', 'Kral tacı', 'Hançer', 'Kese', 'Tesbih', 'Madalyon', 'Doğan'];
+  // üst/alt giysiler 2B köyde çizilmez (adlar görünüm düzenleyici için; public/ui/cosmetics.js ile aynı)
+  var TOP_NAMES = ['Kendi giysisi', 'Cepken', 'Kuşaklı entari', 'Çintemani yelek', 'Kaftan', 'Kürklü kapaniçe', 'Kraliyet kaftanı'];
+  var BOTTOM_NAMES = ['Kendi altı', 'Şalvar', 'Potur', 'Çakşır', 'Lale desenli şalvar', 'Çarık', 'Mest', 'Sarı çizme'];
   // [ten rengi, saç rengi, saç biçimi]
   var SKINS = [
     ['Pamuk', '#f5cfa8', '#5a3a22', 0], ['Fındık', '#e8b48a', '#2b1d14', 1], ['Kestane', '#c98d5e', '#1d1512', 3],
@@ -154,6 +158,29 @@
         for (var c = 0; c <= 4; c++) { ctx.lineTo(hx - hr * 0.75 + c * hr * 0.375, hy - hr * (c % 2 ? 1.25 : 1.6)); }
         ctx.lineTo(hx + hr * 0.75, hy - hr * 0.8); ctx.closePath(); ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#d7263d'; ctx.beginPath(); ctx.arc(hx, hy - hr * 1.0, hr * 0.12, 0, TAU); ctx.fill();
+        break;
+      case 19: case 20: // kavuk, sorguçlu kavuk
+        ctx.fillStyle = '#a3242c';
+        ctx.beginPath(); ctx.ellipse(hx, hy - hr * 1.25, hr * 0.62, hr * 0.42, 0, Math.PI, TAU); ctx.fill();
+        ctx.fillStyle = '#f4efe3';
+        rr(ctx, hx - hr * 1.2, hy - hr * 1.3, hr * 2.4, hr * 0.75, hr * 0.35); ctx.fill(); ctx.stroke();
+        if (hat === 20) {
+          ctx.fillStyle = '#fbfaf5'; ctx.beginPath(); ctx.ellipse(hx, hy - hr * 1.75, hr * 0.14, hr * 0.5, 0, 0, TAU); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = '#f2c12e'; ctx.beginPath(); ctx.arc(hx, hy - hr * 1.0, hr * 0.17, 0, TAU); ctx.fill();
+        }
+        break;
+      case 21: // Selçuklu börkü
+        ctx.fillStyle = '#8c2a22';
+        ctx.beginPath(); ctx.moveTo(hx - hr * 0.85, hy - hr * 0.85); ctx.quadraticCurveTo(hx - hr * 0.7, hy - hr * 2.2, hx, hy - hr * 2.3);
+        ctx.quadraticCurveTo(hx + hr * 0.7, hy - hr * 2.2, hx + hr * 0.85, hy - hr * 0.85); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#6b4a2e'; rr(ctx, hx - hr * 1.1, hy - hr * 1.0, hr * 2.2, hr * 0.38, hr * 0.18); ctx.fill(); ctx.stroke();
+        break;
+      case 22: // Yeniçeri börkü
+        ctx.fillStyle = '#f4f1ea';
+        rr(ctx, hx + hr * 0.4, hy - hr * 2.1, hr * 0.7, hr * 2.2, hr * 0.2); ctx.fill(); ctx.stroke();
+        rr(ctx, hx - hr * 0.85, hy - hr * 2.3, hr * 1.7, hr * 1.55, hr * 0.3); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#e2b23c'; ctx.fillRect(hx - hr * 0.85, hy - hr * 0.95, hr * 1.7, hr * 0.18);
+        ctx.fillRect(hx - hr * 0.1, hy - hr * 1.6, hr * 0.2, hr * 0.65);
         break;
       default: break;
     }
@@ -1020,6 +1047,8 @@
     COLORS: COLORS.map(function (hex, i) { return { name: COLOR_NAMES[i], hex: hex }; }),
     HATS: HAT_NAMES.map(function (name) { return { name: name }; }),
     ACCS: ACC_NAMES.map(function (name) { return { name: name }; }),
+    TOPS: TOP_NAMES.map(function (name) { return { name: name }; }),
+    BOTTOMS: BOTTOM_NAMES.map(function (name) { return { name: name }; }),
     SKINS: SKINS.map(function (s) { return { name: s[0] }; }),
   };
 })();

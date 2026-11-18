@@ -724,7 +724,11 @@ input[type="range"] { width: 100%; accent-color: var(--fire); height: 28px; }
 .look { display: grid; gap: 14px; }
 .look-stage { height: 190px; border-radius: var(--r-l); background: radial-gradient(70% 70% at 50% 90%, rgba(255, 179, 71, .25), rgba(58, 42, 107, .4) 60%, rgba(21, 18, 43, .8)); border: 1px solid var(--line); position: relative; overflow: hidden; }
 .look-name { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font-weight: 900; text-shadow: 0 1px 3px #000; }
-.look-tabs { position: sticky; top: -6px; z-index: 1; }
+.look-tabs { position: sticky; top: -6px; z-index: 1; grid-auto-columns: minmax(max-content, 1fr); overflow-x: auto; scrollbar-width: none; }
+.look-tabs::-webkit-scrollbar { display: none; }
+.look-tabs .seg-btn { padding: 0 7px; font-size: 13.5px; }
+.look-note { margin: -4px 0 0; padding: 8px 12px; border-radius: var(--r-m); background: rgba(255, 179, 71, .12); border: 1px solid rgba(255, 179, 71, .35); color: #ffd9a0; font-size: 13px; font-weight: 700; }
+.opt-grid .opt-head { grid-column: 1 / -1; margin: 6px 0 -2px; font-size: 13px; font-weight: 900; color: var(--text-2); letter-spacing: .02em; }
 .opt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
 .opt {
   position: relative; display: grid; justify-items: center; gap: 4px; padding: 8px 4px; min-height: 76px;

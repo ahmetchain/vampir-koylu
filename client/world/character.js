@@ -5,7 +5,9 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import * as A from './assets.js';
 import { addOutlines } from './style.js';
 import { COLOR_HEX, clamp, damp, wrapAngle } from './constants.js';
-import { makeHat, makeAcc, fitHair } from './hats.js';
+import { makeHat, makeAcc, fitHair, accOnHand } from './hats.js';
+import { attachOutfit, legPaint } from './outfits.js';
+import { resolveLook } from '../../public/ui/cosmetics.js';
 
 export const SCALE = 1.12;
 // Yürüme hızları (3. tur: ~1.6 kat). STRIDE: yürüme klibinin doğal hızı (adım temposu buna göre ölçeklenir)
@@ -53,7 +55,9 @@ export class Character {
   }
 
   setLook(look) {
-    const key = this.isGhost ? 'ghost|' + look.color : `${look.skin}|${look.color}|${look.hat}|${look.acc | 0}`;
+    // yuva çakışmaları (ör. şapka + kral tacı) çizimden önce de giderilir: sunucu zaten düzeltir, bu yalnızca güvence
+    if (!this.isGhost) look = resolveLook(look).look;
+    const key = this.isGhost ? 'ghost|' + look.color : `${look.skin}|${look.color}|${look.hat}|${look.acc | 0}|${look.top | 0}|${look.bottom | 0}`;
     if (this.lookKey === key) return;
     this.lookKey = key;
     this.look = { ...look };
@@ -75,7 +79,7 @@ export class Character {
     model.traverse((o) => {
       if (!o.isMesh) return;
       if (o.material.name === 'cloth' && cloth) o.material = cloth;
-      else if (o.isSkinnedMesh && o.userData.clothMerged && o.material.name === 'villager') { const vm = A.villagerTinted(COLOR_HEX[clamp(look.color | 0, 0, 19)]); if (vm) o.material = vm; }
+      else if (o.isSkinnedMesh && o.userData.clothMerged && o.material.name === 'villager') { const vm = A.villagerTinted(COLOR_HEX[clamp(look.color | 0, 0, 19)], legPaint(look.bottom)); if (vm) o.material = vm; }
       o.castShadow = true;
       o.receiveShadow = false;
       if (o.isSkinnedMesh) {
@@ -86,6 +90,11 @@ export class Character {
         o.frustumCulled = true;
       } else o.frustumCulled = false;
     });
+    // üst/alt giysi ve aksesuar: iskelete bağlı TEK ek deri ağı (outfits.js) -> karakter başına +1 çizim çağrısı.
+    // Elde tutulan aksesuar (tesbih) ayrı kalır: oyun içi nesne tutulunca gizlenebilsin.
+    const handAcc = accOnHand(look.acc);
+    const outfit = attachOutfit(model, skin, look.top, look.bottom, handAcc ? 0 : look.acc);
+    if (outfit && skel && outfit.skeleton !== skel) outfit.skeleton = skel;
     const head = model.getObjectByName('head');
     const hat = head ? makeHat(look.hat, skin) : null;
     if (hat) {
@@ -93,12 +102,13 @@ export class Character {
       hat.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
       head.add(hat);
     }
-    const acc = makeAcc(look.acc);
+    const acc = handAcc ? makeAcc(look.acc, skin) : null;
     const accBone = acc && model.getObjectByName(acc.bone);
     if (accBone) {
       acc.obj.castShadow = true; acc.obj.frustumCulled = false;
       accBone.add(acc.obj);
     }
+    this.accObj = accBone ? acc.obj : null;
     model.scale.multiplyScalar(SCALE);
     if (this.world.toon) addOutlines(model, 0.012);
     this.model = model;
@@ -424,11 +434,14 @@ export class Character {
     obj.position.set(off[0], off[1], off[2]);
     obj.scale.setScalar(obj.userData.holdScale || 0.4);
     arm.add(obj);
+    // aynı koldaki aksesuar (ör. bilekte tesbih) tutulan nesneyle çakışmasın: tutarken gizlenir
+    if (this.accObj && this.accObj.parent === arm) this.accObj.visible = false;
     this.props.push(obj);
   }
   dropProps() {
     for (const o of this.props) o.parent && o.parent.remove(o);
     this.props = [];
+    if (this.accObj) this.accObj.visible = true;
   }
   gaze(target, seconds, time) { this.lookAt = target ? { x: target.x, z: target.z } : null; this.lookUntil = seconds ? time + seconds : 0; }
 

@@ -9,10 +9,14 @@ export const COLOR_NAMES = [
   'Kırmızı', 'Mavi', 'Yeşil', 'Pembe', 'Turuncu', 'Sarı', 'Siyah', 'Beyaz', 'Mor', 'Kahverengi',
   'Camgöbeği', 'Fıstık', 'Bordo', 'Gül', 'Lacivert', 'Gri', 'Bej', 'Mercan', 'Zeytin', 'Lavanta',
 ];
-export const HAT_NAMES = ['Şapkasız', 'Hasır şapka', 'Bere', 'Çiçek', 'Silindir', 'Bandana', 'Filiz', 'Kasket', 'Kulaklık',
-  'Takke', 'Örgü takke', 'Fes', 'Yemeni', 'Keçe külah', 'Kalpak', 'Ponponlu bere', 'Çiçek tacı', 'Aşçı başlığı', 'Taç'];
-// look.acc (isteğe bağlı; yoksa 0)
-export const ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon', 'Kral tacı'];
+// Şapka/aksesuar/üst/alt öğeleri, yuvaları (slot) ve kilitleri tek tabloda: ./cosmetics.js (sunucu kopyası lib/cosmetics.js).
+export { HAT_ITEMS, ACC_ITEMS, TOP_ITEMS, BOTTOM_ITEMS, SKIN_FEATURES, resolveLook, skinBlock, lockOf, conflictNote, skinBlockNote } from './cosmetics.js';
+import { HAT_ITEMS, ACC_ITEMS, TOP_ITEMS, BOTTOM_ITEMS } from './cosmetics.js';
+export const HAT_NAMES = HAT_ITEMS.map((it) => it.name);
+// look.acc / look.top / look.bottom (isteğe bağlı; yoksa 0)
+export const ACC_NAMES = ACC_ITEMS.map((it) => it.name);
+export const TOP_NAMES = TOP_ITEMS.map((it) => it.name);
+export const BOTTOM_NAMES = BOTTOM_ITEMS.map((it) => it.name);
 // Ev görünümleri (look.house; 0 = klasik). Eşikler lib/houses.js ile aynı olmalı (test/housesel.test.js kontrol eder);
 // kilidi sunucu doğrular, buradaki tablo yalnızca gösterim içindir. Puan = oynanan oyun + 2 x galibiyet.
 // roof/wall: önizleme kartındaki renkler. owner: yalnızca sahip hesap seçebilir.
@@ -23,6 +27,12 @@ export const HOUSES = [
   { name: 'Kış evi', min: 15, roof: '#f2f6fc', wall: '#cfd9ea' },
   { name: 'Çiçekli çatı', min: 25, roof: '#4f9a45', wall: '#f4e2c2' },
   { name: 'Saray', owner: true, roof: '#7b3fbf', wall: '#e6dcf5', dome: '#f7c82a' },
+  { name: 'Değirmen', min: 35, roof: '#8a5a33', wall: '#f1e3c4' },
+  { name: 'Cumbalı ev', min: 50, roof: '#a8432f', wall: '#f5ead6' },
+  { name: 'Osmanlı konağı', min: 70, roof: '#9a3a2c', wall: '#e9d2a8' },
+  { name: 'Demirci', min: 100, roof: '#4b4440', wall: '#9a8f86' },
+  { name: 'Çeşmeli taş ev', min: 140, roof: '#7d5a44', wall: '#d8cbb6' },
+  { name: 'Taç kapılı taş ev', min: 200, roof: '#6d4b3a', wall: '#d9b98c' },
 ];
 export const HOUSE_NAMES = HOUSES.map((h) => h.name);
 export const KING_ACC = 6;   // look.acc: kral tacı (yalnızca sahip)
