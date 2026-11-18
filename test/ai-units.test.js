@@ -216,6 +216,8 @@ test('manners: robot kalıpları süzülür, dürüst bot itirafı geçer; kişi
   assert.equal(cleanBotLine('Analizlerime göre deniz şüpheli'), '');
   assert.equal(cleanBotLine('Özetlemek gerekirse herkes sessiz'), '');
   assert.equal(cleanBotLine('Evet ben bir botum, yapay zeka'), 'Evet ben bir botum, yapay zeka');
+  assert.equal(cleanBotLine('leave empty.'), '', 'görev talimatı sohbete sızmaz');
+  assert.equal(cleanBotLine('Nothing to do tonight'), '');
   assert.equal(PERSONAS.length, 12);
   for (const p of PERSONAS) assert.match(p, /Writing:/, p);
 });
