@@ -21,7 +21,7 @@ const MOVE_FLUSH_MS = 100;   // konum değişiklikleri en fazla bu sıklıkla ya
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
 // 3B modeller için doğru içerik türü.
-express.static.mime.define({ 'model/gltf-binary': ['glb'], 'model/gltf+json': ['gltf'] });
+express.static.mime.define({ 'model/gltf-binary': ['glb'], 'model/gltf+json': ['gltf'], 'application/manifest+json': ['webmanifest'] });
 
 // Arayüz başka bir adreste (ör. Netlify) yayınlanıyorsa o adres buraya virgülle yazılır:
 // CLIENT_ORIGIN=https://vampir-koylu.netlify.app

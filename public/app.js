@@ -15,6 +15,7 @@ import { initChronicle, resetChronicle, chronicleOnState, closeChronicle } from 
 import { initRoom, renderAll, resetRoomUI, pick, scheduleInsets } from './ui/room.js';
 import { openLookEditor } from './ui/look.js';
 import { initSoundButtons, closeSoundPopover } from './ui/sound.js';
+import { initPwa } from './ui/pwa.js';
 import { syncFps } from './ui/fps.js';
 
 const ROOM_KEY = 'vk.room';
@@ -239,6 +240,7 @@ async function boot() {
   }
 
   initSoundButtons();
+  initPwa();
   initAuth(afterLogin);
   initMenu();
   initChat();
