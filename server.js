@@ -10,6 +10,7 @@ const { Server } = require('socket.io');
 const { Room } = require('./game');
 const { createStore } = require('./lib/store');
 const { Accounts } = require('./lib/auth');
+const { pointsOf, sanitizeLook } = require('./lib/houses');
 const { createAiClient, aiStatusLine } = require('./lib/ai');
 const { createReviewer, reviewStatusLine } = require('./lib/ai/review');
 const { createAnalyzer, analyzeStatusLine } = require('./lib/ai/analyze');
@@ -298,7 +299,8 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
   async function profileLook(userId) {
     try {
       const user = await store.getUser(userId);
-      return user ? user.look : null;
+      // Kayıtlı görünüm hak edilene indirgenir (puan/sahiplik sunucuda burada yeniden doğrulanır).
+      return user ? sanitizeLook(user.look, { username: user.username, points: pointsOf(user.stats) }) : null;
     } catch (err) {
       console.error('Profil görünümü okunamadı:', err && err.message ? err.message : err);
       return null;
@@ -473,12 +475,25 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
     act('room:settings', ({ room, player }, data) => room.updateSettings(player.id, data.settings || {}));
 
     // Odada seçilen görünüm hesabın profiline de kaydedilir.
-    act('player:look', ({ room, player }, data) => {
-      const error = room.setLook(player.id, data);
+    // Ev görünümü açma puanı istemciden ALINMAZ: depodaki istatistikten burada hesaplanır.
+    handle('player:look', async (data, reply) => {
+      const c = ctx(socket);
+      if (!c) return reply({ ok: false, error: 'Bir odada değilsin.' });
+      const { room, player } = c;
+      let points = 0;
+      if (player.userId && data && data.house !== undefined) {
+        try {
+          const rec = await store.getUser(player.userId);
+          points = rec ? pointsOf(rec.stats) : 0;
+        } catch (err) { points = 0; }
+      }
+      const c2 = ctx(socket);
+      if (!c2 || c2.player !== player) return reply({ ok: false, error: 'Bir odada değilsin.' });
+      const error = room.setLook(player.id, data, { points });
       if (!error && player.userId) {
         track(accounts.saveLook(player.userId, player.look), 'Görünüm profile kaydedilemedi');
       }
-      return error;
+      reply(error ? { ok: false, error } : { ok: true });
     });
 
     // Her hareket uygulanır; durum yayını oda başına seyreltilir (MOVE_FLUSH_MS).

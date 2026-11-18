@@ -19,6 +19,7 @@ try {
 } catch (err) { /* düz isimle devam */ }
 
 const { BotBrain, botName } = require('./lib/bots');
+const { HOUSES, HOUSE_COUNT, canUseHouse, canUseAcc } = require('./lib/houses');   // ev görünümleri (look.house) ve sahibe özel görünüm
 const { Banter, isOwnerName } = require('./lib/banter');   // lobi/oyun sonu muhabbeti (şablonlu, modelsiz)
 const { GameRecorder } = require('./lib/ai/gamerec');   // oyun geçmişi kaydı (docs/GAME-LOGS.md)
 
@@ -113,7 +114,7 @@ const COLOR_COUNT = 20;
 const HAT_COUNT = 19;
 const SKIN_COUNT = 12;
 // Aksesuar (bıyık, gözlük…): isteğe bağlı alan, 0 = yok. 0 ise look'ta hiç tutulmaz (eski kayıtlarla aynı biçim).
-const ACC_COUNT = 6;
+const ACC_COUNT = 7;   // 6 = kral tacı: yalnızca sahip hesap (lib/houses.js KING_ACC)
 
 // Meydan koordinatları 0-1 arası; (0.5, 0.5) kamp ateşi. Karakterler ateşle evler arasındaki halkada durur.
 const PLAZA = { cx: 0.5, cy: 0.5, minR: 0.10, maxR: 0.48, spawnMinR: 0.22, spawnMaxR: 0.42 };
@@ -641,11 +642,14 @@ class Room {
     else color = free.length ? free[crypto.randomInt(free.length)] : crypto.randomInt(COLOR_COUNT);
     const hat = validIndex(want.hat, HAT_COUNT) ? want.hat : crypto.randomInt(HAT_COUNT);
     const skin = validIndex(want.skin, SKIN_COUNT) ? want.skin : crypto.randomInt(SKIN_COUNT);
-    const acc = validIndex(want.acc, ACC_COUNT) ? want.acc : 0; // kayıtlı görünümde aksesuar yoksa yok
+    // Kayıtlı görünümde aksesuar/ev yoksa 0. Sahibe özel görünümler (kral tacı, saray) başkasında düşürülür.
+    const who = { username: name, points: Infinity };   // botlar "Bot ..." adıyla gelir: sahip sayılmaz
+    const acc = validIndex(want.acc, ACC_COUNT) && canUseAcc(want.acc, who) ? want.acc : 0;
+    const house = validIndex(want.house, HOUSE_COUNT) && canUseHouse(want.house, who) ? want.house : 0;
     this.players.set(id, {
       id, name, userId, bot: Boolean(bot), seat: this.freeSeat(), role: null, job: null, alive: true, connected: true, left: false,
       socketId: null, graceTimer: null, notes: [],
-      look: acc ? { color, hat, skin, acc } : { color, hat, skin },
+      look: { color, hat, skin, ...(acc ? { acc } : {}), ...(house ? { house } : {}) },
       pos: spawnSpot(),
     });
     if (!this.hostId && !bot) this.hostId = id;
@@ -664,7 +668,9 @@ class Room {
     if (this.players.size >= MAX_PLAYERS) return { error: `Oda dolu (en fazla ${MAX_PLAYERS} kişi).` };
     const id = `bot-${crypto.randomUUID()}`;
     const name = botName([...this.players.values()].map((p) => p.name), this.botRng);
-    const error = this.addPlayer(id, name, { bot: true });
+    // Botlar köyde rastgele AÇIK (puansız/ucuz) bir ev görünümü alabilir; sahibe özel olan asla.
+    const openHouses = HOUSES.map((h, i) => i).filter((i) => !HOUSES[i].owner && HOUSES[i].min <= 8);
+    const error = this.addPlayer(id, name, { bot: true, look: { house: openHouses[crypto.randomInt(openHouses.length)] } });
     if (error) return { error };
     this.banterDo((b) => b.botJoined(id));
     return { id };
@@ -832,10 +838,12 @@ class Room {
   }
 
   // Lobide ve oyun sonunda karakterin rengi, şapkası ve modeli değiştirilebilir.
-  setLook(byId, look = {}) {
+  // ent: { points } = bu oyuncunun sunucuda hesaplanmış puanı (ev görünümü eşikleri için); sahiplik adından bakılır.
+  setLook(byId, look = {}, ent = {}) {
     const p = this.players.get(byId);
     if (!p) return 'Odada değilsin.';
     if (this.phase !== 'lobby' && this.phase !== 'ended') return 'Görünüm sadece lobide değiştirilebilir.';
+    const who = { username: p.bot || !p.userId ? null : p.name, points: Number(ent.points) || 0 };
     const next = { ...p.look };
     if (look.color !== undefined) {
       const color = clampInt(look.color, 0, COLOR_COUNT - 1, p.look.color);
@@ -847,7 +855,13 @@ class Room {
     if (look.skin !== undefined) next.skin = clampInt(look.skin, 0, SKIN_COUNT - 1, p.look.skin);
     if (look.acc !== undefined) {
       const acc = clampInt(look.acc, 0, ACC_COUNT - 1, p.look.acc || 0);
+      if (!canUseAcc(acc, who)) return 'Bu aksesuar yalnızca sahibine özel.';
       if (acc) next.acc = acc; else delete next.acc;
+    }
+    if (look.house !== undefined) {
+      if (!Number.isInteger(look.house) || look.house < 0 || look.house >= HOUSE_COUNT) return 'Geçersiz ev görünümü.';
+      if (!canUseHouse(look.house, who)) return HOUSES[look.house].owner ? 'Bu ev yalnızca sahibine özel.' : 'Bu ev görünümü henüz kilitli.';
+      if (look.house) next.house = look.house; else delete next.house;
     }
     p.look = next;
     this.changed();
@@ -2678,7 +2692,7 @@ class Room {
 
 module.exports = {
   Room, ROLE, SLEEP, MIN_PLAYERS, MAX_PLAYERS, ABILITY_MIN_PLAYERS, ABILITY, ABILITIES, ABILITY_TOGGLE, SPECIAL_ROLES, OPTIONAL_ROLES,
-  DEFAULT_ROLES, ROLE_LABEL, COLOR_COUNT, HAT_COUNT, SKIN_COUNT, ACC_COUNT, PLAZA, MOVE_PHASES,
+  DEFAULT_ROLES, ROLE_LABEL, COLOR_COUNT, HAT_COUNT, SKIN_COUNT, ACC_COUNT, HOUSE_COUNT, PLAZA, MOVE_PHASES,
   HOST_GRACE_MS, REVEAL_MS, ALL_VOTED_MS, HUNTER_MS, NIGHT_WALK_MS, NIGHT_SHOW_MS, NIGHT_RESULT_MS, PICK_GRACE_MS, ROLE_MODES, TRIAL_TURN_MS, TRIAL_VOTE_MS, TRIAL_ALL_VOTED_MS,
   EVENTS, EVENT_MODES, EVENT_GAP, EVENT_CHANCE, chooseEvent, LOBBY_GRACE_MS, EMPTY_ROOM_MS,
   LOG_MAX, SCENES,

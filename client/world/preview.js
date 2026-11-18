@@ -150,3 +150,64 @@ export function preview(el, look, opts = {}) {
     },
   };
 }
+
+// ---------- Ev görünümü küçük resimleri ("Evim" seçici) ----------
+// Gerçek 3B ev modeli (house-0.glb) her ev görünümüyle tek paylaşılan WebGL bağlamında bir kez çizilir ve dataURL olarak
+// önbelleğe alınır: kartlar düz <img>'dir, sayfada ek WebGL bağlamı ya da sürekli çizim yoktur.
+const snapCache = new Map();
+let snapPromise = null;
+export function houseSnapshots(count) {
+  if (snapPromise) return snapPromise;
+  snapPromise = (async () => {
+    await A.loadGroups(['village']);
+    const S = getRenderer();
+    const r = S.renderer;
+    const W = 176, H = 144;
+    const scene = new THREE.Scene();
+    scene.add(new THREE.HemisphereLight('#dfe8ff', '#5a4a40', 1.5));
+    const key = new THREE.DirectionalLight('#fff2dc', 2.8); key.position.set(4, 7, 6); scene.add(key);
+    const fill = new THREE.DirectionalLight('#ffd7a8', 0.8); fill.position.set(-5, 3, 4); scene.add(fill);
+    const cam = new THREE.PerspectiveCamera(28, W / H, 0.5, 80);
+    cam.position.set(-9.5, 8.5, 13.5);
+    cam.lookAt(0, 2.3, 0);
+    const prevSize = r.getSize(new THREE.Vector2());
+    const out = [];
+    for (let skin = 0; skin < count; skin++) {
+      if (snapCache.has(skin)) { out.push(snapCache.get(skin)); continue; }
+      const src = A.get('houses/house-0.glb').scene.children[0];
+      const house = src.clone(true);
+      house.updateWorldMatrix(true, true);
+      house.traverse((o) => {
+        if (!o.isMesh) return;
+        const n = o.material.name;
+        if (skin && (n === 'fantasy-town' || n === 'holiday')) o.material = A.houseSkinMaterial(skin, n) || o.material;
+        else if (n.startsWith('tint')) o.material = A.tinted(n, '#c9b48a') || o.material;
+        else if (n === 'window') { o.material = o.material.clone(); o.material.color.set('#ffcf7a'); }
+      });
+      const grp = new THREE.Group();
+      grp.add(house);
+      if (skin === 5) {
+        const gold = new THREE.MeshStandardMaterial({ color: '#f7c82a', roughness: 0.62, metalness: 0.55, emissive: '#6b4a00', emissiveIntensity: 0.35 });
+        const dome = new THREE.Mesh(new THREE.SphereGeometry(0.85, 14, 10), gold); dome.scale.y = 1.15; dome.position.y = 4.9;
+        const spire = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.1, 8), gold); spire.position.y = 6.25;
+        grp.add(dome, spire);
+      }
+      grp.rotation.y = 0;
+      const ground = new THREE.Mesh(new THREE.CircleGeometry(4.6, 32), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.28, depthWrite: false }));
+      ground.rotation.x = -Math.PI / 2; ground.position.y = -0.02;
+      scene.add(grp, ground);
+      r.setSize(W, H, false);
+      r.setScissorTest(false);
+      r.setViewport(0, 0, W, H);
+      r.setClearColor(0x000000, 0);
+      r.render(scene, cam);
+      const url = r.domElement.toDataURL('image/png');
+      snapCache.set(skin, url);
+      out.push(url);
+      scene.remove(grp, ground);
+    }
+    r.setSize(prevSize.x, prevSize.y, false);
+    return out;
+  })().catch((e) => { snapPromise = null; throw e; });
+  return snapPromise;
+}

@@ -21,7 +21,7 @@ function namesIn(file, name) {
 
 test('şapka ve aksesuar sayıları istemci listeleriyle aynı', () => {
   assert.equal(HAT_COUNT, 19);
-  assert.equal(ACC_COUNT, 6);
+  assert.equal(ACC_COUNT, 7);
   for (const file of ['client/world/constants.js', 'public/ui/data.js', 'public/ui/world-fallback.js']) {
     const hats = namesIn(file, 'HAT_NAMES');
     const accs = namesIn(file, 'ACC_NAMES');
@@ -46,10 +46,12 @@ test('eski kayıtlı görünüm (acc yok) aynen yüklenir; yeni alanlar sınır 
 
   assert.equal(r.setLook('a', { hat: 18, acc: 2 }), null);
   assert.deepEqual(r.players.get('a').look, { color: 3, hat: 18, skin: 7, acc: 2 });
-  assert.equal(r.setLook('a', { acc: 99 }), null);
-  assert.equal(r.players.get('a').look.acc, ACC_COUNT - 1, 'aksesuar aralığa sıkıştırılır');
+  assert.equal(r.setLook('a', { acc: 5 }), null);
+  assert.equal(r.players.get('a').look.acc, 5);
+  assert.match(r.setLook('a', { acc: 99 }), /sahibine özel/, 'aralık dışı değer en üst aksesuara (kral tacı, yalnızca sahip) sıkışır ve reddedilir');
+  assert.equal(r.players.get('a').look.acc, 5, 'reddedilince görünüm değişmez');
   assert.equal(r.setLook('a', { acc: 'gözlük' }), null);
-  assert.equal(r.players.get('a').look.acc, ACC_COUNT - 1, 'sayı olmayan değer görünümü değiştirmez');
+  assert.equal(r.players.get('a').look.acc, 5, 'sayı olmayan değer görünümü değiştirmez');
   assert.equal(r.setLook('a', { acc: 0 }), null);
   assert.deepEqual(r.players.get('a').look, { color: 3, hat: 18, skin: 7 }, 'acc 0 -> alan silinir');
   assert.equal(r.setLook('a', { hat: 19 }), null);

@@ -104,7 +104,7 @@ const HATS = [
   '<path d="M4.8 17.5L3.5 8.5l5 3.8L12 6l3.5 6.3 5-3.8-1.3 9z"/><path d="M4.8 20.5h14.4"/><circle cx="12" cy="14.8" r=".9" fill="currentColor"/>',
 ];
 
-// Aksesuar simgeleri: 0 yok, 1 bıyık, 2 gözlük, 3 sakal, 4 atkı, 5 papyon
+// Aksesuar simgeleri: 0 yok, 1 bıyık, 2 gözlük, 3 sakal, 4 atkı, 5 papyon, 6 kral tacı
 const ACCS = [
   HATS[0],
   '<path d="M12 12c-1.6-2.2-4.3-2.4-5.8-.8-1 1.1-2.3 1.4-3.7.7.6 2.6 3.2 3.9 5.7 3.1 1.6-.4 3-1.4 3.8-3zM12 12c1.6-2.2 4.3-2.4 5.8-.8 1 1.1 2.3 1.4 3.7.7-.6 2.6-3.2 3.9-5.7 3.1-1.6-.4-3-1.4-3.8-3z"/>',
@@ -112,6 +112,7 @@ const ACCS = [
   '<path d="M5 7.5v4.5c0 4.6 3 8.5 7 8.5s7-3.9 7-8.5V7.5"/><path d="M8.3 12.6c1.3-1 2.5-1 3.7 0 1.2-1 2.4-1 3.7 0"/><path d="M10.5 16.2h3"/>',
   '<path d="M4.5 8c2.2 1.5 4.7 2.2 7.5 2.2S17.3 9.5 19.5 8v3.2c-2.2 1.5-4.7 2.2-7.5 2.2s-5.3-.7-7.5-2.2z"/><path d="M14 13.3v7.2h3.5v-8.3"/><path d="M14 17h3.5"/>',
   '<path d="M12 12L4.5 8v8zM12 12l7.5-4v8z"/><rect x="10.4" y="10.4" width="3.2" height="3.2" rx=".9"/>',
+  '<path d="M4 17.5L3 8l5 4 4-7 4 7 5-4-1 9.5z"/><path d="M4.5 20.5h15"/>',
 ];
 
 function svg(body, cls, label) {

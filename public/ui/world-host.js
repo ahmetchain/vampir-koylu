@@ -188,3 +188,11 @@ export function lookNames(kind, fallbackNames) {
   }
   return fallbackNames;
 }
+
+// "Evim" seçici için gerçek 3B ev küçük resimleri (dataURL listesi); 3B yoksa null.
+export async function houseThumbs(count) {
+  try {
+    if (lib && !usingFallback && typeof lib.houseSnapshots === 'function') return await lib.houseSnapshots(count);
+  } catch (e) { /* 3B çizilemedi: kartlar yedek çizimle kalır */ }
+  return null;
+}

@@ -12,7 +12,22 @@ export const COLOR_NAMES = [
 export const HAT_NAMES = ['Şapkasız', 'Hasır şapka', 'Bere', 'Çiçek', 'Silindir', 'Bandana', 'Filiz', 'Kasket', 'Kulaklık',
   'Takke', 'Örgü takke', 'Fes', 'Yemeni', 'Keçe külah', 'Kalpak', 'Ponponlu bere', 'Çiçek tacı', 'Aşçı başlığı', 'Taç'];
 // look.acc (isteğe bağlı; yoksa 0)
-export const ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon'];
+export const ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon', 'Kral tacı'];
+// Ev görünümleri (look.house; 0 = klasik). Eşikler lib/houses.js ile aynı olmalı (test/housesel.test.js kontrol eder);
+// kilidi sunucu doğrular, buradaki tablo yalnızca gösterim içindir. Puan = oynanan oyun + 2 x galibiyet.
+// roof/wall: önizleme kartındaki renkler. owner: yalnızca sahip hesap seçebilir.
+export const HOUSES = [
+  { name: 'Klasik', min: 0, roof: '#9c3b32', wall: '#f0c9a0' },
+  { name: 'Kırmızı kiremit', min: 3, roof: '#c4392b', wall: '#f0c9a0' },
+  { name: 'Taş ev', min: 8, roof: '#6b717c', wall: '#a8adb6' },
+  { name: 'Kış evi', min: 15, roof: '#f2f6fc', wall: '#cfd9ea' },
+  { name: 'Çiçekli çatı', min: 25, roof: '#4f9a45', wall: '#f4e2c2' },
+  { name: 'Saray', owner: true, roof: '#7b3fbf', wall: '#e6dcf5', dome: '#f7c82a' },
+];
+export const HOUSE_NAMES = HOUSES.map((h) => h.name);
+export const KING_ACC = 6;   // look.acc: kral tacı (yalnızca sahip)
+export const pointsOf = (stats) => ((stats && stats.games) | 0) + 2 * ((stats && stats.wins) | 0);
+
 export const SKIN_NAMES = [
   'Pamuk', 'Fındık', 'Kestane', 'Papatya', 'Ceviz', 'Şeftali',
   'Kakao', 'Tarçın', 'Lale', 'Badem', 'Kömür', 'Gümüş',

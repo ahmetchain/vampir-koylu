@@ -16,7 +16,7 @@ export const HAT_NODES = [null, 'hat-1-hasir', 'hat-2-bere', 'hat-3-cicek', 'hat
 export const HAT_NAMES = ['Şapkasız', 'Hasır şapka', 'Bere', 'Çiçek', 'Silindir', 'Bandana', 'Filiz', 'Kasket', 'Kulaklık',
   'Takke', 'Örgü takke', 'Fes', 'Yemeni', 'Keçe külah', 'Kalpak', 'Ponponlu bere', 'Çiçek tacı', 'Aşçı başlığı', 'Taç'];
 // look.acc 0 = aksesuarsız (eski kayıtlarda alan yoksa 0 sayılır)
-export const ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon'];
+export const ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon', 'Kral tacı'];
 
 // look.skin 0..11 (manifest.characters.skins sırası)
 export const SKIN_NAMES = [

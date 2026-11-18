@@ -253,6 +253,25 @@ function mustache(c, y = 0.084) {
   }
   return parts;
 }
+// Kral tacı (look.acc 6, yalnızca sahip hesap): geniş altın bant, mor kadife kubbe, 6 uzun uç ve inci/yakut süsleri.
+function kralTaci() {
+  const gold = '#f7c82a', dark = '#c98d0e', velvet = '#6a2fb5';
+  const parts = [
+    lathe([[0.165, 0.292], [0.176, 0.288], [0.18, 0.37], [0.168, 0.378], [0.165, 0.292]], { seg: 22, p: 2.2, color: (i, j) => (j === 1 ? dark : gold) }),
+    lathe([[0.15, 0.37], [0.148, 0.42], [0.118, 0.47], [0.06, 0.495], [0, 0.5]], { seg: 16, p: 2, color: velvet }),
+  ];
+  for (let k = 0; k < 6; k++) {
+    const t = (k / 6) * TAU;
+    const x = Math.sin(t) * 0.17, z = Math.cos(t) * 0.17;
+    parts.push(part(new THREE.ConeGeometry(0.052, 0.17, 4), gold, { pos: [x, 0.44, z], rot: [0, t + Math.PI / 4, 0], scale: [1, 1, 0.45] }));
+    parts.push(part(new THREE.SphereGeometry(0.02, 6, 5), '#fff8e6', { pos: [x * 1.02, 0.54, z * 1.02] }));
+  }
+  parts.push(part(new THREE.OctahedronGeometry(0.03, 0), '#d7263d', { pos: [0, 0.335, 0.186], scale: [1, 1.2, 0.55] }));
+  parts.push(part(new THREE.OctahedronGeometry(0.024, 0), '#2b59c3', { pos: [-0.12, 0.335, 0.135], rot: [0, -0.8, 0], scale: [1, 1.2, 0.55] }));
+  parts.push(part(new THREE.OctahedronGeometry(0.024, 0), '#2b59c3', { pos: [0.12, 0.335, 0.135], rot: [0, 0.8, 0], scale: [1, 1.2, 0.55] }));
+  parts.push(part(new THREE.SphereGeometry(0.03, 8, 6), gold, { pos: [0, 0.515, 0] }));
+  return merge(parts);
+}
 function biyik() { return merge(mustache('#3a2417')); }
 
 function gozluk() {
@@ -325,6 +344,7 @@ const ACC_BUILD = [null,
   { bone: 'head', build: sakal },
   { bone: 'torso', build: atki },
   { bone: 'torso', build: papyon },
+  { bone: 'head', build: kralTaci },   // 6: yalnızca sahip hesap (sunucu doğrular)
 ];
 export const ACC_DEFS = ACC_NAMES.map((name, i) => ({ name, ...(ACC_BUILD[i] || {}) }));
 export const ACC_COUNT = ACC_DEFS.length;

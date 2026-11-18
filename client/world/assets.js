@@ -225,7 +225,74 @@ export function altKitMaterial() {
   return m;
 }
 
-export function allMaterials() { return [...mats.values(), ...tintCache.values()]; }
+// ---------- Ev görünümleri (look.house) ----------
+// Ev dokusu tek bir renk paleti atlasıdır (fantasy-town.png): görünüm = atlasın piksel piksel yeniden renklendirilmiş kopyası
+// (görünüm başına bir kez, 512x512). Geometri ve çizim sayısı değişmez; yalnızca malzeme/doku farklıdır. 0 = varsayılan atlas.
+// kural(h, s, l) -> [h, s, l] (h 0..360, s ve l 0..1). Adlar public/ui/data.js HOUSE_NAMES ile aynı sırada.
+const HOUSE_SKIN_RULES = [
+  null,
+  // 1 Kırmızı kiremit: mavi/mor/yeşil-mavi çatı tonları kiremit kırmızısına döner
+  (h, s, l) => (s > 0.28 && h > 150 && h < 310 ? [6 + (h % 12), Math.min(1, s * 1.1 + 0.15), l * 0.92] : [h, s, l]),
+  // 2 Taş ev: doygunluk neredeyse gider, gri taş
+  (h, s, l) => [215, s * 0.14, 0.28 + l * 0.6],
+  // 3 Kış evi: karla örtülü: beyaza ve soğuk maviye çekilir
+  (h, s, l) => [215, s * 0.32, 0.55 + l * 0.43],
+  // 4 Çiçekli çatı: sıcak/mavi/deniz yeşili çatı tonları orman yeşiline; duvarlar kremaya kalır
+  (h, s, l) => (s > 0.28 && ((h < 38 && l < 0.7 && s > 0.42) || (h > 150 && h < 310)) ? [105 + (h % 30), s * 0.62, l * 0.88] : [h, s, l]),
+  // 5 Saray (yalnızca sahip): mor çatı, krem-lavanta duvar
+  (h, s, l) => (s > 0.28 && ((h < 38 && l < 0.7 && s > 0.42) || (h > 150 && h < 310)) ? [268 + (h % 16), s * 0.72, l * 0.86] : [h, s * 0.85, l]),
+];
+function rgb2hsl(r, g, b) {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  if (!d) return [0, 0, l];
+  const s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+  let h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, s, l];
+}
+function hsl2rgb(h, s, l) {
+  const k = (n) => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+  const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [f(0), f(8), f(4)];
+}
+const houseSkinCache = new Map();
+export const HOUSE_SKIN_COUNT = HOUSE_SKIN_RULES.length;
+export function houseSkinMaterial(skin, base = 'fantasy-town') {
+  const key = base + '|' + skin;
+  if (houseSkinCache.has(key)) return houseSkinCache.get(key);
+  const rule = HOUSE_SKIN_RULES[skin];
+  const src = mats.get(base);
+  let out = null;
+  if (rule && src && src.map && src.map.image) {
+    try {
+      const img = src.map.image;
+      const w = img.width, h = img.height;
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const cx = cv.getContext('2d', { willReadFrequently: true });
+      cx.drawImage(img, 0, 0);
+      const data = cx.getImageData(0, 0, w, h);
+      const d = data.data;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] === 0 || (d[i] + d[i + 1] + d[i + 2] === 0)) continue;   // boş/siyah alan
+        const [hh, ss, ll] = rgb2hsl(d[i] / 255, d[i + 1] / 255, d[i + 2] / 255);
+        const [nh, ns, nl] = rule(hh, ss, ll);
+        const c = hsl2rgb(((nh % 360) + 360) % 360, Math.max(0, Math.min(1, ns)), Math.max(0, Math.min(1, nl)));
+        d[i] = Math.round(c[0] * 255); d[i + 1] = Math.round(c[1] * 255); d[i + 2] = Math.round(c[2] * 255);
+      }
+      cx.putImageData(data, 0, 0);
+      const tex = new THREE.CanvasTexture(cv);
+      tex.flipY = src.map.flipY; tex.colorSpace = src.map.colorSpace; tex.anisotropy = 2;
+      tex.wrapS = src.map.wrapS; tex.wrapT = src.map.wrapT;
+      out = src.clone();
+      out.map = tex;
+      out.name = base + '-skin' + skin;
+    } catch (e) { out = null; }
+  }
+  if (out) houseSkinCache.set(key, out);   // doku henüz hazır değilse (null) önbelleğe alınmaz: sonraki çağrıda yeniden denenir
+  return out;
+}
+
+export function allMaterials() { return [...mats.values(), ...tintCache.values(), ...houseSkinCache.values()]; }
 
 // Paylaşılan GPU kaynaklarını serbest bırak. three.js her oluşturucu için paylaşılan malzeme/geometri/dokulara
 // 'dispose' dinleyicisi ekler; bunlar silinmezse kapatılan dünyanın oluşturucusu bellekte kalır. dispose()
@@ -242,6 +309,7 @@ export function releaseGPU() {
   }
   for (const m of mats.values()) { rel(m); if (m.map) rel(m.map); }
   for (const m of tintCache.values()) rel(m);
+  for (const m of houseSkinCache.values()) { rel(m); if (m.map) rel(m.map); }
   for (const m of villCache.values()) rel(m);
   if (altTexture) rel(altTexture);
 }

@@ -181,10 +181,12 @@ class HouseBatches {
   }
 }
 
+const HOUSE_DOME_SKIN = 5;   // look.house 5 (Saray): altın kubbe (lib/houses.js sahibe özel ev)
+
 // Tür+doku başına ev grubu (parçalar ortak toplu ağlarda)
 class HouseGroup {
-  constructor(type, variant, root, batches) {
-    this.type = type; this.variant = variant;
+  constructor(type, variant, skin, root, batches) {
+    this.type = type; this.variant = variant; this.skin = skin;
     this.group = new THREE.Group();
     this.parts = [];
     this.list = [];
@@ -204,6 +206,7 @@ class HouseGroup {
         let colorMode = null;
         if (mat.name === 'window') colorMode = 'window';
         else if (mat.name.startsWith('tint')) { colorMode = 'owner'; mat = A.tinted(mat.name, '#ffffff'); }
+        else if (skin && (mat.name === 'fantasy-town' || mat.name === 'holiday')) mat = A.houseSkinMaterial(skin, mat.name) || mat;   // ev görünümü (look.house)
         else if (variant === 1 && mat.name === 'fantasy-town') mat = A.altKitMaterial();
         const part = { kind: nodeName, nodeM, local, colorMode, nodePos: new THREE.Vector3().setFromMatrixPosition(nodeM), nodeQ: new THREE.Quaternion().setFromRotationMatrix(nodeM), ids: [] };
         try {
@@ -226,7 +229,28 @@ class HouseGroup {
         this.parts.push(part);
       });
     }
+    if (skin === HOUSE_DOME_SKIN) this.addDome(HOUSE_INFO[type], batches);
     root.add(this.group);
+  }
+  // Saray görünümü: çatı tepesine altın soğan kubbe + sivri uç (iki küçük geometri; aynı toplu ağlar)
+  addDome(info, batches) {
+    const parts = [
+      [new THREE.SphereGeometry(0.85, 14, 10), '#f7c82a', 0.62, new THREE.Vector3(0, info.height - 0.1, 0), new THREE.Vector3(1, 1.15, 1)],
+      [new THREE.ConeGeometry(0.16, 1.1, 8), '#f7c82a', 0.62, new THREE.Vector3(0, info.height + 1.25, 0), new THREE.Vector3(1, 1, 1)],
+    ];
+    for (const [geo, hex, rough, pos, sc] of parts) {
+      const mat = new THREE.MeshStandardMaterial({ color: hex, roughness: rough, metalness: 0.55, emissive: '#6b4a00', emissiveIntensity: 0.35 });
+      mat.name = 'palace-gold';
+      const nodeM = new THREE.Matrix4().compose(pos, new THREE.Quaternion(), sc);
+      const part = { kind: 'extra', nodeM, local: new THREE.Matrix4(), colorMode: null, nodePos: pos.clone(), nodeQ: new THREE.Quaternion(), ids: [] };
+      try {
+        const b = batches.batchFor(mat, false);
+        part.batch = b; part.batches = batches;
+        part.gid = batches.geometryId(b, geo);
+        b.mesh.castShadow = true; b.mesh.receiveShadow = false;
+        this.parts.push(part);
+      } catch (e) { /* kubbe yoksa ev yine çizilir */ }
+    }
   }
   // örnek sayısını listeye eşitle (fazlası gizlenir)
   ensure(p, n) {
@@ -334,16 +358,18 @@ export function createVillage(scene, q, fx, terrain) {
   const poolColor = new THREE.Color('#ff9a3c');
   const winGlow = new THREE.Color('#ffb85a');
 
-  function groupFor(type, variant) {
-    const key = type + '-' + variant;
-    if (!groups.has(key)) groups.set(key, new HouseGroup(type, variant, root, houseBatches));
+  function groupFor(type, variant, skin) {
+    // Ev görünümü olan evlerde doku varyantı yok sayılır (görünüm kendi dokusunu getirir).
+    if (skin && !A.houseSkinMaterial(skin)) skin = 0;   // doku hazır değilse varsayılan ev (setSkins sonra yeniden dener)
+    const key = type + '-' + (skin ? 's' + skin : variant);
+    if (!groups.has(key)) groups.set(key, new HouseGroup(type, variant, skin, root, houseBatches));
     return groups.get(key);
   }
 
   function regroup() {
     for (const g of groups.values()) g.list.length = 0;
     const sorted = [...houses.values()].sort((a, b) => a.seat - b.seat);
-    for (const h of sorted) groupFor(h.type, h.variant).list.push(h);
+    for (const h of sorted) groupFor(h.type, h.variant, h.skin | 0).list.push(h);
     dirty = true;
   }
 
@@ -358,7 +384,7 @@ export function createVillage(scene, q, fx, terrain) {
       if (!h || h.type !== t.type || h.variant !== t.variant) {
         const old = h;
         h = {
-          id: t.id, seat: t.seat, type: t.type, variant: t.variant,
+          id: t.id, seat: t.seat, type: t.type, variant: t.variant, skin: t.skin | 0,
           cx: t.x, cz: t.z, crot: t.rotY, sx: t.x, sz: t.z, srot: t.rotY,
           scale: animate ? 0.01 : 1, scaleY: 1, removing: false,
           doorAngle: 0, doorOpen: 0, doorTarget: 0, doorHold: 0,
@@ -369,6 +395,7 @@ export function createVillage(scene, q, fx, terrain) {
         houses.set(t.id, h);
       }
       h.seat = t.seat;
+      h.skin = t.skin | 0;
       h.sx = h.cx; h.sz = h.cz; h.srot = h.crot;
       h.tx = t.x; h.tz = t.z; h.trot = t.rotY; h.angle = t.angle;
       h.info = HOUSE_INFO[t.type];
@@ -386,6 +413,16 @@ export function createVillage(scene, q, fx, terrain) {
     // Dekor ve zemin: animasyon bitince yeniden kurulur
     if (!animate || !prevL) rebuildDressing();
     else { pendingLayout = true; pendingGrow = true; }
+  }
+
+  // Yalnızca ev görünümü (look.house) değiştiyse: düzene dokunmadan evleri ilgili gruba taşır
+  function setSkins(entries) {
+    let changed = false;
+    for (const e of entries) {
+      const h = houses.get(e.id);
+      if (h && (h.skin | 0) !== (e.skin | 0)) { h.skin = e.skin | 0; changed = true; }
+    }
+    if (changed) regroup();
   }
 
   function anchors(h) {
@@ -917,7 +954,7 @@ export function createVillage(scene, q, fx, terrain) {
     },
     // takip kamerası için dekor engelleri (dikey silindirler)
     get blockers() { if (!blockersAll) blockersAll = blockers.concat(themeBlockers); return blockersAll; },
-    setLayout, setOwner, setLit, setDead, setTheme, openDoor, anchors, update, emitGlows, pickHouse, onExtraLoaded,
+    setLayout, setSkins, setOwner, setLit, setDead, setTheme, openDoor, anchors, update, emitGlows, pickHouse, onExtraLoaded,
     // ölen evin pencereleri titreyip söner (sn)
     flicker(id, dur = 1.5) { const h = houses.get(id); if (h) { h.flickT = dur; h.flickDur = dur; } },
     house: (id) => houses.get(id),

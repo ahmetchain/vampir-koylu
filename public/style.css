@@ -739,6 +739,17 @@ input[type="range"] { width: 100%; accent-color: var(--fire); height: 28px; }
 .opt .taken { position: absolute; top: 4px; right: 4px; width: 18px; height: 18px; color: var(--text-2); }
 .opt small { font-size: 10.5px; color: var(--text-3); font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ev seçici ("Evim" sekmesi) ve kilitli seçenekler */
+.opt.locked { opacity: .55; cursor: not-allowed; }
+.opt .lock-note { white-space: normal; line-height: 1.15; color: #ffcf8a; }
+.house-points { grid-column: 1 / -1; margin: 0; font-size: var(--fs-s); color: var(--text-2); }
+.house-points b { color: var(--fire); font-size: 17px; }
+.house-points span { color: var(--text-3); font-size: var(--fs-xs); margin-left: 4px; }
+.house-card { min-height: 112px; }
+.house-thumb { width: 88px; height: 72px; object-fit: contain; }
+.house-card.locked .house-thumb { filter: brightness(.45) saturate(.6); }
+.house-card.on small { color: var(--fire); }
+
 /* ---------- oda kurma / ayarlar formu ---------- */
 .stepper { display: flex; align-items: center; gap: 8px; }
 .stepper output { min-width: 64px; text-align: center; font-weight: 900; font-size: 17px; }

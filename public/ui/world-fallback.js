@@ -10,7 +10,7 @@
     'Camgöbeği', 'Fıstık', 'Bordo', 'Gül', 'Lacivert', 'Gri', 'Bej', 'Mercan', 'Zeytin', 'Lavanta'];
   var HAT_NAMES = ['Şapkasız', 'Hasır şapka', 'Bere', 'Çiçek', 'Silindir', 'Bandana', 'Filiz', 'Kasket', 'Kulaklık',
     'Takke', 'Örgü takke', 'Fes', 'Yemeni', 'Keçe külah', 'Kalpak', 'Ponponlu bere', 'Çiçek tacı', 'Aşçı başlığı', 'Taç'];
-  var ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon'];
+  var ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon', 'Kral tacı'];
   // [ten rengi, saç rengi, saç biçimi]
   var SKINS = [
     ['Pamuk', '#f5cfa8', '#5a3a22', 0], ['Fındık', '#e8b48a', '#2b1d14', 1], ['Kestane', '#c98d5e', '#1d1512', 3],
@@ -19,6 +19,8 @@
     ['Badem', '#d39a6c', '#3a2a1a', 0], ['Kömür', '#6e4128', '#0e0b0a', 2], ['Gümüş', '#e2a97e', '#8a8a8a', 4],
   ];
   var ROOFS = ['#9c3b32', '#3d5a8a', '#6a4a8c', '#4f7a3a', '#a0612a', '#7a3550', '#2f6b6b', '#8a6a2a'];
+  // Ev görünümü (look.house) çatı renkleri: 0 = koltuğa göre varsayılan
+  var HOUSE_ROOFS = [null, '#c4392b', '#8a8f98', '#dfe9f4', '#4f9a45', '#7b3fbf'];
   var SEL_COLOR = { vampir: '#ff4b5f', doktor: '#4fe0a8', kahin: '#a898ff', gozcu: '#ffc062', cadi: '#8be06a' };
   var SEL_LABEL = { vampir: 'Hedefin', doktor: 'Koruman', kahin: 'Bakılacak', gozcu: 'Gözetlenen' };
   var TAU = Math.PI * 2;
@@ -180,6 +182,12 @@
         ctx.fillStyle = '#b3222e';
         ctx.beginPath(); ctx.moveTo(x, by + bw * 0.1); ctx.lineTo(x - bw * 0.14, by + bw * 0.02); ctx.lineTo(x - bw * 0.14, by + bw * 0.18); ctx.closePath();
         ctx.moveTo(x, by + bw * 0.1); ctx.lineTo(x + bw * 0.14, by + bw * 0.02); ctx.lineTo(x + bw * 0.14, by + bw * 0.18); ctx.closePath(); ctx.fill();
+        break;
+      case 6: // kral tacı (yalnızca sahip hesap)
+        ctx.fillStyle = '#f7c82a';
+        ctx.beginPath(); ctx.moveTo(hx - hr * 0.8, hy - hr * 0.7); ctx.lineTo(hx - hr * 0.9, hy - hr * 1.45); ctx.lineTo(hx - hr * 0.4, hy - hr * 1.05);
+        ctx.lineTo(hx, hy - hr * 1.6); ctx.lineTo(hx + hr * 0.4, hy - hr * 1.05); ctx.lineTo(hx + hr * 0.9, hy - hr * 1.45); ctx.lineTo(hx + hr * 0.8, hy - hr * 0.7); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#d7263d'; ctx.beginPath(); ctx.arc(hx, hy - hr * 0.88, hr * 0.12, 0, TAU); ctx.fill();
         break;
       default: break;
     }
@@ -398,7 +406,7 @@
       var n = ordered.length;
       houses = ordered.map(function (p, idx) {
         var sp = houseSpot(idx, Math.max(n, 5));
-        return { id: p.id, u: sp.u, v: sp.v, a: sp.a, color: COLORS[p.look.color], roof: ROOFS[(p.seat || 0) % ROOFS.length], name: p.name, alive: p.alive, lit: false };
+        return { id: p.id, u: sp.u, v: sp.v, a: sp.a, color: COLORS[p.look.color], roof: (p.look.house && HOUSE_ROOFS[p.look.house]) || ROOFS[(p.seat || 0) % ROOFS.length], name: p.name, alive: p.alive, lit: false };
       });
       var homeOf = new Map(houses.map(function (h) { return [h.id, h]; }));
       var visits = window.VKRules ? window.VKRules.visits(s) : new Map();
