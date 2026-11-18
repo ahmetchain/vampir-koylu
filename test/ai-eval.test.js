@@ -43,7 +43,7 @@ test('kapsam: vaka 1–8 ve sahibinin ek istekleri için senaryo var', () => {
 test('anahtarsız çalıştırma: her senaryo için system.txt, user.txt, expect.md yazılır; anahtar okunmaz/yazılmaz', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vk-eval-'));
   try {
-    const env = { ...process.env };
+    const env = { ...process.env, VK_NO_ENV_LOCAL: '1' };   // .env.local'daki gerçek anahtar okunmasın (ana klasörde API çağrısı yapıyordu)
     delete env.ANTHROPIC_API_KEY;
     execFileSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'ai-eval.js'), '--out', dir, '--only', '06,17'], { env, stdio: 'pipe' });
     for (const id of ['06-son-3-eleme', '17-oy-yigilmasi-yok']) {
