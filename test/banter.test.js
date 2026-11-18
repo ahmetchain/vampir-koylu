@@ -472,6 +472,78 @@ test('botModel: sonnet odasında çağrılar sonnet (düşük efor, kendi fiyat�
   assert.ok(Math.abs(l2.cost / l1.cost - 20) < 1e-6);
 });
 
+test('botModel hybrid: yalnızca sahip seçebilir; geçerli değerler haiku/hybrid/sonnet; kademe botun gerçek rolüne göre', (t) => {
+  clock(t);
+  const { normalizeSettings } = require('../game');
+  assert.equal(normalizeSettings({ botModel: 'hybrid' }).botModel, 'hybrid');
+  assert.equal(normalizeSettings({ botModel: 'sonnet' }).botModel, 'sonnet');
+  assert.equal(normalizeSettings({ botModel: 'opus' }).botModel, 'haiku');
+  assert.equal(normalizeSettings({}).botModel, 'haiku');
+  const { room } = setup({ humans: ['burak', 'ahmetchain'], seed: 'hybrid' });
+  assert.match(room.updateSettings('h0', { botModel: 'hybrid' }), /yetki/);
+  assert.equal(room.settings.botModel, 'haiku');
+  room.hostId = 'h1';
+  assert.equal(room.updateSettings('h1', { botModel: 'hybrid' }), null);
+  assert.equal(room.viewFor('h1').room.settings.botModel, 'hybrid');
+  assert.equal('botModel' in room.viewFor('h0').room.settings, false, 'başkasına sızmaz');
+  assert.equal(room.viewFor('h0').me.canChooseBotModel, undefined);
+  room.hostId = 'h0';
+  assert.equal(room.updateSettings('h0', { nightSec: 20 }), null, 'botModel göndermeyen güncelleme değiştirmez');
+  assert.equal(room.settings.botModel, 'hybrid');
+  assert.match(room.updateSettings('h0', { botModel: 'hybrid' }), /yetki/);
+  // Rol -> kademe.
+  const SONNET = ['vampir', 'iftiraci', 'temizlikci', 'gozcu', 'kahin', 'doktor', 'hirsiz'];
+  const HAIKU = ['koylu', 'cadi', 'avci', 'muhtar', 'gardiyan', 'soytari', 'deli'];
+  const p = room.players.get('h0');
+  for (const r of SONNET) { p.role = r; assert.equal(room.botTier('h0'), 'sonnet', r); }
+  for (const r of HAIKU) { p.role = r; assert.equal(room.botTier('h0'), 'haiku', r); }
+  // Deli kendini doktor sansa da gerçek rolü (deli) sayılır; hırsız çaldıktan sonra yeni rolü sayılır.
+  p.role = 'deli'; p.fakeRole = 'doktor';
+  assert.equal(room.botTier('h0'), 'haiku');
+  p.role = 'hirsiz'; assert.equal(room.botTier('h0'), 'sonnet');
+  p.role = 'koylu'; assert.equal(room.botTier('h0'), 'haiku', 'hırsız köylüyü soydu');
+  assert.equal(room.botTier('yok'), 'haiku');
+  room.settings.botModel = 'sonnet'; assert.equal(room.botTier('h0'), 'sonnet');
+  room.settings.botModel = 'haiku'; p.role = 'vampir'; assert.equal(room.botTier('h0'), 'haiku');
+  room.destroy();
+});
+
+test('botModel hybrid: vampir botun çağrısı sonnet, düz köylününki haiku; maliyet ve log iki modeli de yazar', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: NOW });
+  const transport = mockTransport({ latency: 200 });
+  const client = makeClient(transport);
+  const lines = [];
+  const room = new Room({
+    id: 'Mhyb', name: 'm', settings: { nightSec: 10, daySec: 30, botModel: 'hybrid' }, botRng: mulberry('hyb'), banterRng: mulberry('x'),
+    ai: client, hooks: { update() {}, announce() {}, empty() {}, finished() {}, chat() {}, reviewReady() {} },
+  });
+  room.addPlayer('h0', 'ahmetchain', { userId: 'u0' });
+  for (let i = 0; i < 8; i++) room.addBot('h0');
+  room.bots.smart.logger = { log: (l) => lines.push(l), warn() {} };
+  const seen = [];
+  const turn = client.turn.bind(client);
+  client.turn = (args) => {
+    const p = room.players.get(args.botId);
+    seen.push({ role: p && p.role, tier: args.tier });
+    return turn(args);
+  };
+  room.start('h0');
+  await advance(t, 90000);
+  assert.ok(seen.length >= 1, 'çağrı yok');
+  const HEAVY = new Set(['vampir', 'iftiraci', 'temizlikci', 'gozcu', 'kahin', 'doktor', 'hirsiz']);
+  for (const c of seen) assert.equal(c.tier, HEAVY.has(c.role) ? 'sonnet' : 'haiku', c.role);
+  assert.ok(seen.some((c) => c.role === 'vampir' && c.tier === 'sonnet'), 'vampir sonnet');
+  assert.ok(seen.some((c) => c.role === 'koylu' && c.tier === 'haiku'), 'köylü haiku');
+  const models = new Set(transport.calls.map((c) => c.params.model));
+  assert.deepEqual([...models].sort(), ['claude-haiku-5-5', 'claude-sonnet-5-5']);
+  const s = room.bots.smart.ledger.summary();
+  assert.deepEqual([...s.models].sort(), ['claude-haiku-5-5', 'claude-sonnet-5-5']);
+  assert.ok(s.costUsd > 0);
+  room.bots.smart.logSummary();
+  assert.match(lines.join('\n'), /model=claude-(haiku|sonnet)-5-5\+claude-(haiku|sonnet)-5-5 /);
+  room.destroy();
+});
+
 test('sunucu: botlu oyun insanların istatistiğine yazılır; oda kurarken yalnızca sahip hesap sonnet alır', { timeout: 20000 }, async (t) => {
   const { startServer, http, register, client, connected, emit, waitFor } = require('./helpers');
   const srv = await startServer(t);
@@ -490,6 +562,8 @@ test('sunucu: botlu oyun insanların istatistiğine yazılır; oda kurarken yaln
   assert.equal(b.lastState.me.canChooseBotModel, true);
   const denied = await emit(a, 'room:settings', { settings: { botModel: 'sonnet' } });
   assert.equal(denied.ok, false);
+  const deniedH = await emit(a, 'room:settings', { settings: { botModel: 'hybrid' } });
+  assert.equal(deniedH.ok, false);
   void http; void waitFor;
 });
 

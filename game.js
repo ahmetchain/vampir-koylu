@@ -138,7 +138,9 @@ const DEFAULT_ROLES = {
 const EVENT_MODES = ['off', 'some', 'often'];
 const ROLE_MODES = ['random', 'all'];
 const DEFAULT_SETTINGS = { nightSec: 20, daySec: 120, revealRoles: true, events: 'off', roleMode: 'random', smartBots: true, botModel: 'haiku', roles: DEFAULT_ROLES };
-const BOT_MODELS = ['haiku', 'sonnet'];   // 'sonnet' yalnızca sahip hesap (lib/banter.js PEOPLE.owner) tarafından seçilebilir
+const BOT_MODELS = ['haiku', 'hybrid', 'sonnet'];   // 'hybrid' ve 'sonnet' yalnızca sahip hesap (lib/banter.js PEOPLE.owner) tarafından seçilebilir
+// 'hybrid' (Karma) odada Sonnet'e giden gerçek roller; diğer botlar Haiku ile çalışır.
+const HYBRID_SONNET_ROLES = new Set([ROLE.VAMPIRE, ROLE.FRAMER, ROLE.CLEANER, ROLE.WATCHER, ROLE.SEER, ROLE.DOCTOR, ROLE.THIEF]);
 
 // Gece seçimi olan roller ve tipide evden çıkamayan köy rolleri.
 const NIGHT_ACTION_ROLES = new Set([ROLE.VAMPIRE, ROLE.FRAMER, ROLE.CLEANER, ROLE.DOCTOR, ROLE.SEER, ROLE.WATCHER, ROLE.WITCH, ROLE.THIEF]);
@@ -686,9 +688,14 @@ class Room {
     return Boolean(p && !p.bot && p.userId && isOwnerName(p.name, this.banter.people));
   }
 
-  // Akıllı bot çağrılarının kademesi (lib/ai/config.js): oda ayarı botModel.
-  botTier() {
-    return this.settings.botModel === 'sonnet' ? 'sonnet' : 'haiku';
+  // Akıllı bot çağrılarının kademesi (lib/ai/config.js): oda ayarı botModel. 'hybrid'de çağrı başına botun
+  // GERÇEK rolüne bakılır (hırsız çaldıktan sonra yeni rolü; kendini doktor sanan Deli 'deli' sayılır).
+  botTier(botId) {
+    const m = this.settings.botModel;
+    if (m === 'sonnet') return 'sonnet';
+    if (m !== 'hybrid') return 'haiku';
+    const p = botId ? this.players.get(botId) : null;
+    return p && HYBRID_SONNET_ROLES.has(p.role) ? 'sonnet' : 'haiku';
   }
 
   // Botun sohbet mesajı: insanlarla aynı kanal/evre kuralları (chat), gönderimi sunucu yapar.
@@ -917,7 +924,7 @@ class Room {
     if (byId !== this.hostId) return 'Ayarları sadece oda sahibi değiştirebilir.';
     if (this.phase !== 'lobby') return 'Ayarlar sadece lobide değiştirilebilir.';
     // Güçlü bot zekâsı (pahalı) yalnızca sahip hesabın; başkası seçmeye çalışırsa tüm istek reddedilir.
-    if (raw.botModel === 'sonnet' && !this.isOwnerPlayer(byId)) return 'Bu ayarı değiştirme yetkin yok.';
+    if ((raw.botModel === 'sonnet' || raw.botModel === 'hybrid') && !this.isOwnerPlayer(byId)) return 'Bu ayarı değiştirme yetkin yok.';
     this.settings = normalizeSettings({ ...this.settings, ...raw, roles: { ...this.settings.roles, ...(raw.roles || {}) } });
     this.changed();
     return null;

@@ -8,6 +8,9 @@ import { ROLES, TOGGLE_ROLES, DEFAULT_ROLES, distribution, distributionPlan, cou
 // v2: eski kayıtlarda yalnızca Doktor+Kahin açıktı; yeni varsayılan (bütün roller açık) bir kez uygulansın.
 const LAST_KEY = 'vk.lastSettings.v2';
 const AI_KEY = 'vk.aiAvailable';
+// Bot zekâsı (yalnızca sahip hesap görür): normal / karma (önemli roller Sonnet) / güçlü (hepsi Sonnet).
+const BOT_MODEL_OPTS = [['haiku', 'Normal (Haiku)'], ['hybrid', 'Karma (önemli roller Sonnet)'], ['sonnet', 'Güçlü (hepsi Sonnet, pahalı)']];
+const bmOf = (v) => (v === 'sonnet' || v === 'hybrid' ? v : 'haiku');
 
 export function distChips(list) {
   return countRoles(list).map(({ role, n }) => `<span class="chip">${emblem(role, 's')}${n > 1 ? `${n} × ` : ''}${ROLES[role].name}</span>`).join('');
@@ -64,8 +67,7 @@ function formHTML(s, editable, withRoomFields, sampleN) {
       <small>Botlar rolüne göre düşünür, konuşur, soru sorar, ikna edilebilir ve blöf yapar. Açıkken sohbet mesajları ve oyuncu adları bir yapay zekâ hizmetine gönderilir; biten oyunlar botları geliştirmek için bu hizmet tarafından incelenebilir.</small></div>` : ''}
     ${s.aiAvailable && s.canChooseBotModel ? `<div class="set-row"><label>Bot zekâsı</label>
       <div class="seg" role="radiogroup" aria-label="Bot zekâsı" data-bmseg>
-        <button type="button" role="radio" class="seg-btn${s.botModel !== 'sonnet' ? ' on' : ''}" data-bm="haiku" aria-checked="${s.botModel !== 'sonnet'}" ${dis}>Normal (Haiku)</button>
-        <button type="button" role="radio" class="seg-btn${s.botModel === 'sonnet' ? ' on' : ''}" data-bm="sonnet" aria-checked="${s.botModel === 'sonnet'}" ${dis}>Güçlü (Sonnet, pahalı)</button>
+        ${BOT_MODEL_OPTS.map(([k, l]) => `<button type="button" role="radio" class="seg-btn${bmOf(s.botModel) === k ? ' on' : ''}" data-bm="${k}" aria-checked="${bmOf(s.botModel) === k}" ${dis}>${l}</button>`).join('')}
       </div></div>` : ''}
     ${EVENTS_UI ? `<div class="section-title">Köy olayları</div>
     <div class="seg" role="radiogroup" aria-label="Köy olayları" data-evseg>
@@ -203,7 +205,7 @@ export function openRoomSettings() {
   const s = {
     nightSec: cur.nightSec, daySec: cur.daySec, revealRoles: cur.revealRoles, events: EVENTS_UI ? (cur.events || 'some') : 'off',
     roleMode: cur.roleMode || 'random', roles: { ...cur.roles }, smartBots: cur.smartBots !== false, aiAvailable: Boolean(st.room.aiAvailable),
-    canChooseBotModel: Boolean(st.me && st.me.canChooseBotModel), botModel: cur.botModel === 'sonnet' ? 'sonnet' : 'haiku',
+    canChooseBotModel: Boolean(st.me && st.me.canChooseBotModel), botModel: bmOf(cur.botModel),
   };
   store.set(AI_KEY, Boolean(st.room.aiAvailable));
   const n = Math.max(MIN_PLAYERS, st.players.filter((p) => !p.left).length);

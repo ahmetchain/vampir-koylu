@@ -375,7 +375,7 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
       const playerId = crypto.randomUUID();
       room.addPlayer(playerId, user.username, { userId: user.id, look });
       // Güçlü bot zekâsı (Sonnet) yalnızca sahip hesabın: başkası seçmeye çalışırsa sessizce varsayılana döner.
-      if (room.settings.botModel === 'sonnet' && !room.isOwnerPlayer(playerId)) room.settings.botModel = 'haiku';
+      if (room.settings.botModel !== 'haiku' && !room.isOwnerPlayer(playerId)) room.settings.botModel = 'haiku';
       bind(socket, room, playerId);
       reply({ ok: true, roomId: room.id, playerId });
     });

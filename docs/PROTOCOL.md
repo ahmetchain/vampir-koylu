@@ -124,7 +124,7 @@ settings = {
   events: 'off',         // village events: 'off' | 'some' | 'often' (built, OFF by default and hidden in the UI; §12.10)
   roleMode: 'random',    // 'random' | 'all' – how roles are dealt (§3); anything else → 'random'
   smartBots: true,       // bots driven by Claude when the server has an API key (§17); no effect without one
-  botModel: 'haiku',     // 'haiku' | 'sonnet'; only the owner account (lib/banter.js) may set 'sonnet' (others get an error; the field is hidden from their state); owner's `me.canChooseBotModel` is true
+  botModel: 'haiku',     // 'haiku' | 'hybrid' | 'sonnet' (UI: Normal / Karma / Güçlü); 'hybrid' = Sonnet only for bots whose real role is vampir/iftiraci/temizlikci/gozcu/kahin/doktor/hirsiz, Haiku for the rest; only the owner account (lib/banter.js) may set 'hybrid' or 'sonnet' (others get an error; the field is hidden from their state); owner's `me.canChooseBotModel` is true
   roles: {               // all 12 keys always present, booleans
     doktor: true, kahin: true, gozcu: false, gardiyan: false, cadi: false,
     avci: false, muhtar: false, soytari: false, deli: false, hirsiz: false, iftiraci: false, temizlikci: false,
