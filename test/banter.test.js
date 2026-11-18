@@ -506,6 +506,10 @@ test('botModel hybrid: yalnızca sahip seçebilir; geçerli değerler haiku/hybr
   assert.equal(room.botTier('yok'), 'haiku');
   room.settings.botModel = 'sonnet'; assert.equal(room.botTier('h0'), 'sonnet');
   room.settings.botModel = 'haiku'; p.role = 'vampir'; assert.equal(room.botTier('h0'), 'haiku');
+  // Sahip odadan çıktıysa pahalı ayar kalsa da her bot Haiku.
+  room.settings.botModel = 'sonnet'; room.players.delete('h1');
+  assert.equal(room.botTier('h0'), 'haiku', 'sahip yokken sonnet yok');
+  room.settings.botModel = 'hybrid'; assert.equal(room.botTier('h0'), 'haiku', 'sahip yokken karma yok');
   room.destroy();
 });
 

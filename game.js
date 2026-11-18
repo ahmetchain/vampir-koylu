@@ -707,6 +707,9 @@ class Room {
   // GERÇEK rolüne bakılır (hırsız çaldıktan sonra yeni rolü; kendini doktor sanan Deli 'deli' sayılır).
   botTier(botId) {
     const m = this.settings.botModel;
+    if (m === 'haiku') return 'haiku';
+    // Pahalı kademe yalnızca sahip hesap odadayken: sahip çıktıysa ya da ayar başka yoldan kaldıysa her bot Haiku.
+    if (![...this.players.keys()].some((id) => this.isOwnerPlayer(id))) return 'haiku';
     if (m === 'sonnet') return 'sonnet';
     if (m !== 'hybrid') return 'haiku';
     const p = botId ? this.players.get(botId) : null;
