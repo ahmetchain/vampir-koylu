@@ -77,6 +77,17 @@ same line, so nothing leaks.
   another bot answers, unaddressed bot lines rarely get a reaction; chains stop after 2 links and then cool down
   20 s. Limits: ≤ 4 non-direct bot lines per 30 s per room, ≥ 12 s between a bot's own non-direct lines, ≤ 6 per
   bot per day.
+- **Bidding for the floor (`lib/ai/bid.js`, idea from Google's Werewolf Arena, arXiv 2407.13943):** no extra model call. Every turn
+  answer carries an integer `urge` 0-4 (0 listening, 1 general opinion, 2 important point, 3 urgent/new evidence, 4 accused or
+  addressed; the rule book asks for honest calibration, mostly 0-1). It is kept per bot (reset at each new day; a bot that
+  has never been asked counts as 1; spent, i.e. set to 0, when the bot speaks). For a message addressed to nobody (human
+  message, or a bot message the old 0.2 gate lets through) and for the 12 s-silence initiative turns, the code scores every
+  free bot locally and **the highest score takes the turn** (ties: rng); if the best score is < 2 **nobody speaks** (no call).
+  A second bot also reacts only if its score is >= 4. Direct address (max 2 bots), role calls, openers, court/hunter and
+  the final vote turns are not bid-gated. Score = urge; +3 mentioned and not yet answered; +2 role called; +2 has votes
+  on them today; +2 unshared Kahin/Gözcü night result today; +1 fresh human message; +1 quiet-chat initiative;
+  -2 spoke in the last 60 s; -1 per 3 lines said today. Constants: `BID` in `bid.js` (threshold, secondMin, weights).
+  Counted per game: `söz: verilen=N atlanan=M` in the `[ai] oyun bitti` line and `game.bid` in the game record.
 - **Pacing (chat lines only; night picks, votes, locks and every deadline are never delayed):**
   1. *Reading*: before the model call a bot waits 500 ms + 28 ms per character of the message it reacts to
      (0.7–3 s, ±20 %; a court defendant 0.3–0.7 s).
