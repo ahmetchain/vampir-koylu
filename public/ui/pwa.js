@@ -6,6 +6,7 @@ const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.
 
 let deferred = null;
 let btn = null;
+let busy = false;
 
 function ensureButton(label, onClick) {
   const host = document.querySelector('#screen-menu .menu-actions');
@@ -31,10 +32,14 @@ export function initPwa() {
     e.preventDefault();
     deferred = e;
     ensureButton('📲 Uygulamayı yükle', async () => {
-      if (!deferred) return;
-      deferred.prompt();
-      try { await deferred.userChoice; } catch (err) { /* sessiz */ }
-      deferred = null;
+      // Yükleme penceresi bir olay için yalnızca bir kez açılabilir: çift dokunuş ikinci kez açmaya çalışmasın.
+      if (!deferred || busy) return;
+      busy = true;
+      const ev = deferred;
+      try { ev.prompt(); await ev.userChoice; } catch (err) { /* sessiz */ }
+      // Kabul ya da red: olay harcandı, düğme kalkar. Reddedilirse Chrome yeniden sormayı bir süre geciktirir;
+      // isteyen tarayıcı menüsünden "Uygulamayı yükle"yi kullanabilir.
+      deferred = null; busy = false;
       if (btn) { btn.remove(); btn = null; }
     });
   });
