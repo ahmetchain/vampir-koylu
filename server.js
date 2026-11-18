@@ -16,6 +16,7 @@ const { createReviewer, reviewStatusLine } = require('./lib/ai/review');
 const { createAnalyzer, analyzeStatusLine } = require('./lib/ai/analyze');
 const { createApi } = require('./lib/api');
 const { packAsync } = require('./lib/ai/gamerec');
+const NIGHT_ACTIONS = new Set(['heal', 'poison', 'kill', 'frame', 'clean']);   // night:select eylem beyaz listesi
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MOVE_FLUSH_MS = 100;   // konum değişiklikleri en fazla bu sıklıkla yayınlanır
@@ -463,7 +464,8 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
     act('game:start', ({ room, player }) => room.start(player.id));
     act('game:lobby', ({ room, player }) => room.backToLobby(player.id));
     act('night:select', ({ room, player }, data) => (
-      room.selectNight(player.id, String(data.targetId || ''), data.action === 'poison' ? 'poison' : 'heal')
+      // Eylem beyaz listeden: Cadı heal/poison, vampir kill/frame/clean (yetkiyi selectNight denetler).
+      room.selectNight(player.id, String(data.targetId || ''), NIGHT_ACTIONS.has(data.action) ? data.action : 'heal')
     ));
     // "Bu gece bekle": seçim yapabilecek biri bu gece bir şey yapmaz (kesin); herkes seçince gece erken ilerler.
     act('night:pass', ({ room, player }) => room.passNight(player.id));

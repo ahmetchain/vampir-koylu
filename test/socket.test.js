@@ -117,6 +117,8 @@ test('hesaplarla oda kurma, katılma, koltuk, görünüm, oyun içi yeniden bağ
   const victimId = victim.lastState.me.id;
 
   assert.equal((await emit(vamp, 'player:move', { x: 0.3, y: 0.3 })).ok, false, 'gece dolaşılamaz');
+  // Eylem sunucuya olduğu gibi ulaşır: yeteneği olmayan vampirin iftirası reddedilir (eskiden 'heal'e çevrilip öldürme sayılıyordu).
+  assert.match((await emit(vamp, 'night:select', { targetId: victimId, action: 'frame' })).error, /İftira yeteneğin yok/);
   assert.equal((await emit(vamp, 'night:select', { targetId: victimId })).ok, true);
   assert.equal((await emit(doc, 'night:select', { targetId: doc.lastState.me.id })).ok, true);
   assert.equal((await emit(villager, 'night:select', { targetId: victimId })).ok, false);
