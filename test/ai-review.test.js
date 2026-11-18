@@ -478,7 +478,7 @@ test('scripts/ai-reviews.js: çalışan sunucudan yalnızca yeni incelemeleri ç
   const out = tempDir('vk-revout-');
   t.after(() => removeDir(out));
   const run = () => execFileP(process.execPath, [path.join(__dirname, '..', 'scripts', 'ai-reviews.js'), '--out', out], {
-    env: { ...process.env, ADMIN_TOKEN: 'cok-gizli-123', REVIEW_URL: srv.url, ANTHROPIC_API_KEY: '' },
+    env: { ...process.env, VK_NO_ENV_LOCAL: '1', ADMIN_TOKEN: 'cok-gizli-123', REVIEW_URL: srv.url, ANTHROPIC_API_KEY: '' },
   });
   const first = await run();
   assert.match(first.stdout, /2 yeni inceleme çekildi/);
@@ -490,7 +490,7 @@ test('scripts/ai-reviews.js: çalışan sunucudan yalnızca yeni incelemeleri ç
   const second = await run();
   assert.match(second.stdout, /0 yeni inceleme/);
   const wrong = await execFileP(process.execPath, [path.join(__dirname, '..', 'scripts', 'ai-reviews.js'), '--out', out], {
-    env: { ...process.env, ADMIN_TOKEN: 'yanlis', REVIEW_URL: srv.url },
+    env: { ...process.env, VK_NO_ENV_LOCAL: '1', ADMIN_TOKEN: 'yanlis', REVIEW_URL: srv.url },
   }).catch((e) => e);
   assert.ok(wrong.code === 1 && /reddedildi/.test(wrong.stderr), 'yanlış anahtar anlaşılır hata verir');
 });
