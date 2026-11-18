@@ -10,7 +10,7 @@
     'Camgöbeği', 'Fıstık', 'Bordo', 'Gül', 'Lacivert', 'Gri', 'Bej', 'Mercan', 'Zeytin', 'Lavanta'];
   var HAT_NAMES = ['Şapkasız', 'Hasır şapka', 'Bere', 'Çiçek', 'Silindir', 'Bandana', 'Filiz', 'Kasket', 'Kulaklık',
     'Takke', 'Örgü takke', 'Fes', 'Yemeni', 'Keçe külah', 'Kalpak', 'Ponponlu bere', 'Çiçek tacı', 'Aşçı başlığı', 'Taç'];
-  var ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon', 'Nazarlık'];
+  var ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon'];
   // [ten rengi, saç rengi, saç biçimi]
   var SKINS = [
     ['Pamuk', '#f5cfa8', '#5a3a22', 0], ['Fındık', '#e8b48a', '#2b1d14', 1], ['Kestane', '#c98d5e', '#1d1512', 3],
@@ -180,10 +180,6 @@
         ctx.fillStyle = '#b3222e';
         ctx.beginPath(); ctx.moveTo(x, by + bw * 0.1); ctx.lineTo(x - bw * 0.14, by + bw * 0.02); ctx.lineTo(x - bw * 0.14, by + bw * 0.18); ctx.closePath();
         ctx.moveTo(x, by + bw * 0.1); ctx.lineTo(x + bw * 0.14, by + bw * 0.02); ctx.lineTo(x + bw * 0.14, by + bw * 0.18); ctx.closePath(); ctx.fill();
-        break;
-      case 6: // nazarlık
-        var nx = x + bw * 0.2, ny = by + bw * 0.3;
-        [['#1f4fb5', 0.1], ['#ffffff', 0.07], ['#7fc8ff', 0.045], ['#141022', 0.022]].forEach(function (d) { ctx.fillStyle = d[0]; ctx.beginPath(); ctx.arc(nx, ny, bw * d[1], 0, TAU); ctx.fill(); });
         break;
       default: break;
     }

@@ -300,19 +300,6 @@ function papyon() {
   ]);
 }
 
-// Nazarlık: göğüste mavi göz boncuğu
-function nazar() {
-  const at = [0.07, 0.105, 0.137];
-  const disc = (r, h, c, dz) => part(new THREE.CylinderGeometry(r, r, h, 12), c, { pos: [at[0], at[1], at[2] + dz], rot: [Math.PI / 2, 0, 0] });
-  return merge([
-    disc(0.045, 0.014, '#1f4fb5', 0),
-    disc(0.031, 0.01, '#ffffff', 0.008),
-    disc(0.021, 0.01, '#7fc8ff', 0.013),
-    disc(0.011, 0.01, '#141022', 0.018),
-    stick([at[0], at[1] + 0.045, at[2]], [at[0], at[1] + 0.07, at[2] - 0.004], 0.008, 0.008, '#c9a227'),
-  ]);
-}
-
 // ---------- katalog ----------
 // Sıra look.hat / look.acc indeksidir (adlar constants.js'te). node: hats.glb düğümü;
 // kind 'cap': başa oturan (saç bastırılır), 'top': tepede duran (deri başına TOP_FIT).
@@ -338,7 +325,6 @@ const ACC_BUILD = [null,
   { bone: 'head', build: sakal },
   { bone: 'torso', build: atki },
   { bone: 'torso', build: papyon },
-  { bone: 'torso', build: nazar },
 ];
 export const ACC_DEFS = ACC_NAMES.map((name, i) => ({ name, ...(ACC_BUILD[i] || {}) }));
 export const ACC_COUNT = ACC_DEFS.length;

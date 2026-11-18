@@ -114,7 +114,7 @@ const COLOR_COUNT = 20;
 const HAT_COUNT = 19;
 const SKIN_COUNT = 12;
 // Aksesuar (bıyık, gözlük…): isteğe bağlı alan, 0 = yok. 0 ise look'ta hiç tutulmaz (eski kayıtlarla aynı biçim).
-const ACC_COUNT = 7;
+const ACC_COUNT = 6;
 
 // Meydan koordinatları 0-1 arası; (0.5, 0.5) kamp ateşi. Karakterler ateşle evler arasındaki halkada durur.
 const PLAZA = { cx: 0.5, cy: 0.5, minR: 0.10, maxR: 0.48, spawnMinR: 0.22, spawnMaxR: 0.42 };

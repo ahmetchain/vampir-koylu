@@ -492,3 +492,66 @@ test('sunucu: botlu oyun insanların istatistiğine yazılır; oda kurarken yaln
   assert.equal(denied.ok, false);
   void http; void waitFor;
 });
+
+// Edep: şablonlarda yasak söz yok; kaba konuşana nazik hatırlatma (oyun sırasında da), sahibe değil, sıklığı sınırlı.
+test('edep: bot şablonları temiz; kaba söze nazik hatırlatma gelir; sahip uyarılmaz; hatırlatma seyrek', (t) => {
+  clock(t);
+  const { ALL_LINES } = require('../lib/banter');
+  const { cleanBotLine, isRude } = require('../lib/manners');
+  for (const line of ALL_LINES) {
+    const probe = line.replace(/\{\w+\}/g, 'Ahmet');
+    assert.equal(cleanBotLine(probe), probe, `şablonda yasak söz: ${line}`);
+  }
+  assert.equal(cleanBotLine('valla ben köylüyüm'), 'ben köylüyüm');
+  assert.equal(cleanBotLine('kahin kim lan konuşsun'), 'kahin kim konuşsun');
+  assert.equal(cleanBotLine('yemin ederim o vampir'), 'o vampir');
+  assert.equal(cleanBotLine('sen salaksın'), '');
+  assert.equal(isRude('kes lan'), true);
+  assert.equal(isRude('plan yapalım'), false);
+  // Lobide kaba mesaj: bir bot nazikçe hatırlatır; hemen ardından ikinci kaba mesaj yeni hatırlatma getirmez.
+  const a = setup({ humans: ['ahmetchain', 'burak'], bots: 3, seed: 'edep' });
+  a.say('h1', 'kes lan');
+  tick(t, 6000);
+  const polite = /düzgün konuşalım|güzel konuşalım|kırıcı olmayalım|birbirimize güzel/;
+  assert.equal(texts(a.chats).filter((x) => polite.test(x)).length, 1, 'bir hatırlatma');
+  a.say('h1', 'ulan siz ne diyorsunuz');
+  tick(t, 6000);
+  assert.equal(texts(a.chats).filter((x) => polite.test(x)).length, 1, '2 dk içinde ikinci hatırlatma yok');
+  // Sahibin kaba mesajına hatırlatma yok.
+  const b = setup({ humans: ['ahmetchain', 'burak'], bots: 3, seed: 'edep2' });
+  b.say('h0', 'kes lan');
+  tick(t, 6000);
+  assert.equal(texts(b.chats).filter((x) => polite.test(x)).length, 0);
+  // Oyun sırasında (gündüz) da hatırlatır.
+  const c = setup({ humans: ['ahmetchain', 'burak'], bots: 4, seed: 'edep3' });
+  c.room.start('h0');
+  // Gündüz başlar başlamaz yaz (gün kısalmadan önce): faz ilerledikçe yarım saniyelik adımlarla bekle.
+  for (let k = 0; k < 400 && c.room.phase !== 'day'; k++) tick(t, 500);
+  if (c.room.phase === 'day') {
+    const n = c.chats.length;
+    c.say('h1', 'sus lan');
+    tick(t, 6000);
+    assert.ok(texts(c.chats.slice(n)).some((x) => polite.test(x)), `oyunda hatırlatma faz=${c.room.phase} botlar=${c.room.bots ? 'var' : 'yok'} son=${JSON.stringify(c.chats.slice(n).map((x) => x.text))}`);
+  }
+  for (const r of [a, b, c]) r.room.destroy();
+});
+
+test('selam: uzun "rahmetullah" selamına uzun cevap; botlar birbirinin selamına cevap verir', (t) => {
+  clock(t);
+  let longReplies = 0, botReplies = 0;
+  for (let g = 0; g < 12; g++) {
+    const { room, chats, say } = setup({ humans: ['ahmetchain', 'burak'], bots: 0, seed: `uzun-${g}` });
+    room.hostId = 'h0';
+    room.addBot('h0'); room.addBot('h0'); room.addBot('h0');
+    tick(t, 30000);
+    // Botlar birbirinin selamına cevap verir (en az bir "aleyküm selam" bot satırı).
+    if (texts(chats).some((x) => /aleyküm selam/i.test(x) && !/^Selamün/.test(x))) botReplies += 1;
+    const n = chats.length;
+    say('h1', 'Selamün aleyküm ve rahmetullahi ve berekatuhu');
+    tick(t, 30000);
+    if (texts(chats.slice(n)).some((x) => /rahmetullah/i.test(x))) longReplies += 1;
+    room.destroy();
+  }
+  assert.ok(botReplies >= 5, `bot-bot cevap ${botReplies}/12`);
+  assert.ok(longReplies >= 8, `uzun cevap ${longReplies}/12`);
+});

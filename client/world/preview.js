@@ -107,7 +107,7 @@ export function preview(el, look, opts = {}) {
       cam.aspect = w / h;
       // dar kutularda karakter sığsın; şapka/aksesuar seçerken baş ve şapka kadraja yumuşakça yaklaşır
       zoom += (zoomTo - zoom) * Math.min(1, dt * 6);
-      // yakın plan: omuzlardan (atkı, nazarlık görünsün) şapkanın tepesine kadar, kadrajın ~%80'i
+      // yakın plan: omuzlardan (atkı, papyon görünsün) şapkanın tepesine kadar, kadrajın ~%80'i
       const top = (ch.headY || 1.93) + 0.06, bottom = 0.72;
       const fitZ = cam.aspect < 0.8 ? 1 / Math.max(0.55, cam.aspect / 0.8) : 1;
       const lookY = 1.22 + ((bottom + top) / 2 - 1.22) * zoom;

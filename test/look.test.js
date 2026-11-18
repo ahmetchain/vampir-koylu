@@ -21,7 +21,7 @@ function namesIn(file, name) {
 
 test('şapka ve aksesuar sayıları istemci listeleriyle aynı', () => {
   assert.equal(HAT_COUNT, 19);
-  assert.equal(ACC_COUNT, 7);
+  assert.equal(ACC_COUNT, 6);
   for (const file of ['client/world/constants.js', 'public/ui/data.js', 'public/ui/world-fallback.js']) {
     const hats = namesIn(file, 'HAT_NAMES');
     const accs = namesIn(file, 'ACC_NAMES');
@@ -76,4 +76,14 @@ test('aksesuar profil görünümüne kaydedilir (auth + iki depo)', async () => 
   await store.updateLook('u1', { color: 1, hat: 9, skin: 2, acc: 5 });
   assert.deepEqual((await store.getUser('u1')).look, { color: 1, hat: 9, skin: 2, acc: 5 });
   await store.close();
+});
+
+// Kaldırılan aksesuar (eski nazarlık = 6): kayıtlı profilde görünmez, odaya geçmez, yeniden kaydedilmez.
+test('kaldırılmış aksesuar indeksi (6) profilden ve odadan temizlenir', () => {
+  const { mergeLook } = require('../lib/auth');
+  assert.equal('acc' in mergeLook({ color: 1, hat: 2, skin: 3, acc: 6 }, { color: 2 }), false);
+  const r = new Room({ id: 'ESKI', name: 'Eski', hooks: { update() {}, announce() {}, empty() {}, finished() {}, chat() {} } });
+  assert.equal(r.addPlayer('a', 'Ali', { userId: 'u1', look: { color: 1, hat: 2, skin: 3, acc: 6 } }), null);
+  assert.equal(r.players.get('a').look.acc, undefined);
+  r.destroy();
 });

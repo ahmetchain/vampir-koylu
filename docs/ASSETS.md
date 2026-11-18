@@ -172,7 +172,7 @@ Coordinates are head-bone local like `hats.glb`; accessories with `bone: 'torso'
 | 17 | Aşçı başlığı (chef's hat) | cap |
 | 18 | Taç (small crown) | top |
 
-Accessories: 1 Bıyık, 2 Gözlük, 3 Sakal (head) · 4 Atkı, 5 Papyon, 6 Nazarlık (torso).
+Accessories: 1 Bıyık, 2 Gözlük, 3 Sakal (head) · 4 Atkı, 5 Papyon (torso).
 
 - **cap** hats share one base size (bottom edge y≈0.2, half-width ≥0.198). For them the character's
   merged body/head geometry is swapped for a per-skin variant (`fitHair`, cached, built once) where

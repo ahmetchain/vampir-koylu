@@ -93,7 +93,7 @@ will be deleted by the ui owner once nothing references them.
   (Hasır şapka, Bere, Çiçek, Silindir, Bandana, Filiz, Kasket, Kulaklık); 9..18 are built in code
   (`client/world/hats.js`: Takke, Örgü takke, Fes, Yemeni, Keçe külah, Kalpak, Ponponlu bere,
   Çiçek tacı, Aşçı başlığı, Taç). `acc` (optional, missing = 0 = none): Bıyık, Gözlük, Sakal, Atkı,
-  Papyon, Nazarlık. Hats and accessories are plain cosmetics; never use one as a role marker. The player color must be obvious on the character from the game camera (tinted clothes
+  Papyon. Hats and accessories are plain cosmetics; never use one as a role marker. The player color must be obvious on the character from the game camera (tinted clothes
   if feasible, otherwise scarf/cape + ground ring) and on the name tag and the house (banner/door).
 
 ## 5. Game rules (server)
