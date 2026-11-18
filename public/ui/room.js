@@ -2,7 +2,7 @@
 // lobi kartı, rol kartı (reveal), oyun sonu ekranı.
 import { ctx, send, playerById, iAmHost, emitLocal, on, serverNow } from './ctx.js';
 import { Api } from './api.js';
-import { $, esc, sfx, fmtClock, vibrate, audioScene } from './util.js';
+import { $, esc, sfx, fmtClock, vibrate, audioScene, reducedMotion } from './util.js';
 import { icon, emblem, logoMark } from './icons.js';
 import { ROLES, ABILITIES, COLORS, inkOn, isEvil, WIN_TITLE, levelOf, countRoles, MIN_PLAYERS, EVENTS } from './data.js';
 import { W } from './world-host.js';
@@ -282,6 +282,7 @@ function onOverlayClick(e) {
     flipped = !flipped;
     fl.classList.add('turning');
     sfx(flipped ? 'whoosh' : 'click');
+    if (flipped) vibrate(30);   // rol kartı açılırken kısa titreşim (CSS pop: .flip.on .rolecard)
     setTimeout(() => { fl.classList.toggle('on', !!flipped); fl.classList.remove('turning'); }, 220);
     return;
   }
@@ -796,8 +797,10 @@ function railOrder(s) {
   });
 }
 
+const lastVotes = new Map();   // oyuncu -> son görülen oy sayısı (artışta küçük pop)
 function renderRail(s) {
   const { room, me, night, day } = s;
+  const voteNow = new Map();
   const act = window.VKRules.action(s);
   const evilMe = isEvil(me.role);
   const victims = new Set(night && night.witch ? night.witch.victims : []);
@@ -825,6 +828,7 @@ function renderRail(s) {
     if (room.phase === 'hunter' && p.id === room.hunterId) { mark = 'Avcı'; sel = '#ffb347'; }
     if (sel) cls.push('sel');
     const votes = day ? (day.counts && day.counts[p.id] != null ? Number(day.counts[p.id]) || 0 : day.votes && day.votes[p.id] ? day.votes[p.id].reduce((a, v) => a + v.w, 0) : 0) : 0;
+    voteNow.set(p.id, votes);
     const trial = room.phase === 'trial' && room.trial;
     if (trial && (trial.accused || []).includes(p.id)) cls.push('defendant');
     else if (trial && p.alive) cls.push('excluded');
@@ -854,6 +858,7 @@ function renderRail(s) {
     rail.dataset.ids = ids;
     rail.innerHTML = chips.join('');
     Array.from(rail.children).forEach((el, k) => { el.dataset.h = chips[k]; });
+    popVotes(rail, voteNow);
     return;
   }
   chips.forEach((h, k) => {
@@ -865,6 +870,20 @@ function renderRail(s) {
     n.dataset.h = h;
     el.replaceWith(n);
   });
+  popVotes(rail, voteNow);
+}
+// Oy sayısı arttıysa rozet küçük bir "pop" yapar + 15 ms tık titreşimi (hareketi azalt açıkken yalnız sayı değişir)
+function popVotes(rail, now) {
+  let up = false;
+  now.forEach((n, id) => {
+    if (n > (lastVotes.get(id) || 0)) {
+      up = true;
+      const b = rail.querySelector(`[data-pid="${id}"] .pchip-votes`);
+      if (b && !reducedMotion()) { b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); }
+    }
+    lastVotes.set(id, n);
+  });
+  if (up && !reducedMotion()) vibrate(15);
 }
 
 // ---------- rol kartı ----------

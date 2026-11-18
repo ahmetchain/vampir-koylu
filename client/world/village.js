@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import * as A from './assets.js';
 import { HOUSE_INFO, toWorld } from './layout.js';
 import { outlineMat } from './style.js';
+import { buildPalace, goldMaterial, bodyMaterial, goldNightIntensity, bodyNightIntensity } from './palace.js';
 import { rng, TAU, clamp, damp, lerp, COLOR_HEX, smooth } from './constants.js';
 
 const MAXH = 20;
@@ -181,6 +182,10 @@ class HouseBatches {
   }
 }
 
+const palaceMats = {};   // paylaşılan saray malzemeleri: tek toplu ağ
+const palaceGold = [];
+const palaceBody = [];
+const PALACE_HALO = new THREE.Color('#f7c82a');   // saray altın malzemeleri (gece emissive için kare başı güncellenir)
 const HOUSE_DOME_SKIN = 5;   // look.house 5 (Saray): altın kubbe (lib/houses.js sahibe özel ev)
 
 // Tür+doku başına ev grubu (parçalar ortak toplu ağlarda)
@@ -232,22 +237,20 @@ class HouseGroup {
     if (skin === HOUSE_DOME_SKIN) this.addDome(HOUSE_INFO[type], batches);
     root.add(this.group);
   }
-  // Saray görünümü: çatı tepesine altın soğan kubbe + sivri uç (iki küçük geometri; aynı toplu ağlar)
+  // Saray görünümü (palace.js): ev üstüne prosedürel kuleler/kubbe; iki toplu ağ (altın + gövde), ek çizim çağrısı yok denecek kadar az
   addDome(info, batches) {
-    const parts = [
-      [new THREE.SphereGeometry(0.85, 14, 10), '#f7c82a', 0.62, new THREE.Vector3(0, info.height - 0.1, 0), new THREE.Vector3(1, 1.15, 1)],
-      [new THREE.ConeGeometry(0.16, 1.1, 8), '#f7c82a', 0.62, new THREE.Vector3(0, info.height + 1.25, 0), new THREE.Vector3(1, 1, 1)],
-    ];
-    for (const [geo, hex, rough, pos, sc] of parts) {
-      const mat = new THREE.MeshStandardMaterial({ color: hex, roughness: rough, metalness: 0.55, emissive: '#6b4a00', emissiveIntensity: 0.35 });
-      mat.name = 'palace-gold';
-      const nodeM = new THREE.Matrix4().compose(pos, new THREE.Quaternion(), sc);
-      const part = { kind: 'extra', nodeM, local: new THREE.Matrix4(), colorMode: null, nodePos: pos.clone(), nodeQ: new THREE.Quaternion(), ids: [] };
+    let pal;
+    try { pal = buildPalace(info); } catch (e) { return; /* saray eklentisi yoksa ev yine çizilir */ }
+    for (const [geo, mat, isGold] of [[pal.gold, palaceMats.gold || (palaceMats.gold = goldMaterial()), true], [pal.body, palaceMats.body || (palaceMats.body = bodyMaterial()), false]]) {
+      const nodeM = new THREE.Matrix4();
+      const part = { kind: 'extra', nodeM, local: new THREE.Matrix4(), colorMode: null, nodePos: new THREE.Vector3(), nodeQ: new THREE.Quaternion(), ids: [] };
       try {
         const b = batches.batchFor(mat, false);
         part.batch = b; part.batches = batches;
         part.gid = batches.geometryId(b, geo);
         b.mesh.castShadow = true; b.mesh.receiveShadow = false;
+        const lst = isGold ? palaceGold : palaceBody;
+        if (lst.indexOf(b.mesh.material) < 0) lst.push(b.mesh.material);
         this.parts.push(part);
       } catch (e) { /* kubbe yoksa ev yine çizilir */ }
     }
@@ -739,6 +742,8 @@ export function createVillage(scene, q, fx, terrain) {
         else { const b = u < 0.7 ? 3.2 * (1 - (u / 0.7) * (u / 0.7)) : Math.sin(((u - 0.7) / 0.3) * Math.PI) * 0.18; o.position.y = Math.max(0, b); }
       }
     }
+    // saray altını: gece emissive yükselir (tek paylaşılan malzeme, kare başı bir kez)
+    if (palaceGold.length || palaceBody.length) { const gi = goldNightIntensity(tod.night); for (const m of palaceGold) m.emissiveIntensity = gi; const bi = bodyNightIntensity(tod.night); for (const m of palaceBody) m.emissiveIntensity = bi; }
     // kapılar ve pencereler
     const lampK = tod.lamps;
     for (const h of houses.values()) {
@@ -780,13 +785,22 @@ export function createVillage(scene, q, fx, terrain) {
   }
 
   // Işık efektleri (her kare): fener haleleri, zemin ışık havuzları, pencere haleleri
+  // Alacakaranlıkta fenerler yandığı ilk ~1.5 sn kısa "pop-on" titremesi yapar (hareketi azalt açıkken yok)
+  let lampOnAt = -1;
   function emitGlows(tod, time, glow, pool) {
     const k = tod.lamps;
-    if (k < 0.02) return;
+    if (k < 0.02) { lampOnAt = -1; return; }
+    if (lampOnAt < 0) lampOnAt = time;
+    let age = time - lampOnAt;
+    if (age < 0 || age > 60) { lampOnAt = time; age = 0; }
+    let reducedM = false;
+    try { reducedM = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { /* açık kalır */ }
+    const popping = age < 1.5 && !reducedM;
     const fair = theme && theme.dress === 'fair';
     for (let i = 0; i < lamps.length; i++) {
       const l = lamps[i];
-      const fl = 0.92 + 0.08 * Math.sin(time * 9 + i * 1.7);
+      let fl = 0.92 + 0.08 * Math.sin(time * 9 + i * 1.7);
+      if (popping) fl *= Math.min(1, 0.35 + age) * (0.72 + 0.28 * Math.sin(age * 38 + i * 2.7));
       const gc = fair ? FAIR_COLS[i % FAIR_COLS.length] : glowColor;
       glow.add(l.x, l.y, l.z, l.small ? 1.4 : 2.0, gc, 0.85 * k * fl);
       pool.add(l.x, 0.03, l.z, l.small ? 6 : 8.5, fair ? gc : poolColor, 0.30 * k);
@@ -802,6 +816,8 @@ export function createVillage(scene, q, fx, terrain) {
       const ln = h.gp.ln;
       const live = h.dead ? 0.25 : 1;
       glow.add(ln.x, 0.62, ln.z, 0.9, glowColor, 0.9 * k * live);
+      // Saray: kubbe tepesinde gece altın hale (mevcut glow toplu ağı)
+      if (h.skin === HOUSE_DOME_SKIN && tod.night > 0.02) glow.add(h.cx, (h.info.height + 2.0) * h.scale, h.cz, 3.6, PALACE_HALO, 0.5 * tod.night);
       pool.add(ln.x, 0.03, ln.z, 3.6, poolColor, 0.26 * k * live);
       // içeride biri varken pencere ışığı hafifçe titrer (mum)
       const wk = h.lit * k * (0.86 + 0.08 * Math.sin(time * 6.3 + h.seat * 2.1) + 0.06 * Math.sin(time * 13.7 + h.seat));
@@ -918,7 +934,7 @@ export function createVillage(scene, q, fx, terrain) {
       const ox = o.x - h.cx, oz = o.z - h.cz;
       const lox = ox * c + oz * s, loz = -ox * s + oz * c;
       const ldx = d.x * c + d.z * s, ldz = -d.x * s + d.z * c;
-      const min = [-h.info.hx - 0.3, 0, -h.info.hz - 0.3], max = [h.info.hx + 0.3, h.info.height, h.info.hz + 1.2];
+      const min = [-h.info.hx - 0.3, 0, -h.info.hz - 0.3], max = [h.info.hx + 0.3, h.info.height + (h.skin === HOUSE_DOME_SKIN ? 5 : 0), h.info.hz + 1.2];
       const lo = [lox, o.y, loz], ld = [ldx, d.y, ldz];
       let t0 = -Infinity, t1 = Infinity;
       for (let a = 0; a < 3; a++) {
@@ -963,6 +979,7 @@ export function createVillage(scene, q, fx, terrain) {
       setFrost(false);
       for (const g of groups.values()) g.dispose();
       houseBatches.dispose();
+      palaceGold.length = 0; palaceBody.length = 0;
       if (dressing) disposeGroup(dressing);
       if (graveRoot) disposeGroup(graveRoot);
       if (themeRoot) themeRoot.traverse((o) => { if (o.userData.merged || o.userData.themeGeo) o.geometry.dispose(); if (o.userData.themeMat) o.material.dispose(); });

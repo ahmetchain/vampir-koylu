@@ -347,6 +347,7 @@ export function registerCinematics(director, world) {
       if (scene === 'poison') world.fx.emit('bubble', body.pos.x, 0.5, body.pos.z, '#94d82d', 10);
       world.fx.emit('dust', body.pos.x, 0.1, body.pos.z, null, 6);
     }
+    world.shake(0.3); world.hitStop(80);   // ölüm anı
     world.flickerHouse(id, 1.2 * speed);
     await ctx.wait(1.3 * speed);
     const gx = body ? body.pos.x : fall.x, gz = body ? body.pos.z : fall.z;
@@ -543,6 +544,7 @@ export function registerCinematics(director, world) {
     ctx.sfx('hang', { volume: 0.7 });
     await ctx.wait(1.2);
     world.flash(0.45, '#f4e4c1');
+    world.shake(0.5); world.hitStop(80);   // asılma anı
     world.fx.emit('poof', ch.pos.x, 1.4, ch.pos.z, null, 26);
     ctx.sfx('poof');
     ch.setVisible(false);
@@ -834,6 +836,7 @@ export function registerCinematics(director, world) {
       const rx = rug.position.x;
       ctx.tween(0.7, (k) => { rug.position.x = rx + 1.6 * k; rug.rotation.z = -0.25 * Math.sin(k * Math.PI); }, easeOut);
       await ctx.wait(0.3);
+      world.shake(0.8);   // vampir ortaya çıkıyor
       const cof = room.addTemp(A.prop('clues', 'coffin').clone());
       cof.position.set(room.L.rug.x, -0.4, room.L.rug.z); cof.scale.setScalar(0.62); cof.rotation.y = 0.4;
       ctx.tween(0.6, (k) => { cof.position.y = -0.4 + 0.42 * k; }, easeOut);

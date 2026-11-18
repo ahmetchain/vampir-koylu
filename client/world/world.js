@@ -87,6 +87,13 @@ export function create(container, handlers = {}) {
   scene.fog = new THREE.Fog(0x9ab, 50, 250);
   const camera = new THREE.PerspectiveCamera(40, 1, 0.3, 900);
   const rig = new CameraRig(camera);
+  // Hareketi azalt (işletim sistemi ayarı): sarsıntı, hit-stop ve güçlü flaş kapanır
+  let reduced = false;
+  try {
+    const mq = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (mq) { reduced = mq.matches; rig.reduced = reduced; const on = (e) => { reduced = e.matches; rig.reduced = reduced; }; if (mq.addEventListener) mq.addEventListener('change', on); else if (mq.addListener) mq.addListener(on); }
+  } catch (e) { /* ayar okunamazsa efektler açık kalır */ }
+  let hitStopId = 0;
   // ev halkası bandında alçak kamera: yatayda halkanın önüne çek (çatı/duvar içinden görüntü olmasın)
   rig.clampFn = (p) => {
     const L = village && village.layout;
@@ -241,8 +248,19 @@ export function create(container, handlers = {}) {
       if (!tf) return 3.6;
       return clamp((tf - (Date.now() + skew)) / 1000 - 0.3, 1.2, 4.5);
     },
+    // Kamera sarsıntısı (trauma 0..1). Hareketi azalt açıkken etkisiz.
+    shake(trauma) { rig.shake(trauma); },
+    // Ölüm/asılma anında yalnızca karakter animasyonlarına ~80 ms mikro durdurma; en yeni durdurma önceki geri alışı iptal eder.
+    hitStop(ms = 80) {
+      if (reduced) return;
+      const id = ++hitStopId;
+      const all = () => { const l = []; for (const c of chars.values()) l.push(c); for (const a of cineActors.values()) l.push(a.ch); return l; };
+      for (const c of all()) if (c.mixer) c.mixer.timeScale = 0;
+      setTimeout(() => { if (id !== hitStopId) return; for (const c of all()) if (c.mixer) c.mixer.timeScale = 1; }, ms);
+    },
     flash(a, color) {
       if (!a) { flashEl.style.opacity = '0'; return; }
+      if (reduced) a = Math.min(a, 0.2);   // yanıp sönme azaltma: alfa ≤ 0.2
       flashEl.style.background = `radial-gradient(ellipse at 50% 50%, ${color || '#d7263d'}55, ${color || '#d7263d'}cc)`;
       flashEl.style.opacity = String(a);
       clearTimeout(flashT);

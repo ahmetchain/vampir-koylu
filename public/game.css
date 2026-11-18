@@ -304,6 +304,10 @@
 }
 .flip-back .logo-mark { width: 120px; height: 120px; margin: 0 auto; animation: float 2.6s ease-in-out infinite; }
 .flip-back p { margin: 0; font-weight: 800; }
+@keyframes role-pop { from { transform: scale(.8); } to { transform: scale(1); } }
+.flip.on .flip-front .rolecard { animation: role-pop .5s cubic-bezier(.34, 1.56, .64, 1); }
+.pchip-votes.pop { animation: vote-pop .32s cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes vote-pop { from { transform: scale(.5); } 60% { transform: scale(1.3); } to { transform: scale(1); } }
 .flip-front { animation: card-in .5s var(--ease-spring); }
 @keyframes card-in { from { transform: scaleX(.05); } }
 .rolecard {

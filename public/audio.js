@@ -78,7 +78,7 @@
     whoosh:  { files: takes('whoosh', 2), vol: 0.6,  pitch: 0.08, max: 3, gap: 60, prio: 2 },
     bell:    { files: takes('bell', 1),   vol: 0.8,  max: 1, gap: 600, duck: 0.7, prio: 2 },
     // oda sahibi hesabı odaya girince çalan özgün, 10 sn'lik güreş girişi tarzı tören müziği
-    entrance: { files: takes('entrance', 1), vol: 0.95, max: 1, gap: 31000, party: 0.22, prio: 3, fade: 3 }
+    entrance: { files: takes('entrance', 1), vol: 0.95, max: 1, gap: 31000, party: 0.22, prio: 3, fade: 3, lazy: true, late: 4000 }
   };
   // gece rastgele baykuş (iç efekt, genel sfx listesinde değil)
   var OWL = { files: ['sfx/owl.mp3'] };
@@ -285,7 +285,7 @@
   }
   function prefetchSfx() {
     var list = [];
-    Object.keys(SFX).forEach(function (n) { SFX[n].files.forEach(function (f) { list.push({ f: f, p: SFX[n].prio || 2 }); }); });
+    Object.keys(SFX).forEach(function (n) { if (SFX[n].lazy) return; SFX[n].files.forEach(function (f) { list.push({ f: f, p: SFX[n].prio || 2 }); }); });
     list.push({ f: OWL.files[0], p: 3 });
     list.sort(function (a, b) { return a.p - b.p; });
     var i = 0, active = 0;
@@ -415,7 +415,7 @@
     var file = pickTake(name, def), asked = Date.now();
     var go = function (buf) {
       if (!buf || !ctx || ctx.state !== 'running') return;
-      if (Date.now() - asked > LATE_MS) { stats.sfxDropped++; return; }   // geç kalan efekt kafa karıştırır
+      if (Date.now() - asked > (def.late || LATE_MS)) { stats.sfxDropped++; return; }   // geç kalan efekt kafa karıştırır
       try {
         // aynı efektin çok kopyası: en eskisini kes
         var same = voices.filter(function (v) { return v.name === name; });

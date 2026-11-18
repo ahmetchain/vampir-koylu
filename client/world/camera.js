@@ -23,6 +23,7 @@ export class CameraRig {
     this.ovLook = new THREE.Vector3();
     this.snapNext = true;
     this.fitTimer = 0;
+    this.trauma = 0; this.shakeT = 0; this.reduced = false;   // sarsıntı: trauma² × sinüs, 1.2/sn sönüm
     this.limits = { az: 1.2, elMin: -0.45, elMax: 0.5, zMin: 0.45, zMax: 1.7 };
   }
 
@@ -101,6 +102,8 @@ export class CameraRig {
     u.zoom = clamp(u.zoom * f, this.limits.zMin, this.limits.zMax);
     u.idle = 0; u.active = true;
   }
+  // Kamera sarsıntısı (0..1 trauma, birikir). Hareketi azalt ayarında hiçbir şey yapmaz.
+  shake(t) { if (this.reduced) return; this.trauma = Math.min(1, this.trauma + (Number(t) || 0)); }
   recenter() { this.user.active = false; this.user.idle = 999; }
   get offset() { const u = this.user; return Math.abs(u.az) > 0.05 || Math.abs(u.el) > 0.04 || Math.abs(u.zoom - 1) > 0.06; }
 
@@ -157,6 +160,16 @@ export class CameraRig {
     cam.lookAt(this.lookPoint);
     const fov = c.fov + ((this.override && this.override.fov) || c.fov) * 0 + (((this.override && this.override.fov) || c.fov) - c.fov) * w;
     if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
+    if (this.trauma > 0.001 && !this.reduced) {
+      // rig güncellemesinden sonra: yalnızca konum + çok hafif roll
+      this.shakeT += dt;
+      const a = this.trauma * this.trauma, t = this.shakeT;
+      cam.position.x += Math.sin(t * 43.1) * 0.22 * a;
+      cam.position.y += Math.sin(t * 37.7 + 1.3) * 0.16 * a;
+      cam.position.z += Math.sin(t * 41.3 + 2.1) * 0.22 * a;
+      cam.rotateZ(Math.sin(t * 29.3) * 0.02 * a);
+      this.trauma = Math.max(0, this.trauma - 1.2 * dt);
+    } else this.trauma = 0;
     cam.updateMatrixWorld();
     if (!this.override && this.ovW < 0.002) this.ovW = 0;
   }

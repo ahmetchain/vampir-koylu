@@ -2,6 +2,8 @@
 // 2B tuvaline kopyalanır. Varlıklar ana dünyayla ortaktır; düşük kare hızıyla ve yalnızca görünürken çizilir.
 import * as THREE from 'three';
 import * as A from './assets.js';
+import { buildPalace, goldMaterial, bodyMaterial } from './palace.js';
+import { HOUSE_INFO } from './layout.js';
 import { Character } from './character.js';
 
 let shared = null; // { renderer, canvas, users }
@@ -187,12 +189,13 @@ export function houseSnapshots(count) {
       const grp = new THREE.Group();
       grp.add(house);
       if (skin === 5) {
-        const gold = new THREE.MeshStandardMaterial({ color: '#f7c82a', roughness: 0.62, metalness: 0.55, emissive: '#6b4a00', emissiveIntensity: 0.35 });
-        const dome = new THREE.Mesh(new THREE.SphereGeometry(0.85, 14, 10), gold); dome.scale.y = 1.15; dome.position.y = 4.9;
-        const spire = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.1, 8), gold); spire.position.y = 6.25;
-        grp.add(dome, spire);
+        const pal = buildPalace(HOUSE_INFO[0]);   // oyundaki Saray ile aynı prosedürel eklentiler
+        const gm = goldMaterial(); gm.emissiveIntensity = 0.3;
+        grp.add(new THREE.Mesh(pal.gold, gm), new THREE.Mesh(pal.body, bodyMaterial()));
       }
       grp.rotation.y = 0;
+      // Saray kulelerle daha uzun: kamera biraz geride ve yukarıda
+      if (skin === 5) { cam.position.set(-12.6, 10.6, 18.0); cam.lookAt(0, 3.5, 0); } else { cam.position.set(-9.5, 8.5, 13.5); cam.lookAt(0, 2.3, 0); }
       const ground = new THREE.Mesh(new THREE.CircleGeometry(4.6, 32), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.28, depthWrite: false }));
       ground.rotation.x = -Math.PI / 2; ground.position.y = -0.02;
       scene.add(grp, ground);
