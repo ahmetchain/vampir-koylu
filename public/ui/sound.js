@@ -17,6 +17,7 @@ function readVol() {
   const v = (a && a.getVolume && a.getVolume()) || {};
   return { music: v.music ?? 0.7, sfx: v.sfx ?? 0.9, amb: v.amb ?? 1 };
 }
+function rainOn() { const a = A(); try { return !(a && a.getRainSound) || !!a.getRainSound(); } catch { return true; } }
 function isMuted() { const a = A(); try { return !!(a && a.isMuted && a.isMuted()); } catch { return false; } }
 
 // Ses kontrollerinin HTML'i (id çakışmasın diye önek alır).
@@ -33,6 +34,9 @@ export function soundControlsHTML(px = 'snd') {
           <input type="range" id="${px}-${k}" data-k="${k}" min="0" max="100" value="${pct(v[k])}" aria-label="${esc(label)}">
           <output>${pct(v[k])}</output></div>
         <small>${hint}</small></div>`).join('')}
+    <div class="set-row"><label for="${px}-rain">Yağmur sesi</label>
+      <span class="switch"><input type="checkbox" id="${px}-rain" data-k="rain" ${rainOn() ? 'checked' : ''}><i></i></span>
+      <small>Yağmur ve gök gürültüsü sesi</small></div>
     ${A() ? '' : '<p class="note note-moon">Ses motoru yüklenemedi; oyun sessiz çalışıyor.</p>'}
   </div>`;
 }
@@ -51,6 +55,7 @@ export function bindSoundControls(root) {
   box.addEventListener('change', (e) => {
     const a = A();
     if (e.target.dataset.k === 'mute') { try { if (a) a.mute(e.target.checked); } catch { /* yoksay */ } syncSoundButtons(); }
+    if (e.target.dataset.k === 'rain') { try { if (a && a.setRainSound) a.setRainSound(e.target.checked); } catch { /* yoksay */ } }
     if (e.target.dataset.k === 'sfx') { try { if (a && !isMuted()) a.sfx('click'); } catch { /* yoksay */ } }
     box.classList.toggle('is-muted', isMuted());
   });

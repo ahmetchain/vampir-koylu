@@ -105,7 +105,7 @@
   //   efekt çıkışı  = master² · sfx²
   // mute(true) hepsini susturur (master → 0, bağlam askıya alınır); kaydırıcı değerleri korunur.
   var KEY = 'vk.audio', VERSION = 3;
-  var DEFAULTS = { master: 0.9, music: 0.5, sfx: 0.9, amb: 0.6, muted: false, menuTrack: 'lobi' };
+  var DEFAULTS = { master: 0.9, music: 0.5, sfx: 0.9, amb: 0.6, muted: false, menuTrack: 'lobi', rain: true };
   var settings = JSON.parse(JSON.stringify(DEFAULTS)), migrated = false;
   function clamp01(v, d) { v = Number(v); return isFinite(v) ? Math.max(0, Math.min(1, v)) : d; }
   try {
@@ -113,6 +113,7 @@
     if (saved && typeof saved === 'object') {
       ['master', 'music', 'sfx', 'amb'].forEach(function (k) { if (k in saved) settings[k] = clamp01(saved[k], settings[k]); });
       settings.muted = !!saved.muted;
+      if ('rain' in saved) settings.rain = !!saved.rain;   // yağmur sesi aç/kapa (eski kayıtlarda yok -> açık)
       if (MENU_TRACKS.indexOf(saved.menuTrack) >= 0) settings.menuTrack = saved.menuTrack;
       if (!saved.v || saved.v < 3) { settings.menuTrack = DEFAULTS.menuTrack; migrated = true; }   // v3: yeni ana tema herkese varsayılan
       if (!saved.v || saved.v < 2) {
@@ -131,7 +132,7 @@
   function persist() {
     try {
       window.localStorage.setItem(KEY, JSON.stringify({ v: VERSION, master: settings.master, music: settings.music,
-        sfx: settings.sfx, amb: settings.amb, muted: settings.muted, menuTrack: settings.menuTrack }));
+        sfx: settings.sfx, amb: settings.amb, muted: settings.muted, menuTrack: settings.menuTrack, rain: settings.rain }));
     } catch (e) { }
   }
   if (migrated) persist();   // göç edilmiş şekli hemen yaz
@@ -507,58 +508,51 @@
   // Yağmur: üç filtreli gürültü katmanı (yüksek "tıkırtı" bandı, gövde, alçak "çatı uğultusu"), rastgele genlik, döngü.
   // Gök gürültüsü: şimşekten 0.3–2.5 sn sonra alçak geçiren gürültü patlaması + uzun düşen zarf + yuvarlanma.
   // Hepsi ortam kanalından (nodes.amb) geçer: ortam kaydırıcısı, sessize alma ve giriş müziği kısması (base) kendiliğinden uygulanır.
-  var WX_LEVEL = { rain: 0.5, storm: 0.7 };   // ortamdan biraz düşük
-  var wx = { kind: 'clear', seed: 0, since: 0, skew: 0, g: null, lastT: 0, timer: null, modTimer: null, thunders: 0, noise: null };
+  var WX_LEVEL = { rain: 0.18, storm: 0.26 };   // arka planda hafif hışırtı (ortam kaydırıcısı ayrıca uygulanır)
+  var THUNDER_GAIN = 0.6;                       // gök gürültüsü: eski seviyenin ~%60'ı
+  var wx = { kind: 'clear', seed: 0, since: 0, skew: 0, g: null, lastT: 0, timer: null, thunders: 0, noise: null };
   function wxNow() { return Date.now() + wx.skew; }
   function noiseBuffer(seconds, brown) {
     var n = Math.floor(ctx.sampleRate * seconds), b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0), last = 0;
     for (var i = 0; i < n; i++) {
       var w = Math.random() * 2 - 1;
-      if (brown) { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w;
+      if (brown === 'pink') { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5 * 0.6 + w * 0.25; }
+      else if (brown) { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w;
     }
     return b;
   }
   function wxWanted() {
-    return !!(ctx && unlocked && ctx.state === 'running' && !settings.muted && !document.hidden && wx.kind !== 'clear' && (scene === 'day' || scene === 'night'));
+    return !!(ctx && unlocked && ctx.state === 'running' && !settings.muted && settings.rain && !document.hidden && wx.kind !== 'clear' && (scene === 'day' || scene === 'night'));
   }
+  // Tek katman: bir kez üretilen pembeye yakın (kahverengi+beyaz karışımı) gürültü tamponu döngüde + tek bandpass.
+  // Yavaş genlik dalgalanması JS'siz: LFO (OscillatorNode -> GainNode.gain), zamanlayıcı yok.
   function wxBuild() {
     if (wx.g) return;
-    if (!wx.noise) wx.noise = { white: noiseBuffer(4, false), brown: noiseBuffer(6, true) };
+    if (!wx.noise) wx.noise = { white: noiseBuffer(3, false), brown: noiseBuffer(4, true), pink: noiseBuffer(4, 'pink') };
     var c = ctx, out = c.createGain(); out.gain.value = 0; out.connect(nodes.amb);
-    function layer(buf, type, f, q, level) {
-      var s = c.createBufferSource(); s.buffer = buf; s.loop = true;
-      var flt = c.createBiquadFilter(); flt.type = type; flt.frequency.value = f; flt.Q.value = q;
-      var g = c.createGain(); g.gain.value = level;
-      s.connect(flt); flt.connect(g); g.connect(out);
-      s.start(0, Math.random() * 2);
-      return { src: s, flt: flt, gain: g, level: level };
-    }
-    var hi = layer(wx.noise.white, 'bandpass', 4200, 0.45, 0.5);      // tıkırtı
-    var mid = layer(wx.noise.white, 'lowpass', 1400, 0.6, 0.4);       // gövde
-    var lo = layer(wx.noise.brown, 'lowpass', 420, 0.5, 0.55);        // çatı/uğultu
-    wx.g = { out: out, layers: [hi, mid, lo] };
-    // rastgele genlik: her ~140 ms'de hafif dalgalanma (düz bir fısıltı gibi durmasın)
-    wx.modTimer = setInterval(function () {
-      if (!wx.g || !ctx) return;
-      var t = ctx.currentTime;
-      wx.g.layers.forEach(function (L) {
-        try { L.gain.gain.setTargetAtTime(L.level * (0.75 + Math.random() * 0.5), t, 0.08); } catch (e) { }
-      });
-    }, 140);
+    var s = c.createBufferSource(); s.buffer = wx.noise.pink; s.loop = true;
+    var flt = c.createBiquadFilter(); flt.type = 'bandpass'; flt.frequency.value = 2400; flt.Q.value = 0.35;
+    var g = c.createGain(); g.gain.value = 0.85;
+    s.connect(flt); flt.connect(g); g.connect(out);
+    s.start(0, Math.random() * 2);
+    var lfo = c.createOscillator(), lg = c.createGain();
+    lfo.type = 'sine'; lfo.frequency.value = 0.23; lg.gain.value = 0.12;
+    lfo.connect(lg); lg.connect(g.gain); lfo.start();
+    wx.g = { out: out, layers: [{ src: s, flt: flt, gain: g }], lfo: lfo, lg: lg };
   }
   function wxTeardown() {
     var g = wx.g; wx.g = null;
-    if (wx.modTimer) { clearInterval(wx.modTimer); wx.modTimer = null; }
     if (!g) return;
     setTimeout(function () {
       g.layers.forEach(function (L) { try { L.src.stop(); L.src.disconnect(); L.flt.disconnect(); L.gain.disconnect(); } catch (e) { } });
+      try { g.lfo.stop(); g.lfo.disconnect(); g.lg.disconnect(); } catch (e) { }
       try { g.out.disconnect(); } catch (e) { }
     }, 3200);
   }
   // Tek bir gök gürültüsü: when = ctx.currentTime cinsinden başlangıç, dist 0 (yakın) .. 1 (uzak)
   function wxThunder(when, dist) {
     if (!ctx || !wx.g || !wx.noise) return;
-    var c = ctx, dur = 3.2 + 3.2 * dist, vol = 0.95 - 0.5 * dist;
+    var c = ctx, dur = 3.2 + 3.2 * dist, vol = (0.95 - 0.5 * dist) * THUNDER_GAIN;
     var s = c.createBufferSource(); s.buffer = wx.noise.brown;
     var lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.7;
     lp.frequency.setValueAtTime(950 - 450 * dist, when);
@@ -584,7 +578,7 @@
       var cs = c.createBufferSource(); cs.buffer = wx.noise.white;
       var bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 0.4;
       var cg = c.createGain(); cg.gain.setValueAtTime(0.0001, when);
-      cg.gain.linearRampToValueAtTime(0.5 * (1 - dist), when + 0.004);
+      cg.gain.linearRampToValueAtTime(0.5 * (1 - dist) * THUNDER_GAIN, when + 0.004);
       cg.gain.exponentialRampToValueAtTime(0.0001, when + 0.22);
       cs.connect(bp); bp.connect(cg); cg.connect(nodes.amb);
       cs.start(when, Math.random() * 2); cs.stop(when + 0.3);
@@ -832,6 +826,9 @@
       } catch (e) { logErr('mute', e); }
     },
     isMuted: function () { return !!settings.muted; },
+    // yağmur sesi aç/kapa (kalıcı); gök gürültüsü de buna bağlı
+    setRainSound: function (b) { try { settings.rain = !!b; persist(); wxSync(); } catch (e) { logErr('setRainSound', e); } },
+    getRainSound: function () { return !!settings.rain; },
     // menü/lobi/bitiş müziği seçimi ('harp' | 'lute'), kalıcı; çalıyorsa çapraz geçer
     setMenuTrack: function (id) {
       try {

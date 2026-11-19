@@ -87,7 +87,9 @@ export function createRain(scene, opts = {}) {
   const api = {
     flash: 0,
     hold: null,       // hata ayıklama: sayı verilirse şimşek parlaması bu değerde sabitlenir (ekran görüntüsü)
-    setCount(n) { count = clamp(Math.floor(n) || 0, 0, MAX); g.setDrawRange(0, count * 2); },
+    setCount(n) { count = clamp(Math.floor(n) || 0, 0, MAX); g.setDrawRange(0, count * 2);
+      // az damla = küçük kutu: yoğunluk (ve görünürlük) kamera çevresinde korunur
+      const sc = clamp(Math.sqrt(count / 900), 0.55, 1); mat.uniforms.uBox.value.set(BOX.x * sc, BOX.y, BOX.z * sc); },
     // Sunucudan gelen hava; aynı { kind, seed, since } tekrar gelirse hiçbir şey yapmaz.
     set(w, nowS) {
       const n = Core.normalize(w);
@@ -157,7 +159,7 @@ export function createRain(scene, opts = {}) {
         tod.fogNear *= 1 - 0.4 * kk;
         tod.fogFar *= 1 - 0.42 * kk;
         tod.stars *= 1 - 0.92 * kk;
-        tod.lamps = Math.max(tod.lamps, 0.3 * kk);
+        tod.lamps = Math.max(tod.lamps, 0.3 * kk * tod.night);   // gündüz yağmurunda fener/pencere ışık efektleri (ek dolum) açılmaz
         // yağmur damlası rengi: ışığa göre (geceleri soluk)
         mat.uniforms.uColor.value.copy(tod.hor).lerp(WHITE_BLUE, 0.55).multiplyScalar(0.55 + 0.6 * (1 - tod.night));
       }
