@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const express = require('express');
 const compression = require('compression');
 const { Server } = require('socket.io');
-const { Room } = require('./game');
+const { Room, MOVE_PHASES } = require('./game');
 const { createStore } = require('./lib/store');
 const { Accounts } = require('./lib/auth');
 const { pointsOf, sanitizeLook } = require('./lib/houses');
@@ -147,11 +147,36 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
     }
   }
 
-  function flushState(room) {
+  // Oyuncuya en son gönderilen durumun özeti (serverNow hariç JSON) ve gittiği soket. Görünüm değişmediyse
+  // (ör. yalnızca ölülerin gördüğü hayalet konumu değişti, yaşayanların görünümü aynı) tekrar gönderilmez.
+  // Oyuncu nesnesine bağlı: oyuncu odadan çıkınca kendiliğinden temizlenir. Soket değişince (yeniden bağlanma,
+  // başka sekme) ya da bind() ile koltuğa yeniden bağlanınca her zaman tam durum gider.
+  // Karşılaştırma bir JSON.stringify daha demek: lobide/oyun sonunda yürüme yayınında konum herkese görünür (her
+  // görünüm değişir), orada karşılaştırma yapılmaz (önbellek de geçersizlenir).
+  const lastState = new WeakMap();
+
+  function flushState(room, kind) {
     clearTimeout(moveTimers.get(room.id));
     moveTimers.delete(room.id);
     room.lastFlush = Date.now();
-    sendToPlayers(room, room.players.keys(), 'state', (p) => room.viewFor(p.id));
+    const compare = !(kind === 'move' && MOVE_PHASES.includes(room.phase));
+    for (const p of room.players.values()) {
+      if (!p.socketId) continue;
+      const view = room.viewFor(p.id);
+      if (!compare) {
+        lastState.delete(p);
+        io.to(p.socketId).emit('state', view);
+        continue;
+      }
+      const now = view.serverNow;
+      view.serverNow = 0;
+      const key = JSON.stringify(view);
+      view.serverNow = now;
+      const prev = lastState.get(p);
+      if (prev && prev.socketId === p.socketId && prev.key === key) continue;
+      lastState.set(p, { socketId: p.socketId, key });
+      io.to(p.socketId).emit('state', view);
+    }
     broadcastRoomList();
   }
 
@@ -171,7 +196,7 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
       if (kind === 'move') {
         if (moveTimers.has(room.id)) return;
         const wait = Math.max(0, MOVE_FLUSH_MS - (Date.now() - (room.lastFlush || 0)));
-        moveTimers.set(room.id, setTimeout(() => flushState(room), wait));
+        moveTimers.set(room.id, setTimeout(() => flushState(room, 'move'), wait));
         return;
       }
       flushState(room);
@@ -282,6 +307,7 @@ function createGameServer({ store, origins = [], trustProxy = false, authOptions
     socket.data.roomId = room.id;
     socket.data.playerId = playerId;
     socket.leave('browse');
+    lastState.delete(player);   // koltuğa (yeniden) bağlanan soket her zaman tam durumu alır
     room.connect(playerId, socket.id);
   }
 

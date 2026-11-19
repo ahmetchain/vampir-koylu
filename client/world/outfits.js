@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as A from './assets.js';
-import { lathe, part, stick, hash, shadeHex, accGeometry } from './hats.js';
+import { lathe, part, stick, hash, shadeHex, accGeometry, hatGeometry } from './hats.js';
 
 const TAU = Math.PI * 2;
 const GOLD = '#d9a63a', GOLD2 = '#f2c75a';
@@ -362,8 +362,10 @@ function toSkinned(parts, mesh, boneName) {
 }
 
 // acc: kıyafet ağına katılan aksesuar (elde tutulan hariç; 0 = yok). Karakter başına tek ek çizim çağrısı.
-export function outfitGeometry(skin, top, bottom, acc = 0) {
-  const key = `${skin}|${top}|${bottom}|${acc}`;
+// hat: prosedürel şapka (9+; aynı malzeme türü: köşe renkli Lambert, çift yüz) da kafa kemiğine bağlı parça olarak
+// buraya katılır (0 = yok / glb şapka): şapka ayrı çizim çağrısı ve ayrı dış çizgi kabuğu istemez.
+export function outfitGeometry(skin, top, bottom, acc = 0, hat = 0) {
+  const key = `${skin}|${top}|${bottom}|${acc}|${hat}`;
   if (geos.has(key)) return geos.get(key);
   let out = null;
   try {
@@ -380,6 +382,17 @@ export function outfitGeometry(skin, top, bottom, acc = 0) {
         const a = accGeometry(acc, skin);
         if (a) { const g = a.geo.clone(); for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(k)) g.deleteAttribute(k); all.push(...toSkinned([g.index ? g.toNonIndexed() : g], mesh, a.bone)); }
       }
+      if (hat) {
+        const h = hatGeometry(hat, skin);
+        if (!h) throw new Error('şapka geometrisi yok');
+        let g = h.geo.clone();
+        for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(k)) g.deleteAttribute(k);
+        if (g.index) { const n = g.toNonIndexed(); g.dispose(); g = n; }
+        g.applyMatrix4(h.matrix);   // kafa-yerel şapka yerleşimi (makeHat ile aynı)
+        const parts = toSkinned([g], mesh, 'head');
+        if (!parts.length) throw new Error('kafa kemiği yok');
+        all.push(...parts);
+      }
       if (all.length) {
         out = mergeGeometries(all, false);
         for (const g of all) g.dispose();
@@ -392,13 +405,13 @@ export function outfitGeometry(skin, top, bottom, acc = 0) {
 }
 
 // Karakter klonuna kıyafet ağını tak (gövde ağıyla aynı iskelet). Dönüş: ağ ya da null.
-export function attachOutfit(model, skin, top, bottom, acc = 0) {
-  top |= 0; bottom |= 0; acc |= 0;
-  if (!TOP_BUILD[top] && !BOTTOM_BUILD[bottom] && !acc) return null;
+export function attachOutfit(model, skin, top, bottom, acc = 0, hat = 0) {
+  top |= 0; bottom |= 0; acc |= 0; hat |= 0;
+  if (!TOP_BUILD[top] && !BOTTOM_BUILD[bottom] && !acc && !hat) return null;
   let body = null;
   model.traverse((o) => { if (!body && o.isSkinnedMesh && o.material && o.material.name === 'villager') body = o; });
   if (!body) return null;
-  const g = outfitGeometry(Math.max(0, Math.min(11, skin | 0)), top, bottom, acc);
+  const g = outfitGeometry(Math.max(0, Math.min(11, skin | 0)), top, bottom, acc, hat);
   if (!g) return null;
   const m = new THREE.SkinnedMesh(g, outfitMaterial());
   m.name = 'outfit';
@@ -407,6 +420,7 @@ export function attachOutfit(model, skin, top, bottom, acc = 0) {
   m.bind(body.skeleton, body.bindMatrix);
   m.bindMode = body.bindMode;
   m.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.3, -0.15), 0.85);
+  if (hat && g.boundingSphere) m.boundingSphere.union(g.boundingSphere);   // uzun şapka da sınır küresinde kalsın
   m.castShadow = true; m.receiveShadow = false;
   return m;
 }

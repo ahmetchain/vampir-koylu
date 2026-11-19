@@ -48,10 +48,10 @@ Sources:
 
 | File | Source | Details |
 |------|--------|---------|
-| `music/menu-lobi.mp3` | Provided by the project owner (2026-11-19) | Main theme since 2026-11-19: main menu, room creation, lobby and end screen. 128 kbps, 125.9 s, loops whole track. The owner supplied this file for the game and is responsible for its rights |
+| `music/menu-lobi.mp3` | Provided by the project owner (2026-11-19) | Main theme since 2026-11-19: main menu, room creation, lobby and end screen. Re-encoded 2026-11-19 for size (LAME VBR V5, ~88 kbps stereo, 2.01 MB -> 1.39 MB; original kept outside the repo), 125.9 s, loops whole track. The owner supplied this file for the game and is responsible for its rights |
 | `music/menu-harp.mp3` | Generated (ElevenLabs Music v2, 2026-11-13) | Former default menu/lobby theme (still selectable in code): calm, sparse harp over a soft string pad. No percussion. Loop 52.0 s |
 | `music/menu-lute.mp3` | Generated (ElevenLabs Music v2, 2026-11-13) | Alternative menu theme: slow solo fingerpicked lute over a soft drone. Loop 59.1 s |
-| `music/day.mp3` | Generated (ElevenLabs Music v2) | Lively, slightly suspicious daytime "village debate" theme. Loop 62.2 s |
+| `music/day.mp3` | Generated (ElevenLabs Music v2) | Lively, slightly suspicious daytime "village debate" theme. Loop 62.2 s. Re-encoded 2026-11-19 to 96 kbps CBR (881 KB -> 755 KB; loop points unchanged, seam verified) |
 | `music/night.mp3` | Generated (ElevenLabs Music v2) | Sparse, tense, eerie night theme. Loop 56.7 s |
 | `sfx/win.mp3` | Generated (ElevenLabs Music v2) | Victory stinger |
 | `sfx/lose.mp3` | Generated (ElevenLabs Music v2) | Defeat stinger |

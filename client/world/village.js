@@ -120,6 +120,24 @@ function compose(x, y, z, rotY, s = 1) {
   return new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(UP, rotY), new THREE.Vector3(s, s, s));
 }
 
+// Kabuk için sade geometri: yalnız konum + normal + dizin (öznitelik nesneleri paylaşılır, kopya yok; dizinsizse üretilir)
+const outlineGeos = new WeakMap();
+function outlineGeometry(geometry) {
+  let g = outlineGeos.get(geometry);
+  if (g) return g;
+  const P = geometry.attributes.position;
+  let N = geometry.attributes.normal;
+  if (!P) throw new Error('konum yok');
+  if (!N) { const t = new THREE.BufferGeometry(); t.setAttribute('position', P); if (geometry.index) t.setIndex(geometry.index); t.computeVertexNormals(); N = t.attributes.normal; }
+  g = new THREE.BufferGeometry();
+  g.setAttribute('position', P);
+  g.setAttribute('normal', N);
+  if (geometry.index) g.setIndex(geometry.index);
+  else { const n = P.count, a = n > 65535 ? new Uint32Array(n) : new Uint16Array(n); for (let i = 0; i < n; i++) a[i] = i; g.setIndex(new THREE.BufferAttribute(a, 1)); }
+  outlineGeos.set(geometry, g);
+  return g;
+}
+
 // Evler: malzeme başına TEK çizim (BatchedMesh) - tüm ev türleri ve kapılar aynı toplu ağda, örnek başına matris ve renk.
 // Toplu ağ desteklenmezse (öznitelikler uyuşmazsa) parça kendi InstancedMesh'ine düşer.
 // Malzemeler kopyalanır: aynı malzemeyi düz Mesh ile paylaşmak her çizimde program değişimine yol açar.
@@ -141,18 +159,24 @@ class HouseBatches {
       mesh.name = 'houses-' + mat.name;
       this.root.add(mesh);
       b = { mesh, geo: new Map(), maxI: 64, maxV: 16384, maxIdx: 32768, usedV: 0, usedIdx: 0, cast: true, out: null };
-      // "çizim" görünümü için dış çizgi aynası (aynı geometri ve örnekler, gizli başlar)
-      if (!noOutline) {
-        const out = new THREE.BatchedMesh(64, 16384, 32768, outlineMat(0.05));
-        out.sortObjects = false; out.perObjectFrustumCulled = true; out.frustumCulled = false;
-        out.visible = !!this.outlines; out.castShadow = false; out.receiveShadow = false;
-        out.name = mesh.name + '-outline';
-        this.root.add(out);
-        b.out = out;
-      }
+      // "çizim" görünümü için dış çizgi aynası (aynı geometri ve örnekler, gizli başlar). Kabuk malzemesi kaynak malzemeden
+      // bağımsız olduğu için TÜM malzemelerin kabukları tek ortak toplu ağda: çizim görünümünde tek çizim çağrısı.
+      if (!noOutline) b.out = this.outline();
       this.map.set(mat.uuid, b);
     }
     return b;
+  }
+  outline() {
+    if (!this.out) {
+      const o = { maxI: 128, maxV: 32768, maxIdx: 65536, usedV: 0, usedIdx: 0 };
+      const out = new THREE.BatchedMesh(o.maxI, o.maxV, o.maxIdx, outlineMat(0.05));
+      out.sortObjects = false; out.perObjectFrustumCulled = true; out.frustumCulled = false;
+      out.visible = !!this.outlines; out.castShadow = false; out.receiveShadow = false;
+      out.name = 'houses-outline';
+      this.root.add(out);
+      this.out = out; this.outCap = o;
+    }
+    return this.out;
   }
   geometryId(b, geometry) {
     if (b.geo.has(geometry)) return b.geo.get(geometry);
@@ -161,23 +185,43 @@ class HouseBatches {
     if (b.usedV + nv > b.maxV || b.usedIdx + ni > b.maxIdx) {
       b.maxV = Math.max(b.maxV * 2, b.usedV + nv); b.maxIdx = Math.max(b.maxIdx * 2, b.usedIdx + ni);
       b.mesh.setGeometrySize(b.maxV, b.maxIdx);
-      if (b.out) b.out.setGeometrySize(b.maxV, b.maxIdx);
     }
     const id = b.mesh.addGeometry(geometry);
-    if (b.out) b.outGeo = (b.outGeo || new Map()).set(id, b.out.addGeometry(geometry));
+    if (b.out) {
+      // ortak kabuk ağı yalnızca konum + normal + dizin taşır (malzemelerin öznitelik kümeleri farklı olabilir)
+      try {
+        const og = outlineGeometry(geometry);
+        const onv = og.attributes.position.count, oni = og.index.count;
+        const o = this.outCap;
+        if (o.usedV + onv > o.maxV || o.usedIdx + oni > o.maxIdx) {
+          o.maxV = Math.max(o.maxV * 2, o.usedV + onv); o.maxIdx = Math.max(o.maxIdx * 2, o.usedIdx + oni);
+          b.out.setGeometrySize(o.maxV, o.maxIdx);
+        }
+        const oid = b.out.addGeometry(og);
+        b.outGeo = (b.outGeo || new Map()).set(id, oid);
+        o.usedV += onv; o.usedIdx += oni;
+      } catch (e) { console.warn('[VKWorld] ev dış çizgisi eklenemedi', e); }
+    }
     b.usedV += nv; b.usedIdx += ni;
     b.geo.set(geometry, id);
     return id;
   }
   addInstance(b, gid) {
-    if (b.mesh.instanceCount >= b.maxI) { b.maxI *= 2; b.mesh.setInstanceCount(b.maxI); if (b.out) b.out.setInstanceCount(b.maxI); }
+    if (b.mesh.instanceCount >= b.maxI) { b.maxI *= 2; b.mesh.setInstanceCount(b.maxI); }
     const id = b.mesh.addInstance(gid);
-    if (b.out) { b.outIds = b.outIds || new Map(); b.outIds.set(id, b.out.addInstance(b.outGeo.get(gid))); }
+    if (b.out && b.outGeo && b.outGeo.has(gid)) {
+      const o = this.outCap;
+      if (b.out.instanceCount >= o.maxI) { o.maxI *= 2; b.out.setInstanceCount(o.maxI); }
+      b.outIds = b.outIds || new Map(); b.outIds.set(id, b.out.addInstance(b.outGeo.get(gid)));
+    }
     return id;
   }
-  setOutlines(on) { this.outlines = on; for (const b of this.map.values()) if (b.out) b.out.visible = on; }
+  // örneğin kabuk karşılığı (yoksa undefined)
+  outId(b, id) { return b.out && b.outIds ? b.outIds.get(id) : undefined; }
+  setOutlines(on) { this.outlines = on; if (this.out) this.out.visible = on; }
   dispose() {
-    for (const b of this.map.values()) { b.mesh.parent && b.mesh.parent.remove(b.mesh); b.mesh.dispose(); b.mesh.material.dispose(); if (b.out) { b.out.parent && b.out.parent.remove(b.out); b.out.dispose(); } }
+    for (const b of this.map.values()) { b.mesh.parent && b.mesh.parent.remove(b.mesh); b.mesh.dispose(); b.mesh.material.dispose(); }
+    if (this.out) { this.out.parent && this.out.parent.remove(this.out); this.out.dispose(); this.out = null; }
     this.map.clear();
   }
 }
@@ -281,11 +325,12 @@ class HouseGroup {
     while (p.ids.length < n) p.ids.push(p.batches.addInstance(p.batch, p.gid));
     for (let i = 0; i < p.ids.length; i++) {
       mesh.setVisibleAt(p.ids[i], i < n);
-      if (p.batch.out) p.batch.out.setVisibleAt(p.batch.outIds.get(p.ids[i]), i < n);
+      const oid = p.batches.outId(p.batch, p.ids[i]);
+      if (oid !== undefined) p.batch.out.setVisibleAt(oid, i < n);
     }
   }
   setM(p, i, m) {
-    if (p.batch) { p.batch.mesh.setMatrixAt(p.ids[i], m); if (p.batch.out) p.batch.out.setMatrixAt(p.batch.outIds.get(p.ids[i]), m); }
+    if (p.batch) { p.batch.mesh.setMatrixAt(p.ids[i], m); const oid = p.batches.outId(p.batch, p.ids[i]); if (oid !== undefined) p.batch.out.setMatrixAt(oid, m); }
     else p.im.setMatrixAt(i, m);
   }
   setC(p, i, c) { if (p.batch) p.batch.mesh.setColorAt(p.ids[i], c); else p.im.setColorAt(i, c); }

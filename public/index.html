@@ -18,6 +18,29 @@
   <link rel="preload" href="assets/ui/fonts/fraunces-latin-soft-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="game.css">
+  <!-- Arayüz modülleri: içe aktarma zinciri (app.js -> ui/* -> data.js -> cosmetics.js) art arda gidiş-dönüş beklemesin,
+       hepsi baştan paralel insin. Liste eksik/fazla kalırsa yalnızca bu hızlanma kaybolur; çalışma etkilenmez. -->
+  <!-- 3B dünya paketi (en büyük kod dosyası): modül zincirini beklemeden hemen inmeye başlasın (world-host.js aynı adresi yükler) -->
+  <link rel="preload" href="build/world.js" as="script">
+  <link rel="modulepreload" href="app.js">
+  <link rel="modulepreload" href="ui/ctx.js">
+  <link rel="modulepreload" href="ui/api.js">
+  <link rel="modulepreload" href="ui/util.js">
+  <link rel="modulepreload" href="ui/kit.js">
+  <link rel="modulepreload" href="ui/icons.js">
+  <link rel="modulepreload" href="ui/world-host.js">
+  <link rel="modulepreload" href="ui/screens.js">
+  <link rel="modulepreload" href="ui/chat.js">
+  <link rel="modulepreload" href="ui/announce.js">
+  <link rel="modulepreload" href="ui/chronicle.js">
+  <link rel="modulepreload" href="ui/room.js">
+  <link rel="modulepreload" href="ui/look.js">
+  <link rel="modulepreload" href="ui/sound.js">
+  <link rel="modulepreload" href="ui/pwa.js">
+  <link rel="modulepreload" href="ui/fps.js">
+  <link rel="modulepreload" href="ui/data.js">
+  <link rel="modulepreload" href="ui/roomform.js">
+  <link rel="modulepreload" href="ui/cosmetics.js">
 </head>
 <body>
   <div id="app" class="app">

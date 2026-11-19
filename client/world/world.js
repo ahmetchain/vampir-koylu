@@ -1,6 +1,6 @@
 // VKWorld.create(): oluşturucu, döngü, ışık ve günün saati, giriş, seçim, katmanlar, aşama koreografisi.
 import * as THREE from 'three';
-import { applyToonDefines, addOutlines, removeOutlines, disposeOutlineMats } from './style.js';
+import { applyToonDefines, addOutlines, removeOutlines, disposeOutlineMats, releaseOutlineGeos } from './style.js';
 import * as A from './assets.js';
 import { createSky } from './sky.js';
 import { createTerrain } from './terrain.js';
@@ -1711,7 +1711,7 @@ export function create(container, handlers = {}) {
     for (const b of [glow, pool, blobs, rings]) b.dispose();
     overlay.dispose();
     controls.dispose();
-    disposeOutlineMats();
+    disposeOutlineMats(); releaseOutlineGeos();
     if (sun.shadow.map) sun.shadow.map.dispose();
     renderer.dispose();
     renderer.forceContextLoss();
@@ -1783,8 +1783,8 @@ export function create(container, handlers = {}) {
       if (on === world.toon) return;
       world.toon = on;
       applyTier(tier.name, false);
-      for (const ch of [...chars.values(), ...ghosts.values()]) { if (on) addOutlines(ch.model, 0.012); else removeOutlines(ch.model); }
-      for (const a of cineActors.values()) { if (on) addOutlines(a.ch.model, 0.012); else removeOutlines(a.ch.model); }
+      for (const ch of [...chars.values(), ...ghosts.values()]) { if (on) addOutlines(ch.model, 0.012, null, { merge: !ch.isGhost }); else removeOutlines(ch.model); }
+      for (const a of cineActors.values()) { if (on) addOutlines(a.ch.model, 0.012, null, { merge: !a.ch.isGhost }); else removeOutlines(a.ch.model); }
       if (village) village.setOutlines(on);
       applyToonDefines(scene, on);
       styleT = 0;

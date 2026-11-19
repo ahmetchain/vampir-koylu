@@ -107,9 +107,19 @@ same line, so nothing leaks.
 
 `messages.create` with `model` (default `claude-haiku-5-5`, override with `AI_BOT_MODEL`; a room whose host account is the owner (`owner: true` in lib/banter.js PEOPLE, default `ahmetchain`) may set `settings.botModel = 'sonnet'` ("Güçlü": every bot) or `'hybrid'` ("Karma": per call, Sonnet only for bots whose REAL role is vampir, gozcu or doktor – after a theft the thief's new role counts, a Deli who believes he is a Doktor is a deli – and Haiku for kahin, hirsiz, koylu, cadi, avci, muhtar, gardiyan, soytari, deli; `Room.botTier(botId)`) → `claude-sonnet-5-5`, effort `low`, priced from its own table per call (cost is accounted per call by the tier actually used; hybrid is still roughly a third of the Sonnet cost of `sonnet`: about 1/3 of the bots on a typical table are Sonnet roles – every vampire plus the Gözcü and Doktor); the setting is hidden from and rejected for everybody else; the game log line shows the model(s) actually used, `model=claude-haiku-5-5+claude-sonnet-5-5` if both), `max_tokens` 4096 (thinking counts towards it),
 `output_config: { effort: 'medium', format: { type: 'json_schema', schema } }`, the system prompt as one text block
-with `cache_control: { type: 'ephemeral' }` (≈ 7 K tokens; Haiku 5.5 caches from 512 tokens – correctness does
+with `cache_control: { type: 'ephemeral' }` (≈ 15 K tokens estimated: 47.9 K characters as of 2026-11; Haiku 5.5 caches from 512 tokens – correctness does
 not depend on it), one user message (≈ 1.2–2 K tokens on average, up to ≈ 3.5 K late in a long game). No sampling parameters, no prefill, no server-side fallbacks (not available
-for Haiku 5.5). `stop_reason` is checked before reading content; `refusal` / `max_tokens` → fallback. The `think`
+for Haiku 5.5). The cached prefix (model, system block, `output_config`) is byte-identical on every call (the
+system prompt is a module constant; everything variable – the bot's own block, phase, seconds left, timeline – is in
+the user message, after the breakpoint). **Cache warm-up** (`AiClient.warm`, called by `SmartBots.warmCache()` when the
+`reveal` phase starts): a cache entry becomes readable only once the first response has started, and with a cold cache
+the 3–4 night-1 calls that start together ~8.6 s after `game:start` would each write the whole system prompt again
+(≈ 15 K tokens: +$0.0017 per extra write on Haiku, +$0.036 on Sonnet). So at game start, for every tier the room's bots
+will use, if no response for that model arrived in the last 4 min and a concurrency slot is free, one request with the
+same prefix, a fixed short user text and `max_tokens: 1` (0 is rejected together with structured outputs) is sent;
+its usage is added to the game's cost but it does not count against the game/bot call budgets (it does count as a
+daily call). A 400 turns warm-up off for the process; any other failure is ignored. `/healthz` `ai.warmCalls`.
+`stop_reason` is checked before reading content; `refusal` / `max_tokens` → fallback. The `think`
 field (never shown, never logged) is generated first so the small model reasons about claims and counts before it
 chooses `say` / `vote`.
 

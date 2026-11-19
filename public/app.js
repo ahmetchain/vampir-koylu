@@ -230,6 +230,9 @@ async function boot() {
   fillLogos();
   $('#splash-logo').innerHTML = $('[data-logo]').innerHTML;
   setupViewport();
+  // Menü müziği (~1,4 MB) ve efektler 3B dünya (world.js + modeller) indikten sonra insin: telefonda bant genişliği
+  // paylaşılmaz, menü daha erken açılır. Dokunuşla başlayan çalma beklemez; en geç 8 sn sonra kapı açılır.
+  try { window.VKAudio && window.VKAudio.deferPrefetch && window.VKAudio.deferPrefetch(Promise.race([worldReady, new Promise((r) => setTimeout(r, 8000))])); } catch { /* ses yok */ }
   try { window.VKAudio && window.VKAudio.init(); } catch { /* ses yok */ }
   audioScene('menu');
 
@@ -267,7 +270,8 @@ async function boot() {
 
   // Socket.IO istemcisi oyun sunucusundan gelir; gelmezse sunucu kapalıdır.
   let ioOK = true;
-  try { await loadScript(`${SERVER}/socket.io/socket.io.js`, 20000); } catch { ioOK = false; }
+  // küçültülmüş istemci (aynı API; ~150 KB yerine ~47 KB ham, sıkıştırılmış ~38 KB yerine ~15 KB)
+  try { await loadScript(`${SERVER}/socket.io/socket.io.min.js`, 20000); } catch { ioOK = false; }
 
   await worldP;
   await Promise.race([worldReady, new Promise((r) => setTimeout(r, 7000))]);

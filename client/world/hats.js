@@ -533,6 +533,21 @@ export function makeHat(index, skin = 0) {
   return hat;
 }
 
+// Prosedürel şapkanın kafa-yerel yerleşimi (makeHat ile aynı konum/ölçek): { geo, matrix } ya da null.
+// glb düğümlü şapkalar (1–8, kendi dokulu malzemeleri) için null: onlar ayrı ağ olarak kalır.
+// Kıyafet ağı (outfits.js) bunu kafa kemiğine bağlı deri parçası olarak birleştirir: şapka ayrı çizim çağrısı olmaz.
+const tmpHatM = new THREE.Matrix4(), tmpHatS = new THREE.Vector3(), tmpHatP = new THREE.Vector3(), tmpHatQ = new THREE.Quaternion();
+export function hatGeometry(index, skin = 0) {
+  const i = index | 0;
+  const def = HAT_DEFS[i];
+  if (!def || i === 0 || def.node || !def.build) return null;
+  const s = clamp(skin | 0, 0, 11);
+  const g = geoFor('h' + i, def.build);
+  if (!g) return null;
+  const [dy, k] = def.kind === 'top' ? TOP_FIT[def.fit][s] : (CAP_FIT[s] || [0, 1]);
+  return { geo: g, matrix: tmpHatM.compose(tmpHatP.set(0, dy, 0), tmpHatQ.identity(), tmpHatS.set(k, 1, k)).clone() };
+}
+
 // Aksesuar geometrisi (kemik-yerel, paylaşılan) ve kemik adı: { geo, bone } ya da null.
 export function accGeometry(index, skin = 0) {
   const i = index | 0;

@@ -412,7 +412,7 @@ Nothing moves in the village until the show stage; a locked door is discovered o
 
 | Event | Payload | When |
 |---|---|---|
-| `state` | the viewer's view (§9) | after every change in the room, to every seated socket (each gets its own view) |
+| `state` | the viewer's view (§9) | after every change in the room, to every seated socket (each gets its own view). A view identical to the last one sent to the same socket (ignoring `serverNow`) is **not** re-sent (e.g. a ghost walking changes only dead viewers' views; living players get nothing). Binding a socket to a seat (`room:create`, `room:join`, `session:resume`, takeover by another tab, reconnect) always sends a full `state`. Every `state` is still a complete view (no deltas). |
 | `announce` | `{ kind, title, text, ...extra }` (§10) | game events; some kinds only to one player |
 | `chat` | `{ channel, from, fromId, text, ts }` (§11) | chat message for this viewer |
 | `entrance:stop` (server → clients) | `{}` | The owner turned the music off (button `music:stop` or chat like "tamam artık kapatabiliriz"): clients fade the entrance sound out (VKAudio.stopSfx). The music itself is 30 s and fades out by itself in the last 3 s. 1-2 bots answer "Tamam hocam kapattık". |

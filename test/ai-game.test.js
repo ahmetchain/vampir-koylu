@@ -291,7 +291,10 @@ test('bütçe tükenince botlar rastgele davranışa döner ve oyun biter', asyn
   room.start('h1');
   await playOut(t, room, ev);
   assert.equal(room.phase, 'ended');
-  assert.ok(transport.calls.length <= 10, `çağrı ${transport.calls.length}`);
+  // Oyun başındaki tek önbellek ısıtma isteği (max_tokens 1) oyun bütçesinden düşmez; bütçe yalnızca bot turlarını sınırlar.
+  const turns = transport.calls.filter((c) => c.params.max_tokens !== 1);
+  assert.ok(transport.calls.length - turns.length <= 1, 'en fazla bir ısıtma isteği');
+  assert.ok(turns.length <= 10, `çağrı ${turns.length}`);
   const s = room.bots.smart.ledger.summary();
   assert.ok(s.failures.game_budget > 0);
   room.destroy();

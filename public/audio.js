@@ -8,6 +8,7 @@
  *   VKAudio.mute(bool); VKAudio.isMuted()
  *   VKAudio.setMenuTrack('harp'|'lute'); VKAudio.getMenuTrack(); VKAudio.menuTracks()   menü müziği seçimi
  *   VKAudio.defaults()                     varsayılan kaydırıcı değerleri (UI "sıfırla" için)
+ *   VKAudio.deferPrefetch(promise)         açılışta sessiz ön-indirmeleri söz çözülene kadar ertele (3B dünya önce insin)
  *   VKAudio._debug()                       test için durum özeti (sahne, kazançlar, yüklenen/başarısız dosyalar)
  *
  * Tasarım notları:
@@ -230,7 +231,7 @@
     if (!ctx || ctx.state !== 'running') return;
     var first = !unlocked;
     unlocked = true;
-    if (first) { setTimeout(prefetchSfx, 800); setTimeout(zzWarm, 1500); }
+    if (first) { setTimeout(function () { afterGate(prefetchSfx); }, 800); setTimeout(zzWarm, 1500); }
     syncScene();
     wxSync();
   }
@@ -279,10 +280,18 @@
     pending[file] = p;
     return p;
   }
+  // Ön-indirme kapısı (deferPrefetch): açılışta 3B dünya (world.js + modeller) inene kadar müzik baytları beklesin,
+  // bant genişliğini paylaşıp menüyü geciktirmesin. Yalnızca "sessiz" ön-indirmeyi etkiler; dokunuşla başlayan çalma beklemez.
+  var gate = null;
+  function afterGate(fn) {
+    if (!gate) { fn(); return; }
+    gate.then(function () { gate = null; fn(); });
+  }
   // bağlam yokken (ilk dokunuştan önce) sahnenin dosyalarını yalnızca indir
   function prefetchSceneBytes() {
     var d = SCENES[scene];
     if (!d || !inited) return;
+    if (gate) { afterGate(prefetchSceneBytes); return; }
     if (d.music) getBytes(MUSIC[musicId(d.music)].file).then(null, function () { });
     Object.keys(d.amb).forEach(function (id) { getBytes(AMB[id].file).then(null, function () { }); });
     if (scene === 'lobby') prefetchGameBytes();
@@ -739,6 +748,11 @@
         if (ua && ua.hasBeenActive) onGesture();
         prefetchSceneBytes();
       } catch (e) { logErr('init', e); }
+    },
+    // Açılış: verilen söz (ör. 3B dünya hazır) çözülene kadar sessiz ön-indirmeleri (sahne müziği/ortam baytları,
+    // efektler) ertele. Söz reddedilse de kapı açılır. Çalma (dokunuştan sonra) hiç beklemez.
+    deferPrefetch: function (p) {
+      try { if (p && typeof p.then === 'function') gate = Promise.resolve(p).then(null, function () { }); } catch (e) { logErr('deferPrefetch', e); }
     },
     setScene: function (name) {
       try {

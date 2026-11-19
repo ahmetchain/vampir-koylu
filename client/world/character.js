@@ -93,14 +93,22 @@ export class Character {
     // üst/alt giysi ve aksesuar: iskelete bağlı TEK ek deri ağı (outfits.js) -> karakter başına +1 çizim çağrısı.
     // Elde tutulan aksesuar (tesbih) ayrı kalır: oyun içi nesne tutulunca gizlenebilsin.
     const handAcc = accOnHand(look.acc);
-    const outfit = attachOutfit(model, skin, look.top, look.bottom, handAcc ? 0 : look.acc);
-    if (outfit && skel && outfit.skeleton !== skel) outfit.skeleton = skel;
     const head = model.getObjectByName('head');
     const hat = head ? makeHat(look.hat, skin) : null;
+    // Prosedürel şapka (köşe renkli, kıyafetle aynı malzeme türü) kıyafet ağına kafa kemiğine bağlı parça olarak katılır:
+    // karakter başına bir çizim çağrısı (çizim görünümünde bir dış çizgi kabuğu daha) az. glb şapkalar ayrı ağ kalır.
+    const mergeHat = !!(hat && hat.isMesh && hat.material && hat.material.name === 'vkw-hat');
+    let outfit = attachOutfit(model, skin, look.top, look.bottom, handAcc ? 0 : look.acc, mergeHat ? look.hat : 0);
+    const hatMerged = mergeHat && !!outfit;
+    if (mergeHat && !outfit) outfit = attachOutfit(model, skin, look.top, look.bottom, handAcc ? 0 : look.acc);   // birleşmezse eski yol
+    if (outfit && skel && outfit.skeleton !== skel) outfit.skeleton = skel;
     if (hat) {
       if (hat.userData.cap) fitHair(model, look.hat, skin); // başa oturan şapka: saç şapkanın içinde kalsın
-      hat.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
-      head.add(hat);
+      if (!hatMerged) {
+        // ayrı kalan (glb) şapka: dış çizgisi gövdeninkiyle tek kabukta birleşebilir (style.js addOutlines)
+        hat.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.userData.mergeOutline = true; } });
+        head.add(hat);
+      }
     }
     const acc = handAcc ? makeAcc(look.acc, skin) : null;
     const accBone = acc && model.getObjectByName(acc.bone);
@@ -110,7 +118,7 @@ export class Character {
     }
     this.accObj = accBone ? acc.obj : null;
     model.scale.multiplyScalar(SCALE);
-    if (this.world.toon) addOutlines(model, 0.012);
+    if (this.world.toon) addOutlines(model, 0.012, null, { merge: true });
     this.model = model;
     this.root.add(model);
     this.mixer = new THREE.AnimationMixer(model);
