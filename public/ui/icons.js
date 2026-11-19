@@ -62,23 +62,85 @@ const P = {
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/>',
 };
 
-// Rol amblemleri (rozet içinde gösterilir).
+// Rol amblemleri: düz renkli, az detaylı dolgu simgeler (oyunun low-poly/toon diliyle uyumlu).
+// Kural: ana gövde currentColor (rozette fildişi), ışık sol üstten; sağ/alt yüzler SH ile koyulaşır,
+// rol rengi (var(--rc)) rozet içinde "oyuk" gibi görünür, ACD rol renginin koyu tonudur. İnce koyu dış çizgi g üzerinde.
+const SH = 'fill="#000" fill-opacity=".2" stroke="none"';
+const HI = 'fill="#fff" fill-opacity=".6" stroke="none"';
+const AC = 'style="fill:var(--rc,#8a6a3a)" stroke="none"';
+const ACD = 'style="fill:color-mix(in srgb,var(--rc,#8a6a3a) 62%,#120a18)"';
+const DK = 'fill="#1c1024" stroke="none"';
+const grain = (y, dir) => (dir < 0
+  ? `M11.7 ${y + 3.4}C9.2 ${y + 3.6} 7.6 ${y + 2.2} 7.2 ${y} 9.7 ${y - 0.2} 11.3 ${y + 1.2} 11.7 ${y + 3.4}z`
+  : `M12.3 ${y + 3.4}C14.8 ${y + 3.6} 16.4 ${y + 2.2} 16.8 ${y} 14.3 ${y - 0.2} 12.7 ${y + 1.2} 12.3 ${y + 3.4}z`);
 const R = {
-  vampir: '<path d="M3.5 6.5c2.5 1 4 1 5.5 0 1 1.3 2 2 3 2s2-.7 3-2c1.5 1 3 1 5.5 0-.6 5.8-3.2 9.8-8.5 12.5C6.7 16.3 4.1 12.3 3.5 6.5z"/><path d="M9.5 11.5l1 3 1-3M12.5 11.5l1 3 1-3"/>',
-  iftiraci: '<path d="M3.5 8c3-1.5 5.5-1.5 8.5 0 3-1.5 5.5-1.5 8.5 0-.3 4.5-2.6 7-5.2 7-1.6 0-2.6-.9-3.3-2.2-.7 1.3-1.7 2.2-3.3 2.2C6.1 15 3.8 12.5 3.5 8z"/><path d="M6.8 10.2c.8-.6 1.8-.6 2.6 0M14.6 10.2c.8-.6 1.8-.6 2.6 0"/><path d="M17.5 15.5l1.5 5M19 20.5l-2.5-.5"/>',
-  temizlikci: '<path d="M16.5 3.5L11 11"/><path d="M9 10.5l4.5 4.5-3.3 5.5c-2.6.3-5-1.2-6.2-3.7 2.6-.2 3.9-1.3 5-6.3z"/><path d="M8.2 14.3l2.6 3.2M6 16l2 2.2"/>',
-  doktor: '<path d="M12 3.5l7 2.5v5.5c0 4.4-2.9 7.6-7 9-4.1-1.4-7-4.6-7-9V6z"/><path d="M12 8.5v7M8.5 12h7"/>',
-  kahin: '<circle cx="12" cy="10.5" r="6.5"/><path d="M8 20.5h8l-1.5-3h-5z"/><path d="M9.5 8.5a3 3 0 0 1 2.5-1.5"/><path d="M14.5 12.5l.4 1 1 .4-1 .4-.4 1-.4-1-1-.4 1-.4z"/>',
-  gozcu: '<path d="M2.5 12.5S6 6.5 12 6.5s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12.5" r="3.2"/><circle cx="12" cy="12.5" r="1" fill="currentColor"/><path d="M12 2.5v2M5.5 4.5l1.2 1.6M18.5 4.5l-1.2 1.6"/>',
-  cadi: '<path d="M10 3.5h4M10.5 3.5v4.2L6 16a3.8 3.8 0 0 0 3.3 5h5.4A3.8 3.8 0 0 0 18 16l-4.5-8.3V3.5"/><path d="M7.8 14h8.4"/><circle cx="10.5" cy="17" r=".9" fill="currentColor"/><circle cx="13.6" cy="18.2" r=".7" fill="currentColor"/>',
-  avci: '<path d="M6 3.5c5 2 8 5.4 8 8.5s-3 6.5-8 8.5"/><path d="M6 3.5v17"/><path d="M3 12h17M17 9l3 3-3 3"/>',
-  muhtar: '<circle cx="12" cy="14.5" r="5.5"/><path d="M9 3.5l3 5 3-5M8 3.5h2.5M13.5 3.5H16"/><path d="M12 11.8l.9 1.8 2 .3-1.4 1.4.3 2-1.8-.9-1.8.9.3-2-1.4-1.4 2-.3z"/>',
-  soytari: '<path d="M4 9c2.5-4 5.5-5 8-2 2.5-3 5.5-2 8 2-2 0-3.4 1-4 3H8c-.6-2-2-3-4-3z"/><circle cx="4" cy="9" r="1.3"/><circle cx="20" cy="9" r="1.3"/><circle cx="12" cy="5" r="1.3"/><path d="M8 12c0 5 1.8 8 4 8s4-3 4-8"/><path d="M10 15.5c.6.7 1.3 1 2 1s1.4-.3 2-1"/>',
-  gardiyan: '<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/><path d="M9 13.5v4M12 13.5v4M15 13.5v4"/>',
-  deli: '<circle cx="12" cy="14" r="6.5"/><path d="M9.5 13.2h.01M14.5 13.2h.01"/><path d="M9.5 16.8c1.2.9 3.8.9 5 0"/><path d="M12 7.5c-1.6 0-2.4-1-2.4-2.1S10.6 3.5 12 3.5s2.6.8 2.6 2.1"/><path d="M14.6 5.6c.8 0 1.4.5 1.4 1.2"/>',
-  hirsiz: '<path d="M3.5 9.5c2.5-1.5 5.5-2 8.5-2s6 .5 8.5 2c-.4 2.6-2.4 4-4.7 4-1.6 0-2.8-.8-3.8-2-1 1.2-2.2 2-3.8 2-2.3 0-4.3-1.4-4.7-4z"/><circle cx="8" cy="10" r=".9" fill="currentColor"/><circle cx="16" cy="10" r=".9" fill="currentColor"/><path d="M9.5 16.5h5l1.3 4h-7.6z"/><path d="M10.5 16.5c0-1 .6-1.5 1.5-1.5s1.5.5 1.5 1.5"/>',
-  koylu: '<path d="M12 21V8"/><path d="M12 8c-2.5 0-3.5-2-3.5-4.5C11 3.5 12 5.5 12 8zM12 8c2.5 0 3.5-2 3.5-4.5C13 3.5 12 5.5 12 8z"/><path d="M12 13c-2.5 0-4-1.8-4-4.3 2.6 0 4 1.8 4 4.3zM12 13c2.5 0 4-1.8 4-4.3-2.6 0-4 1.8-4 4.3zM12 17.5c-2.5 0-4-1.8-4-4.3 2.6 0 4 1.8 4 4.3zM12 17.5c2.5 0 4-1.8 4-4.3-2.6 0-4 1.8-4 4.3z"/>',
+  vampir: `<path d="M12 8.4 10.5 5.6 9.6 8.7 6 7.3 2 8.6 4 10.7 3.6 13 6.4 12.1 7.6 14.8 9.8 12.9 12 17.6 14.2 12.9 16.4 14.8 17.6 12.1 20.4 13 20 10.7 22 8.6 18 7.3 14.4 8.7 13.5 5.6z"/>
+    <path ${SH} d="M12 8.4 13.5 5.6 14.4 8.7 18 7.3 22 8.6 20 10.7 20.4 13 17.6 12.1 16.4 14.8 14.2 12.9 12 17.6z"/>
+    <path ${SH} d="M6 7.3 9.6 8.7 9.8 12.9 7.6 14.8 6.4 12.1z"/>
+    <path ${AC} d="M10.3 10.1h1.3v1.1h-1.3zM12.4 10.1h1.3v1.1h-1.3z"/>`,
+  iftiraci: `<path d="M3.5 8.5C6.5 7 9.5 7 12 8.6 14.5 7 17.5 7 20.5 8.5 20.2 13 17.8 15.5 15.2 15.5 13.6 15.5 12.6 14.6 12 13.4 11.4 14.6 10.4 15.5 8.8 15.5 6.2 15.5 3.8 13 3.5 8.5z"/>
+    <path ${SH} d="M12 8.6C14.5 7 17.5 7 20.5 8.5 20.2 13 17.8 15.5 15.2 15.5 13.6 15.5 12.6 14.6 12 13.4z"/>
+    <path ${AC} d="M6.2 11.2c.9-1.3 2.9-1.3 3.8 0-.9 1-2.9 1-3.8 0zM14 11.2c.9-1.3 2.9-1.3 3.8 0-.9 1-2.9 1-3.8 0z"/>
+    <path d="M16.9 15.4 18.4 21 19.6 20.6 18.6 15.2z"/>`,
+  temizlikci: `<path d="M16.8 2.6 18.3 3.7 12.7 11.3 11.2 10.2z"/>
+    <path d="M10 9.4 14 12.6 10.8 20.8C8 21 5.2 19.4 4 16.8 6.8 16.4 8.4 14.6 10 9.4z"/>
+    <path ${SH} d="M14 12.6 10.8 20.8C9.6 20.9 8.4 20.6 7.4 20.1L12.2 11.1z"/>
+    <path ${ACD} d="M9.6 10.6 13.8 13.8 13.2 15.3 9 12.2z"/>`,
+  doktor: `<path d="M12 3 19 5.6V11.4C19 15.8 16.1 19.2 12 20.8 7.9 19.2 5 15.8 5 11.4V5.6z"/>
+    <path ${SH} d="M12 3 19 5.6V11.4C19 15.8 16.1 19.2 12 20.8z"/>
+    <path ${AC} d="M10.6 7.4h2.8v3h3v2.8h-3v3h-2.8v-3h-3v-2.8h3z"/>`,
+  kahin: `<path d="M7.4 21 8.6 17.4H15.4L16.6 21z"/>
+    <path ${SH} d="M12 17.4H15.4L16.6 21H12z"/>
+    <circle cx="12" cy="10.5" r="6.7"/>
+    <path ${SH} d="M18.7 10.5A6.7 6.7 0 0 1 6.4 14.2C9.6 15.4 15.6 14.4 18.7 10.5z"/>
+    <ellipse ${HI} cx="9.4" cy="7.8" rx="1.7" ry="1" transform="rotate(-38 9.4 7.8)"/>
+    <path ${AC} d="M13.8 8.9l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/>`,
+  gozcu: `<path d="M2.5 12.5C5.2 8.1 8.4 6.5 12 6.5s6.8 1.6 9.5 6c-2.7 4.4-5.9 6-9.5 6s-6.8-1.6-9.5-6z"/>
+    <path ${SH} d="M2.5 12.5h19c-2.7 4.4-5.9 6-9.5 6s-6.8-1.6-9.5-6z"/>
+    <circle ${AC} cx="12" cy="12.5" r="3.6"/>
+    <circle ${DK} cx="12" cy="12.5" r="1.6"/>
+    <circle ${HI} cx="13.2" cy="11.3" r=".75"/>
+    <path fill="none" stroke="currentColor" stroke-width="1.7" d="M12 2.4v2M6.3 3.9l1.1 1.6M17.7 3.9l-1.1 1.6"/>`,
+  gardiyan: `<path d="M7.2 10.6V8a4.8 4.8 0 0 1 9.6 0v2.6h-2.3V8a2.5 2.5 0 0 0-5 0v2.6z"/>
+    <rect x="5" y="10.2" width="14" height="10.4" rx="2.2"/>
+    <path ${SH} d="M12 10.2h4.8a2.2 2.2 0 0 1 2.2 2.2v6a2.2 2.2 0 0 1-2.2 2.2H12z"/>
+    <path ${AC} d="M12 12.8a1.6 1.6 0 0 1 .9 2.9l.5 2.5h-2.8l.5-2.5A1.6 1.6 0 0 1 12 12.8z"/>`,
+  cadi: `<path d="M9.8 3.2h4.4v1.9h-.7v3.4l4.6 7.4A3.4 3.4 0 0 1 15.1 21H8.9A3.4 3.4 0 0 1 6 15.9l4.6-7.4V5.1h-.8z"/>
+    <path ${ACD} d="M8.4 13.2h7.2l2.2 3.5A2.4 2.4 0 0 1 15.1 20H8.9a2.4 2.4 0 0 1-2.7-3.3z"/>
+    <path ${SH} d="M12 8.5h1.5l4.6 7.4A3.4 3.4 0 0 1 15.1 21H12z"/>
+    <circle ${HI} cx="10.3" cy="16.6" r=".9"/><circle ${HI} cx="13.3" cy="17.9" r=".65"/><circle ${HI} cx="11.6" cy="14.6" r=".5"/>`,
+  avci: `<path d="M6.5 3C12 4.8 14.9 8.3 14.9 12s-2.9 7.2-8.4 9l-.7-1.7C10.6 17.6 12.8 15 12.8 12S10.6 6.4 5.8 4.7z"/>
+    <path ${SH} d="M14.9 12c0 3.7-2.9 7.2-8.4 9l-.7-1.7C10.6 17.6 12.8 15 12.8 12z"/>
+    <path fill="none" stroke="currentColor" stroke-width="1" d="M6.1 3.9V20.1"/>
+    <path d="M2.8 11.3h14.4v1.4H2.8z"/>
+    <path d="M16.8 9 21.2 12 16.8 15z"/>
+    <path ${SH} d="M16.8 12H21.2L16.8 15z"/>
+    <path ${AC} d="M2.6 12 1.4 9.5h2.5L5.2 12 3.9 14.5H1.4z"/>`,
+  muhtar: `<path ${ACD} d="M7.8 2.8h3.2l1 4.4 1-4.4h3.2l-2.8 7.4h-2.8z"/>
+    <circle cx="12" cy="15" r="5.8"/>
+    <path ${SH} d="M17.8 15A5.8 5.8 0 0 1 12 20.8V9.2A5.8 5.8 0 0 1 17.8 15z"/>
+    <path ${AC} d="M12 11.6l1.05 2.15 2.35.35-1.7 1.65.4 2.35L12 17l-2.1 1.1.4-2.35-1.7-1.65 2.35-.35z"/>`,
+  soytari: `<path d="M6.4 15C5.8 12 5 10.8 3.2 12.4 3.6 8 6.6 6.4 9.6 8.6 9.8 6 10.8 4 12 3 13.2 4 14.2 6 14.4 8.6 17.4 6.4 20.4 8 20.8 12.4 19 10.8 18.2 12 17.6 15z"/>
+    <path ${SH} d="M12 3C13.2 4 14.2 6 14.4 8.6 17.4 6.4 20.4 8 20.8 12.4 19 10.8 18.2 12 17.6 15H12z"/>
+    <path ${ACD} d="M6.1 14.6h11.8v3.4H6.1z"/>
+    <path ${AC} d="M9 15.5l.8.8-.8.8-.8-.8zM12 15.5l.8.8-.8.8-.8-.8zM15 15.5l.8.8-.8.8-.8-.8z"/>
+    <circle cx="3.2" cy="13.4" r="1.7"/><circle cx="12" cy="2.9" r="1.7"/><circle cx="20.8" cy="13.4" r="1.7"/>`,
+  deli: `<circle cx="12" cy="12.5" r="8"/>
+    <path ${SH} d="M20 12.5A8 8 0 0 1 6.3 18.2C10.8 19.6 17.4 17.6 20 12.5z"/>
+    <path fill="none" stroke-width="1.9" style="stroke:color-mix(in srgb,var(--rc,#8a6a3a) 62%,#120a18)" d="M12 12.6c.7 0 1.1.5 1.1 1.1s-.7 1.4-1.7 1.4-2.1-.9-2.1-2.3 1.3-2.7 3-2.7 3.5 1.4 3.5 3.5-1.8 3.9-4.2 3.9"/>`,
+  hirsiz: `<path d="M9.1 7.6 7.9 3.4l2.4 1.3L12 2.8l1.7 1.9 2.4-1.3-1.2 4.2z"/>
+    <path d="M9 8.6h6c3 2.4 4.6 5.4 4.6 8 0 3-2.8 4.6-7.6 4.6s-7.6-1.6-7.6-4.6c0-2.6 1.6-5.6 4.6-8z"/>
+    <path ${SH} d="M12 8.6h3c3 2.4 4.6 5.4 4.6 8 0 3-2.8 4.6-7.6 4.6z"/>
+    <path ${ACD} d="M8.4 7.2h7.2v1.9H8.4z"/>
+    <circle ${AC} cx="12" cy="15.4" r="2.5"/>
+    <path fill="none" stroke="currentColor" stroke-width="1.2" d="M12 14.1v2.6"/>`,
+  koylu: `<path d="M11.25 9.5h1.5V21.5h-1.5z"/>
+    <path d="M12 2.6c1.3 1.5 1.5 3.4 0 5.4-1.5-2-1.3-3.9 0-5.4z"/>
+    <path d="${grain(6.6, -1)}${grain(10.1, -1)}${grain(13.6, -1)}"/>
+    <path d="${grain(6.6, 1)}${grain(10.1, 1)}${grain(13.6, 1)}"/>
+    <path ${SH} d="${grain(6.6, 1)}${grain(10.1, 1)}${grain(13.6, 1)}M12 2.6c1.3 1.5 1.5 3.4 0 5.4z"/>`,
 };
+
 
 // Şapka simgeleri (görünüm düzenleyici).
 const HATS = [
@@ -155,8 +217,40 @@ function svg(body, cls, label) {
 export function icon(name, cls = '', label = '') {
   return svg(P[name] || P.info, cls, label);
 }
+function roleSvg(body, cls) {
+  return `<svg class="ic ic-role ${cls || ''}" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor" stroke="rgba(22, 12, 30, .6)" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round">${body}</g></svg>`;
+}
 export function roleIcon(role, cls = '') {
-  return svg(R[role] || R.koylu, cls);
+  return roleSvg(R[role] || R.koylu, cls);
+}
+// Rol mektubunun köşe/arka plan motifleri: amblemden farklı olanlar burada, diğerleri amblemi kullanır.
+const MOTIF = {
+  doktor: `<path fill="none" stroke="currentColor" stroke-width="1.5" d="M12 21.5C12.4 16 11.4 11 8.2 6.4"/>
+    <path d="M11.4 14.2C8.2 14.6 5.7 13 5 10.1c3.3-.4 5.8 1.2 6.4 4.1z"/><path ${SH} d="M11.4 14.2C8.2 14.6 5.7 13 5 10.1z"/>
+    <path d="M11.8 11.4c.2-3.3 2.1-5.4 5-5.8.2 3.3-1.7 5.4-5 5.8z"/><path ${SH} d="M11.8 11.4c.2-3.3 2.1-5.4 5-5.8z"/>
+    <path d="M9.2 8.4C7.2 7.8 6.2 6 6.4 4c2 .6 3 2.4 2.8 4.4z"/>
+    <path d="M12.3 17.4c1.2-2.7 3.5-3.7 6.2-3.3-1.2 2.7-3.5 3.7-6.2 3.3z"/><path ${SH} d="M12.3 17.4c1.2-2.7 3.5-3.7 6.2-3.3z"/>
+    <circle ${AC} cx="16.8" cy="5.6" r="1.1"/><circle ${AC} cx="5" cy="10.1" r="1"/>`,
+  gozcu: `<path fill="none" stroke="currentColor" stroke-width="1.5" d="M10 4.6a2 2 0 0 1 4 0"/>
+    <path d="M7.8 4.8h8.4l-1.2 2.4H9z"/>
+    <path fill="#ffe2a6" d="M8.6 7.2h6.8l.9 9.6H7.7z"/>
+    <path fill="#ff9a2e" stroke="none" d="M12 9.4c1.5 1.7 1.7 3.4.6 4.6-.6.6-1.6.6-2.2 0-.8-1.3-.4-3 1.6-4.6z"/>
+    <path ${SH} d="M12 7.2h3.4l.9 9.6H12z"/>
+    <path fill="none" d="M12 7.2v9.6"/>
+    <path d="M6.8 16.8h10.4v2.4H6.8z"/><path ${SH} d="M12 16.8h5.2v2.4H12z"/>`,
+  gardiyan: `<circle cx="7.6" cy="8.4" r="4.5"/>
+    <path ${SH} d="M12.1 8.4A4.5 4.5 0 0 1 7.6 12.9V3.9a4.5 4.5 0 0 1 4.5 4.5z"/>
+    <circle ${AC} cx="7.6" cy="8.4" r="1.7"/>
+    <path d="M10.4 10.6 20.6 20.8 19.2 22.2 9 12z"/>
+    <path d="M15.4 15.6l1.7-1.7 1.5 1.5-1.7 1.7zM17.6 17.8l1.5-1.5 1.5 1.5-1.5 1.5z"/>`,
+  muhtar: `<path d="M20.8 2.4C15 3.6 10.6 8 9 14.6l1.5 1.5C17 14.6 21.4 10.2 22 4.4z"/>
+    <path ${SH} d="M22 4.4C21.4 10.2 17 14.6 10.5 16.1L20.8 2.4z"/>
+    <path fill="none" d="M21.2 3.2 7.4 17"/>
+    <circle ${ACD} cx="6.6" cy="18" r="3.6"/>
+    <path ${HI} d="M6.6 15.9l.6 1.3 1.4.2-1 1 .2 1.4-1.2-.7-1.2.7.2-1.4-1-1 1.4-.2z"/>`,
+};
+export function roleMotif(role, cls = '') {
+  return roleSvg(MOTIF[role] || R[role] || R.koylu, cls);
 }
 // Renkli yuvarlak rozet içinde rol amblemi.
 export function emblem(role, size = 'm', color) {
