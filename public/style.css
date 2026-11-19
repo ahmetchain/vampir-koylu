@@ -822,3 +822,101 @@ details.box[open] summary { margin-bottom: 8px; }
 .qdot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line-2); display: grid; place-items: center; }
 .qopt.on .qdot { border-color: var(--fire); }
 .qopt.on .qdot::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--fire); }
+
+/* ---------- açılış hikâyesi (ui/intro.js) ---------- */
+.auth-how-links { display: flex; align-items: center; gap: 14px; }
+.app[data-view="intro"] .scrim { opacity: 0; }
+.intro { position: absolute; inset: 0; z-index: var(--z-announce); overflow: hidden; color: var(--text); transition: opacity .7s ease; }
+.intro.fade-out { opacity: 0; pointer-events: none; }
+.intro.reduced.fade-out { transition-duration: .4s !important; }
+.intro-veil { position: absolute; inset: 0; z-index: 2; pointer-events: none; background: #07050f; opacity: 0; transition-property: opacity; transition-timing-function: ease; transition-duration: var(--vd, .5s) !important; }
+.intro[data-stage="gate"] .intro-veil { opacity: 0 !important; }
+
+/* basit CSS sahnesi (3B köy yokken): gökyüzü renk geçişi + giriş ekranının köy silueti */
+.intro-sky { position: absolute; inset: 0; z-index: 1; opacity: 0; visibility: hidden; }
+.intro[data-mode="css"] .intro-sky { opacity: 1; visibility: visible; }
+.intro-sky .sk { position: absolute; inset: 0; opacity: 0; transition: opacity 1.6s ease !important; }
+.sk-day { background: radial-gradient(40% 30% at 78% 18%, rgba(255, 246, 214, .9), transparent 70%), linear-gradient(180deg, #4f95dc 0%, #8fc0ea 55%, #e4eef0 100%); }
+.sk-dusk { background: radial-gradient(60% 30% at 50% 92%, rgba(255, 150, 90, .7), transparent 70%), linear-gradient(180deg, #23235e 0%, #6f3f78 45%, #e0705a 82%, #ffaa70 100%); }
+.sk-dawn { background: radial-gradient(60% 30% at 30% 95%, rgba(255, 190, 150, .6), transparent 70%), linear-gradient(180deg, #34477e 0%, #9a7a9e 55%, #f2ae8a 100%); }
+.sk-night { background: radial-gradient(55% 38% at 80% 10%, rgba(143, 180, 255, .18), transparent 70%), linear-gradient(180deg, #08061a 0%, #0f0c29 30%, #1b1440 60%, #0b0919 100%); }
+.intro[data-scene="day"] .sk-day, .intro[data-scene="dusk"] .sk-dusk, .intro[data-scene="dawn"] .sk-dawn,
+.intro[data-scene="night"] .sk-night, .intro[data-scene="dark"] .sk-night, .intro[data-scene="title"] .sk-night { opacity: 1; }
+.intro-sky .ab-moon { opacity: 0; transition: opacity 1.6s ease, filter 3s ease !important; }
+.intro[data-scene="night"] .intro-sky .ab-moon, .intro[data-scene="dark"] .intro-sky .ab-moon, .intro[data-scene="title"] .intro-sky .ab-moon { opacity: 1; }
+.intro[data-scene="dark"] .intro-sky .ab-moon, .intro[data-scene="title"] .intro-sky .ab-moon { filter: brightness(.4); }
+.intro-sky .ab-town { transition: filter 1.6s ease !important; }
+.intro[data-scene="day"] .intro-sky .ab-town { filter: brightness(2.2) saturate(.55); }
+.intro[data-scene="dawn"] .intro-sky .ab-town { filter: brightness(1.6); }
+.intro-sky .ab-glows circle { transition: opacity 1s ease !important; }
+.intro[data-scene="day"] .intro-sky .ab-glows { opacity: 0; }
+.intro[data-scene="dark"] .intro-sky .ab-glows circle, .intro[data-scene="title"] .intro-sky .ab-glows circle { opacity: 0; }
+.intro[data-scene="dark"] .intro-sky .ab-glows circle:nth-child(3n) { transition-delay: 1.4s !important; }
+.intro[data-scene="dark"] .intro-sky .ab-glows circle:nth-child(3n+1) { transition-delay: 2.8s !important; }
+.intro[data-scene="dark"] .intro-sky .ab-glows circle:nth-child(3n+2) { transition-delay: 4.2s !important; }
+
+/* sinematik bantlar */
+.intro-bar { position: absolute; left: 0; right: 0; height: 7%; z-index: 3; background: #05040c; transition: transform .8s var(--ease); pointer-events: none; }
+.intro-bar-top { top: 0; transform: translateY(-100%); }
+.intro-bar-bot { bottom: 0; transform: translateY(100%); }
+.intro.on .intro-bar { transform: none; }
+.intro[data-stage="gate"] .intro-bar, .intro[data-stage="gate"] .intro-skip, .intro[data-stage="gate"] .intro-cap { display: none; }
+
+/* altyazı kutusu: alt üçte bir */
+.intro-cap {
+  position: absolute; left: 50%; bottom: calc(7% + var(--sab) + 16px); z-index: 4; width: min(660px, calc(100% - 32px));
+  padding: 16px 20px 17px; border-radius: var(--r-l);
+  background: linear-gradient(180deg, rgba(25, 20, 52, .8), rgba(13, 11, 28, .9)); border: 1px solid var(--line-2);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, .55); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  opacity: 0; transform: translate(-50%, 14px); transition: opacity .45s ease, transform .7s var(--ease); pointer-events: none;
+}
+.intro-cap::before { content: ''; position: absolute; left: 22px; right: 22px; top: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--fire), transparent); opacity: .8; }
+.intro-cap.on { opacity: 1; transform: translate(-50%, 0); }
+.intro.reduced .intro-cap { transition-duration: .5s !important; transform: translate(-50%, 0); }
+.intro-text {
+  margin: 0; text-align: center; font-family: var(--font-display); font-weight: 560; font-variation-settings: 'SOFT' 100;
+  font-size: clamp(18px, 4.8vw, 25px); line-height: 1.45; color: #f6ead0; text-wrap: balance;
+  text-shadow: 0 1px 10px rgba(8, 6, 26, .8);
+}
+.iw { display: inline-block; opacity: 0; transform: translateY(6px); filter: blur(3px); animation: iw .6s var(--ease) forwards; }
+@keyframes iw { to { opacity: 1; transform: none; filter: none; } }
+
+/* geç düğmesi: sağ üst, güvenli alan içinde */
+.intro-skip {
+  position: absolute; z-index: 6; top: calc(var(--sat) + 12px); right: calc(var(--sar) + 12px);
+  display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 12px 0 18px; border-radius: var(--r-pill);
+  background: rgba(13, 11, 28, .58); border: 1px solid var(--line-2); color: var(--text); font: 800 15px/1 var(--font-text);
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); cursor: pointer;
+}
+.intro-skip svg { width: 18px; height: 18px; }
+.intro-skip:hover { background: rgba(34, 28, 68, .8); }
+.intro-skip:focus-visible { outline: 2px solid var(--fire); outline-offset: 2px; }
+
+/* başlık */
+.intro-title {
+  position: absolute; left: 0; right: 0; top: 46%; z-index: 5; margin: 0; text-align: center; pointer-events: none;
+  font-size: clamp(56px, 16vw, 120px); opacity: 0; transform: translateY(-50%) scale(.94);
+  transition: opacity 1.2s ease, transform 3.2s var(--ease);
+}
+.intro.titled .intro-title, .intro.ending .intro-title { opacity: 1; transform: translateY(-50%) scale(1); }
+.intro.reduced .intro-title { transition-duration: .8s !important; }
+
+/* kapı ekranı: ilk açılışta sesi açan dokunuş */
+.intro-gate {
+  position: absolute; inset: 0; z-index: 7; display: grid; place-items: center;
+  padding: calc(var(--sat) + 20px) calc(var(--sar) + 20px) calc(var(--sab) + 24px) calc(var(--sal) + 20px);
+  background: radial-gradient(90% 60% at 50% 42%, rgba(13, 11, 28, .2), rgba(8, 6, 20, .72));
+  animation: screen-in .5s var(--ease);
+}
+.ig-card { width: min(400px, 100%); display: grid; justify-items: center; gap: 12px; text-align: center; }
+.ig-eyebrow { margin: 0; font-size: var(--fs-xs); font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: var(--fire); }
+.ig-h { font-size: clamp(50px, 15vw, 74px); }
+.ig-sub { margin: 0 0 10px; max-width: 30ch; color: #ebe4ff; font-weight: 700; font-size: 16px; line-height: 1.45; text-shadow: 0 1px 8px rgba(8, 6, 26, .9); }
+.ig-start svg { width: 24px; height: 24px; margin-right: 6px; }
+.ig-skip { min-height: 48px; font-size: 16px; }
+.intro-gate .btn:focus-visible { outline: 2px solid var(--fire); outline-offset: 3px; }
+.intro-title::before { content: ''; position: absolute; left: -6%; right: -6%; top: -40%; bottom: -40%; z-index: -1; background: radial-gradient(closest-side, rgba(8, 6, 20, .62), rgba(8, 6, 20, 0)); pointer-events: none; }
+.intro-sky .ab-town { bottom: calc(7% + 120px); height: clamp(200px, 34vh, 380px); }
+.intro-sky::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: calc(7% + 121px); background: linear-gradient(180deg, #0a0817, #07050f); }
+.intro[data-scene="day"] .intro-sky::after { background: linear-gradient(180deg, #4a5a3a, #2c3524); }
+.intro-sky .ab-moon { top: calc(7% + 18px); left: calc(var(--sal) + 22px); }

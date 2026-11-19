@@ -46,7 +46,8 @@ export function createDirector(world, opts = {}) {
       const item = { msg, resolve, ctx };
       running = item;
       (async () => {
-        try { await Promise.race([fn(ctx, msg), ctx.timeout(maxS)]); } catch (e) {
+        // msg.maxS: uzun sahneler (açılış hikâyesi) kendi tavanını verir
+        try { await Promise.race([fn(ctx, msg), ctx.timeout(msg.maxS > 0 ? Math.min(90, msg.maxS) : maxS)]); } catch (e) {
           if (e !== CANCEL) console.warn('[VKWorld] sinematik hatası', e);
         }
         finish(item);
@@ -172,6 +173,8 @@ export function createDirector(world, opts = {}) {
         temps.push({ dispose: () => world.dropActor(ch) });
         return ch;
       },
+      // temizlikte çalışacak iş (geçici nesnelerle aynı sırada; ışık/ev durumu geri alma vb.)
+      onCleanup(fn) { if (typeof fn === 'function') temps.push({ dispose: fn }); },
       hideObj(o) { if (o && o.visible) { o.visible = false; hidden.push(o); } },
       // Günün saati (sinematik süresince)
       tod(hour, snap) { todSet = true; world.setTodOverride(hour, snap); },

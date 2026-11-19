@@ -8,6 +8,7 @@ import { createVillage } from './village.js';
 import { QuadBatch, createFire, createFireflies, Bursts, createWeather } from './fx.js';
 import { createInterior } from './interior.js';
 import { registerCinematics } from './cine.js';
+import { registerIntro, INTRO_MAX_S } from './intro.js';
 import { moodFor } from './moods.js';
 import { Character } from './character.js';
 import { releaseHatsGPU } from './hats.js';
@@ -326,6 +327,7 @@ export function create(container, handlers = {}) {
   const controls = createControls(root, {});
   const director = createDirector(world);
   const cineH = registerCinematics(director, world);
+  registerIntro(director, world);   // açılış hikâyesi (menü görünümünde, geçici aktörlerle)
   const choreo = createChoreo(world);
   // gece gösterisi: ayrı (kapsamlı) yönetmen; ana yönetmenin sinematikleriyle yan yana çalışır
   const showDir = createDirector(world, { scoped: true, timeout: SHOW_S + 3 });
@@ -1244,6 +1246,8 @@ export function create(container, handlers = {}) {
     }
     // devralınan (gece gösterisi / sinematik) görünür karakterlerin de yer gölgesi olsun
     for (const ch of chars.values()) if (ch.claimed && ch.visible && ch.root.visible) blobs.add(ch.pos.x, 0.025, ch.pos.z, 1.05, blobCol, blobA);
+    // sinematik kopyaları (hayalet hariç): yer gölgesi yoksa çizim görünümünde havada duruyormuş gibi görünürler
+    for (const a of cineActors.values()) { const c = a.ch; if (!c.isGhost && c.visible && c.root.visible && c.root.position.y < 0.3) blobs.add(c.pos.x, 0.025, c.pos.z, 1.05, blobCol, blobA); }
     for (const g of ghosts.values()) glow.add(g.pos.x, 1.2, g.pos.z, 2.2, colorOf(COLOR_HEX[g.look.color]), 0.22);
     if (act === 'night' && village) {
       for (const id of selectableIds) {
@@ -1737,6 +1741,17 @@ export function create(container, handlers = {}) {
       return director.announce(msg);
     },
     skip() { director.skip(); },
+    // Açılış hikâyesi (yalnız menü görünümünde): mezarlık paketi (extra) en çok ~3 sn beklenir, inmediyse o sahne sade
+    // kalır. Sinematik bitince ya da geçilince çözülür (true); oynatılamadıysa false. hooks: { beat(i), dip() }, durs: sahne süreleri.
+    canIntro() { return !disposed && ready && view === 'menu'; },
+    playIntro(opts = {}) {
+      if (disposed || !ready || view !== 'menu') return Promise.resolve(false);
+      const wait = A.groupLoaded('extra') ? Promise.resolve() : Promise.race([A.loadGroups(['extra']).catch(() => {}), new Promise((r) => setTimeout(r, 3000))]);
+      return wait.then(() => {
+        if (disposed || !ready || view !== 'menu') return false;
+        return director.announce({ kind: 'intro', hooks: opts.hooks || {}, durs: opts.durs, maxS: INTRO_MAX_S }).then(() => true);
+      });
+    },
     // izleyici bu gece kendi ölümünü gösteride gördü mü (arayüz "öldürüldün" etiketini o ana kadar göstermez)
     sawOwnDeath() { return nightShow.sawDeath(); },
     bubble(id, text, channel) {
@@ -1801,6 +1816,7 @@ export function create(container, handlers = {}) {
     origUpdate(st, o);
   };
   // Dışarıdan çağrılan her yöntem hatayı içeride tutar (arayüzü asla bozmasın)
+  { const f = api.playIntro; api.playIntro = (o) => { try { return f(o).catch((e) => { report('api.playIntro', e); return false; }); } catch (e) { report('api.playIntro', e); return Promise.resolve(false); } }; }
   for (const k of ['announce', 'bubble', 'setView', 'setQuality', 'resize', 'reset', 'setInsets', 'recenter', 'setMood', 'skip', 'setScenario', 'setCameraMode', 'setStyle']) {
     const f = api[k];
     api[k] = function (...args) { try { return f.apply(api, args); } catch (e) { report('api.' + k, e); return k === 'announce' ? Promise.resolve() : undefined; } };

@@ -17,6 +17,7 @@ import { openLookEditor } from './ui/look.js';
 import { initSoundButtons, closeSoundPopover } from './ui/sound.js';
 import { initPwa } from './ui/pwa.js';
 import { syncFps } from './ui/fps.js';
+import { runIntro, introAutoplay, introActive, cancelIntro } from './ui/intro.js';
 
 const ROOM_KEY = 'vk.room';
 const INVITE_KEY = 'vk.invite';
@@ -110,7 +111,8 @@ function connectSocket() {
       const ok = await joinByCode(invite);
       if (ok) return;
     }
-    if (ctx.view !== 'room' && ctx.view !== 'menu') show('menu');
+    // açılış hikâyesi izlenirken menüye atlama: hikâye bitince kendi döner
+    if (ctx.view !== 'room' && ctx.view !== 'menu' && ctx.view !== 'intro') show('menu');
     else rewatchRooms();
   });
 
@@ -136,6 +138,7 @@ function connectSocket() {
   socket.on('state', (s) => {
     if (!s || !s.me) return;
     const first = ctx.view !== 'room';
+    if (first && introActive()) cancelIntro();   // odaya alındıysa hikâye beklemeden kapanır
     if (first) enterRoom(s);
     ctx.state = s;
     ctx.receivedAt = Date.now();
@@ -275,9 +278,18 @@ async function boot() {
 
   await worldP;
   await Promise.race([worldReady, new Promise((r) => setTimeout(r, 7000))]);
-  if (!ioOK || !window.io) { show('down'); return; }
 
-  if (!auth.token) { show('auth'); return; }
+  // Açılış hikâyesi: yalnızca ilk ziyarette, davetle/oturumla/odaya dönerek gelmeyen kullanıcıya (kapı ekranıyla).
+  // Davet linkiyle gelen atlanır ve "izlendi" sayılmaz: sonraki normal açılışta gösterilir.
+  let reveal = null;
+  if (introAutoplay({ invite: !!inv || !!session.get(INVITE_KEY), token: !!auth.token, room: !!store.get(ROOM_KEY) })) {
+    try { reveal = await runIntro({ gate: true, enter: () => show('intro') }); } catch (e) { console.warn('[intro]', e); }
+  }
+  const lift = () => { if (reveal) { const r = reveal; reveal = null; r(); } };
+
+  if (!ioOK || !window.io) { show('down'); lift(); return; }
+
+  if (!auth.token) { show('auth'); lift(); return; }
   try {
     const res = await Api.me();
     ctx.user = res.user;
@@ -286,7 +298,20 @@ async function boot() {
     if (e.status === 401) { auth.token = null; show('auth'); toast('Oturumun sona erdi, tekrar giriş yap.', 'error'); }
     else { $('#down-text').textContent = e.message; show('down'); }
   }
+  lift();
 }
+
+// Ayarlar / giriş ekranındaki "Açılış hikâyesini izle": bulunduğu ekrana geri döner (odadayken oynamaz)
+async function replayIntro() {
+  if (introActive() || !['menu', 'auth', 'down'].includes(ctx.view)) return;
+  const prev = ctx.view;
+  closeAllSheets();
+  closeSoundPopover();
+  const reveal = await runIntro({ gate: false, enter: () => show('intro') });
+  if (ctx.view === 'intro') show(prev);   // bu arada odaya alındıysa (oturum devamı) dokunma
+  reveal();
+}
+on('intro:play', replayIntro);
 
 // Geliştirme kancası: localStorage['vk.debug'] açıksa test betikleri duyuru tetikleyebilir.
 if (store.get('vk.debug')) window.__vkDebug = { ctx, pushAnnounce };

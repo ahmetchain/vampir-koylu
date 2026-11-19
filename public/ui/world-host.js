@@ -145,6 +145,16 @@ export const W = {
   resize() { if (world) safe(() => world.resize()); },
   reset() { if (world) safe(() => world.reset()); },
   skip() { if (world && typeof world.skip === 'function') safe(() => world.skip()); },
+  // Açılış hikâyesi 3B köyde oynatılabilir mi (3B dünya hazır ve menü görünümünde; 2B yedekte hayır)
+  introReady() { return !!(world && !usingFallback && typeof world.canIntro === 'function' && safe(() => world.canIntro(), false)); },
+  // Hikâyeyi oynat: bitince/geçilince true, oynatılamazsa false (asla reddetmez)
+  playIntro(opts) {
+    if (!W.introReady()) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      const p = safe(() => world.playIntro(opts), null);
+      if (p && typeof p.then === 'function') p.then((v) => resolve(!!v), () => resolve(false)); else resolve(false);
+    });
+  },
   // İzleyici bu gece kendi ölümünü gösteride gördü mü (dünya bilmiyorsa false: sonuç kartı beklenir).
   sawOwnDeath() { return !!(world && typeof world.sawOwnDeath === 'function' && safe(() => world.sawOwnDeath(), false)); },
   // Performans ölçümü (alanlar dünyaya göre değişebilir).

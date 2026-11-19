@@ -93,6 +93,9 @@
     day:   { music: 'day',   amb: { fire: 0.45, day: 0.75 } },
     night: { music: 'night', amb: { fire: 0.55, night: 0.85 }, owl: true },
     ended: { music: 'menu',  amb: { fire: 0.6 } },
+    // açılış hikâyesi: menü teması sürer, gündüz kuş/rüzgâr, gece ateş çıtırtısı (yeni dosya yok)
+    'intro-day':   { music: 'menu', amb: { fire: 0.2, day: 0.8 } },
+    'intro-night': { music: 'menu', amb: { fire: 0.75, night: 0.7 } },
     none:  { music: null,    amb: {} }
   };
   var FADE_OUT = 1.8, FADE_IN = 2.4, FIRST_FADE_IN = 4.0, AMB_FADE = 2.0;
@@ -772,6 +775,14 @@
         if (def.zz) { playZz(def, name, def.vol * v); return; }
         play(def, name, def.vol * v, def.party ? nodes.hero : nodes.sfx, def.pitch || 0, false);
       } catch (e) { logErr('sfx', e); }
+    },
+    // Tek bir baykuş ötüşü (ortam kanalında; gece sahnesindeki rastgele baykuştan bağımsız), örn. açılış hikâyesi.
+    owl: function (vol) {
+      try {
+        if (!ctx || settings.muted || ctx.state !== 'running') return;
+        var v = Number(vol); if (!isFinite(v)) v = 0.7;
+        play(OWL, 'owl', Math.max(0, Math.min(1.2, v)), nodes.amb, 0.04, true);
+      } catch (e) { logErr('owl', e); }
     },
     // Çalan bir efekti yumuşakça kapatır (varsayılan 1,5 sn'de azalır), örn. VKAudio.stopSfx('entrance').
     stopSfx: function (name, fade) {
