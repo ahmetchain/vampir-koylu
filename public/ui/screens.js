@@ -153,6 +153,7 @@ export function initAuth(onLoggedIn) {
       return;
     }
     if (e.target.closest('[data-howto]')) { sfx('click'); openHowto(); }
+    if (e.target.closest('[data-intro-replay]')) { sfx('click'); emitLocal('intro:play'); }
   });
   // Sekmeler arasında ok tuşlarıyla geçiş (WAI-ARIA sekme kalıbı).
   $('.auth-seg').addEventListener('keydown', (e) => {
@@ -551,6 +552,8 @@ export function openSettings() {
         <small>Oyunda köşede küçük bir ölçüm etiketi çıkar (kare hızı, kare süresi, kalite). Takılma bildirirken bu sayıları paylaş.</small></div>
       <div class="set-row"><label for="s-2d">Basit 2B köy</label><span class="switch"><input type="checkbox" id="s-2d" ${p2 ? 'checked' : ''}><i></i></span>
         <small>${isFallback() && !p2 ? 'Bu cihazda 3B köy açılamadığı için zaten 2B köy kullanılıyor.' : 'Çok eski telefonlar için hafif kuşbakışı köy. Değişiklik sayfa yenilenince uygulanır.'}</small></div>
+      ${ctx.view !== 'room' ? `<div class="set-row"><span><b>Açılış hikâyesi</b><br><small class="muted">Köyün başına gelenler, yarım dakikada.</small></span>
+        <button type="button" class="btn btn-ghost btn-s" id="s-intro">Açılış hikâyesini izle</button></div>` : ''}
       ${ctx.user ? `<div class="section-title">Hesap</div>
       <div class="set-row"><span><b>${esc(ctx.user.username)}</b><br><small class="muted">Üyelik: ${new Date(ctx.user.createdAt).toLocaleDateString('tr-TR')}</small></span>
         <button type="button" class="btn btn-ghost btn-s" id="s-logout">${icon('logout')}Çıkış yap</button></div>` : ''}`,
@@ -570,6 +573,8 @@ export function openSettings() {
     setPrefers2D(e.target.checked);
     if (await confirmBox('Köy değişiyor', 'Yeni görünüm için sayfa yenilensin mi? Odadaysan yerine geri dönersin.', 'Yenile', false)) location.reload();
   });
+  const si = b.querySelector('#s-intro');
+  if (si) si.addEventListener('click', () => { sfx('click'); sheet.close(); emitLocal('intro:play'); });
   const lo = b.querySelector('#s-logout');
   if (lo) lo.addEventListener('click', async () => { sheet.close(); emitLocal('logout'); });
 }
