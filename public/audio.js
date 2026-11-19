@@ -80,6 +80,13 @@
     whoosh:  { files: takes('whoosh', 2), vol: 0.6,  pitch: 0.08, max: 3, gap: 60, prio: 2 },
     bell:    { files: takes('bell', 1),   vol: 0.8,  max: 1, gap: 600, duck: 0.7, prio: 2 },
     // oda sahibi hesabı odaya girince çalan özgün, 10 sn'lik güreş girişi tarzı tören müziği
+    // Açılış hikâyesi seslendirmesi (Higgsfield / ElevenLabs v4, ses: Arthur). Yalnızca hikâyeyi izleyene iner (tembel);
+    // konuşurken müzik ve ortam sesleri kısılır (party), hikâye kapanınca/geçilince stopSfx ile susturulur.
+    'voice-1': { files: ['voice/intro-1.mp3'], vol: 1.0, max: 1, gap: 400, party: 0.45, prio: 3, lazy: true, late: 2500 },
+    'voice-2': { files: ['voice/intro-2.mp3'], vol: 1.0, max: 1, gap: 400, party: 0.45, prio: 3, lazy: true, late: 2500 },
+    'voice-3': { files: ['voice/intro-3.mp3'], vol: 1.0, max: 1, gap: 400, party: 0.45, prio: 3, lazy: true, late: 2500 },
+    'voice-4': { files: ['voice/intro-4.mp3'], vol: 1.0, max: 1, gap: 400, party: 0.45, prio: 3, lazy: true, late: 2500 },
+    'voice-5': { files: ['voice/intro-5.mp3'], vol: 1.0, max: 1, gap: 400, party: 0.45, prio: 3, lazy: true, late: 2500 },
     entrance: { files: takes('entrance', 1), vol: 0.95, max: 1, gap: 31000, party: 0.22, prio: 3, fade: 3, lazy: true, late: 4000 }
   };
   // gece rastgele baykuş (iç efekt, genel sfx listesinde değil)
@@ -775,6 +782,15 @@
         if (def.zz) { playZz(def, name, def.vol * v); return; }
         play(def, name, def.vol * v, def.party ? nodes.hero : nodes.sfx, def.pitch || 0, false);
       } catch (e) { logErr('sfx', e); }
+    },
+    // Tembel (lazy) efektlerin dosyalarını önceden indirir (bağlam yoksa yalnızca baytlar; varsa çözülür), örn. açılış seslendirmesi.
+    prefetch: function (names) {
+      try {
+        (names || []).forEach(function (n) {
+          var d = SFX[n]; if (!d) return;
+          d.files.forEach(function (f) { (ctx ? load(f) : getBytes(f)).then(null, function () { }); });
+        });
+      } catch (e) { logErr('prefetch', e); }
     },
     // Tek bir baykuş ötüşü (ortam kanalında; gece sahnesindeki rastgele baykuştan bağımsız), örn. açılış hikâyesi.
     owl: function (vol) {

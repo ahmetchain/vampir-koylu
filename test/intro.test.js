@@ -44,7 +44,7 @@ test('beş cümle, toplam süre ~30 sn, uzun cümle de hızlı belirir', async (
   const S = await load();
   assert.equal(S.STORY.length, 5);
   assert.equal(S.DURS.length, 6);
-  assert.ok(S.TOTAL_S >= 24 && S.TOTAL_S <= 32, 'toplam ' + S.TOTAL_S);
+  assert.ok(S.TOTAL_S >= 24 && S.TOTAL_S <= 40, 'toplam ' + S.TOTAL_S);
   for (const s of S.STORY) {
     const words = s.text.split(/\s+/).length;
     // belirme bitince cümle en az ~2,5 sn okunur kalsın

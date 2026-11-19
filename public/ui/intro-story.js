@@ -1,13 +1,13 @@
 // Açılış hikâyesi: metinler, süreler ve "kendiliğinden oynasın mı" kararı (DOM'suz; birim testli).
 export const INTRO_SEEN_KEY = 'vk.introSeen';
 
-// Sahneler (sn). Süre, kelime kelime belirme + okuma payı; 3B sahne de aynı süreleri kullanır.
+// Sahneler (sn). Süre, seslendirmenin uzunluğu (public/assets/audio/voice/intro-N.mp3) + kısa nefes payı; 3B sahne de aynı süreleri kullanır.
 export const STORY = [
-  { id: 'day', text: 'Bir zamanlar, dağların arasında mutlu mesut yaşayan bir köy varmış.', dur: 5.0 },
-  { id: 'dusk', text: 'Geceleri biri öldüğünde kimse o kadar korkmazmış. Ölüm, hayatın bir parçasıymış.', dur: 5.6 },
-  { id: 'dawn', text: 'Ta ki bir sabah, birinin boynunda iki küçük diş izi bulunana dek…', dur: 5.6 },
-  { id: 'night', text: 'O gün her şey değişti. Aranızda vampirler var.', dur: 4.4 },
-  { id: 'dark', text: 'Artık köylüler gerçek rollerini kullanmak zorunda. Vampirleri kısa sürede köyden kovmazlarsa, köy bir daha asla eskisi gibi olamayacak.', dur: 7.4 },
+  { id: 'day', text: 'Bir zamanlar, dağların arasında mutlu mesut yaşayan bir köy varmış.', dur: 5.8 },
+  { id: 'dusk', text: 'Geceleri biri öldüğünde kimse o kadar korkmazmış. Ölüm, hayatın bir parçasıymış.', dur: 7.0 },
+  { id: 'dawn', text: 'Ta ki bir sabah, birinin boynunda iki küçük diş izi bulunana dek…', dur: 5.9 },
+  { id: 'night', text: 'O gün her şey değişti. Aranızda vampirler var.', dur: 4.6 },
+  { id: 'dark', text: 'Artık köylüler gerçek rollerini kullanmak zorunda. Vampirleri kısa sürede köyden kovmazlarsa, köy bir daha asla eskisi gibi olamayacak.', dur: 10.4 },
 ];
 export const TITLE_S = 2.8;
 export const DURS = [...STORY.map((s) => s.dur), TITLE_S];

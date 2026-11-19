@@ -9,6 +9,9 @@ import { audioScene, sfx } from './util.js';
 const storage = () => { try { return window.localStorage; } catch { return null; } };
 const reducedMotion = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch { return false; } };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const VOICES = ['voice-1', 'voice-2', 'voice-3', 'voice-4', 'voice-5'];
+const prefetchVoice = () => { try { if (window.VKAudio && window.VKAudio.prefetch) window.VKAudio.prefetch(VOICES); } catch { /* ses yok */ } };
+const stopVoice = () => { try { if (window.VKAudio && window.VKAudio.stopSfx) VOICES.forEach((v) => window.VKAudio.stopSfx(v, 0.35)); } catch { /* ses yok */ } };
 const owl = (v) => { try { if (window.VKAudio && window.VKAudio.owl) window.VKAudio.owl(v); } catch { /* ses yok */ } };
 
 export function introAutoplay(o) { return shouldAutoplay({ ...o, seen: readSeen(storage()) }); }
@@ -114,6 +117,7 @@ export async function runIntro({ gate = false, enter } = {}) {
   if (gate) {
     const splash = document.getElementById('splash');
     if (splash) splash.hidden = true;
+    prefetchVoice();
     const v = await gateChoice(el);
     markIntroSeen();
     if (v !== 'start') {
@@ -124,7 +128,7 @@ export async function runIntro({ gate = false, enter } = {}) {
       return async () => {};
     }
     sfx('click');
-  } else markIntroSeen();
+  } else { markIntroSeen(); prefetchVoice(); }
 
   el.querySelector('.intro-gate').hidden = true;
   el.dataset.stage = 'play';
@@ -144,7 +148,7 @@ export async function runIntro({ gate = false, enter } = {}) {
   let skipped = false;
   let skipResolve;
   const skipP = new Promise((r) => { skipResolve = r; });
-  const doSkip = () => { if (skipped) return; skipped = true; skipResolve(); };
+  const doSkip = () => { if (skipped) return; skipped = true; stopVoice(); skipResolve(); };
   let cancelled = false;
   cancelFn = () => { cancelled = true; W.skip(); doSkip(); };
   const skipBtn = el.querySelector('.intro-skip');
@@ -166,7 +170,7 @@ export async function runIntro({ gate = false, enter } = {}) {
         if (i === 3) owl(0.75);
         if (i === 5) sfx('zzGong', { volume: 0.7 });
       }
-      if (i < STORY.length) setCaption(el, STORY[i].text);
+      if (i < STORY.length) { setCaption(el, STORY[i].text); sfx('voice-' + (i + 1)); }
       else { el.querySelector('.intro-cap').classList.remove('on'); el.classList.add('titled'); }
     },
   };
