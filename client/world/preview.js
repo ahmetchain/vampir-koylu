@@ -138,7 +138,8 @@ export function preview(el, look, opts = {}) {
   if (!raf) raf = requestAnimationFrame(loop);
 
   return {
-    setLook(l) { cur = { ...cur, ...l }; build(); },
+    // Yeni görünümde olmayan isteğe bağlı alanlar (çakışmada çıkarılan üst/alt/teçhizat/aksesuar) 0 sayılır: eski seçim önizlemede kalmasın
+    setLook(l) { cur = { ...cur, acc: 0, top: 0, bottom: 0, gear: 0, ...l }; build(); },
     // 'head': baş ve şapka yakın plan (şapka/aksesuar seçimi), 'wear': kıyafet (yarı yakın), 'body': tüm boy
     setFocus(f) { zoomTo = f === 'head' ? 1 : f === 'wear' ? 0.45 : 0; },
     // sırt teçhizatı seçilince: karakter hızla arkasını döner, sonra yavaşça yüzü kameraya geri gelir

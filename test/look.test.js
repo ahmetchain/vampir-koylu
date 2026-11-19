@@ -96,3 +96,14 @@ test('kaldırılmış aksesuar indeksi (6) profilden ve odadan temizlenir', () =
   assert.equal(r.players.get('a').look.acc, undefined);
   r.destroy();
 });
+
+// Üst giysi başına "gövdeden taşma" tablosu (outfits.js TOP_PAD) üst giysi sayısıyla aynı uzunlukta olmalı:
+// yeni üst giysi eklenip tablo unutulursa kemer/askı/madalyon giysinin içine gömülür.
+test('outfits.js TOP_PAD üst giysi listesiyle aynı uzunlukta', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'client/world/outfits.js'), 'utf8');
+  const m = src.match(/const TOP_PAD = \[([^\]]*)\]/);
+  assert.ok(m, 'TOP_PAD bulunamadı');
+  const tops = fs.readFileSync(path.join(__dirname, '..', 'public/ui/cosmetics.js'), 'utf8').match(/export const TOP_ITEMS = \[([\s\S]*?)\n\];/);
+  assert.ok(tops);
+  assert.equal(m[1].split(',').length, (tops[1].match(/name: /g) || []).length);
+});

@@ -329,6 +329,16 @@ function sipahi(F, royal) {
 }
 
 const LONG_TOPS = [2, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14];
+// Üst giysinin göğüs/bel hizasında gövdeden ne kadar taştığı (m): gövdeye oturan teçhizat/aksesuar (kemer, askı, hançer,
+// kese, madalyon, çini kuşak) giysinin ALTINDA kalıp titremesin / gömülmesin diye bu kadar dışa kaydırılır (padFit).
+const TOP_PAD = [0, 0.024, 0.026, 0.024, 0.045, 0.02, 0.045, 0.036, 0.04, 0.042, 0.05, 0.058, 0.045, 0.04, 0.05];
+export function topPad(top) { return TOP_PAD[top | 0] || 0; }
+// Ölçüleri üst giysinin dışına taşır (yeni nesne; paylaşılan bodyFit değişmez)
+export function padFit(F, top) {
+  const pad = topPad(top);
+  if (!F || !pad) return F;
+  return { ...F, torso: { ...F.torso, hx: F.torso.hx + pad, hz: F.torso.hz + pad } };
+}
 const TOP_BUILD = [null, cepken, entari, cintemaniYelek, (F) => kaftan(F, false), kapanice, (F) => kaftan(F, true),
   gambeson, zincirZirh, akinciYelek, armaCuppesi, mehterCubbe, plakali, (F) => sipahi(F, false), (F) => sipahi(F, true)];
 
@@ -350,6 +360,14 @@ const LEG_PAINT = [
   { a: [...rgb('#8d96a0'), 1], b: [0, 0, 0, -1] },                  // 11 Zırhlı bacaklık: tüm bacak ve ayak çelik
 ];
 export function legPaint(bottom) { return LEG_PAINT[bottom | 0] || null; }
+// Modelin kendi kemer/kravat/gömlek süsleri için örtme kipi (assets.villagerTinted cover): 2 = üst giysi var (kemer + göğüs
+// süsleri örtülür), 1 = yalnız kemerli teçhizat/aksesuar (kılıç, pala, çini kuşak, hançer, kese: kendi kemerini çizer), 0 = yok.
+const BELT_GEAR = [1, 3, 4], BELT_ACC = [7, 8];
+export function coverMode(look) {
+  if ((look.top | 0) > 0) return 2;
+  if (BELT_GEAR.includes(look.gear | 0) || BELT_ACC.includes(look.acc | 0)) return 1;
+  return 0;
+}
 
 // long: uzun üst giysi (entari, kaftan, kapaniçe) varsa kabarık şalvar eteğin altında kalsın diye daraltılır
 function legRing(L, rows, opts = {}) {
@@ -663,13 +681,13 @@ function gTug(F) {
 const GEAR_BUILD = [null, gKilic, gYuvarlak, gCiniKusak, gPala, gDamla, gSadak, gSpiral, gKargi, (F) => gSancak(F, false), gTug, (F) => gSancak(F, true)];
 const gearGeos = new Map();
 // Dönüş: { torso: geometri (gövde kemiği), legL?: geometri (sol bacak kemiği) } ya da null
-export function gearGeometry(gear, skin) {
+export function gearGeometry(gear, skin, top = 0) {
   const g = gear | 0;
   if (!GEAR_BUILD[g]) return null;
-  const key = g + '|' + skin;
+  const key = g + '|' + skin + '|' + topPad(top);
   if (gearGeos.has(key)) return gearGeos.get(key);
   let out = null;
-  const F = bodyFit(skin);
+  const F = padFit(bodyFit(skin), top);
   if (F) {
     try { const r = GEAR_BUILD[g](F); out = r && r.isBufferGeometry ? { torso: r } : r; } catch (e) { console.warn('[VKWorld] teçhizat üretilemedi', key, e); out = null; }
   }
@@ -813,7 +831,7 @@ export function outfitGeometry(skin, top, bottom, acc = 0, hat = 0, gear = 0) {
         }
       }
       if (gear) {
-        const gg = gearGeometry(gear, skin);
+        const gg = gearGeometry(gear, skin, top);
         for (const [part0, bone] of gg ? [[gg.torso, 'torso'], [gg.legL, 'leg-left']] : []) {
           if (!part0) continue;
           const g = part0.clone();
@@ -827,7 +845,7 @@ export function outfitGeometry(skin, top, bottom, acc = 0, hat = 0, gear = 0) {
         all.push(...toSkinned(BOTTOM_BUILD[bottom](F.leg, long), mesh, 'leg-right'));
       }
       if (acc) {
-        const a = accGeometry(acc, skin);
+        const a = accGeometry(acc, skin, top);
         if (a) { const g = a.geo.clone(); for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(k)) g.deleteAttribute(k); all.push(...toSkinned([g.index ? g.toNonIndexed() : g], mesh, a.bone)); }
       }
       if (hat) {

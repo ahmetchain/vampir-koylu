@@ -174,8 +174,29 @@ const LEG_GLSL = `
     }
     diffuseColor.rgb = c;
   }`;
-export function villagerTinted(hex, leg = null) {
-  const key = hex + (leg ? '|' + leg.a.join(',') + '|' + leg.b.join(',') : '');
+// Üst giysi / bel teçhizatı takılıyken modelin KENDİ gövde süsleri (kemer + tokası, kravat, beyaz gömlek yakası) giysinin
+// içinden fırlamasın (iç içe geçme): kemer bandının gövdeden taşan kısmı çizilmez, gövdeye oturan kısmı iç kat renginde boyanır (kip >= 1: kodla çizilen giysinin/teçhizatın kemeri yerini alır);
+// kip 2'de göğüs bölgesindeki ten dışı renkler (kravat, beyaz gömlek) ve gövde kumaşı oyuncu renginde (açık renklerde biraz koyu) düz bir iç kat olur.
+const COVER_GLSL = `
+  if (uCover > 0.5 && vBone.x > 0.5 && vBone.x < 1.5) {
+    // iç kat tonu: açık renklerde (beyaz, krem) daha koyu; böylece açık renk gömlek, giysinin açık yaka/kenarıyla birleşmez
+    float vkLum = dot(uCloth, vec3(0.3, 0.5, 0.2));
+    vec3 vkUnder = uCloth * (0.95 - 0.17 * smoothstep(0.35, 0.8, vkLum));
+    if (vCloth < 0.01) {
+      bool band = vBone.z > -0.015 && vBone.z < 0.075;
+      if (band && (abs(vBone.y) > 0.128 || abs(vBone.w) > 0.115)) discard;
+      if (band && uCover > 1.5) diffuseColor.rgb = vkUnder;
+      if (uCover > 1.5 && vBone.z >= 0.075) {
+        vec3 cc = diffuseColor.rgb;
+        float gr = cc.g / max(cc.r, 0.001);
+        if (!(gr > 0.3 && gr < 0.8 && cc.b < cc.g * 1.05)) diffuseColor.rgb = vkUnder;
+      }
+    } else if (uCover > 1.5) {
+      diffuseColor.rgb = vkUnder * vCloth;
+    }
+  }`;
+export function villagerTinted(hex, leg = null, cover = 0) {
+  const key = hex + (leg ? '|' + leg.a.join(',') + '|' + leg.b.join(',') : '') + (cover ? '|c' + cover : '');
   if (villCache.has(key)) return villCache.get(key);
   const src = mats.get('villager');
   if (!src) return null;
@@ -184,13 +205,14 @@ export function villagerTinted(hex, leg = null) {
   const u = { value: new THREE.Color(hex) };
   const la = { value: new THREE.Vector4(...(leg ? leg.a : [0, 0, 0, 0])) };
   const lb = { value: new THREE.Vector4(...(leg ? leg.b : [0, 0, 0, 0])) };
+  const uc = { value: cover };
   m.userData.uCloth = u;
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.uCloth = u; sh.uniforms.uLegA = la; sh.uniforms.uLegB = lb;
+    sh.uniforms.uCloth = u; sh.uniforms.uLegA = la; sh.uniforms.uLegB = lb; sh.uniforms.uCover = uc;
     sh.vertexShader = 'attribute float aCloth;\nattribute vec4 aBone;\nvarying float vCloth;\nvarying vec4 vBone;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vCloth = aCloth; vBone = aBone;');
-    sh.fragmentShader = 'uniform vec3 uCloth;\nuniform vec4 uLegA;\nuniform vec4 uLegB;\nvarying float vCloth;\nvarying vec4 vBone;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n  if (vCloth > 0.01) diffuseColor.rgb = uCloth * vCloth;' + LEG_GLSL);
+    sh.fragmentShader = 'uniform vec3 uCloth;\nuniform vec4 uLegA;\nuniform vec4 uLegB;\nuniform float uCover;\nvarying float vCloth;\nvarying vec4 vBone;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n  if (vCloth > 0.01) diffuseColor.rgb = uCloth * vCloth;' + LEG_GLSL + COVER_GLSL);
   };
-  m.customProgramCacheKey = () => 'vkw-villager-cloth2';
+  m.customProgramCacheKey = () => 'vkw-villager-cloth3';
   villCache.set(key, m);
   return m;
 }

@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as A from './assets.js';
 import { HAT_NODES, HAT_NAMES, ACC_NAMES, HAT_Y_OFFSET, clamp } from './constants.js';
-import { bodyFit, ACC_FIT_BUILD } from './outfits.js';
+import { bodyFit, padFit, topPad, ACC_FIT_BUILD } from './outfits.js';
 
 const TAU = Math.PI * 2;
 const tmpC = new THREE.Color();
@@ -650,15 +650,15 @@ export function hatGeometry(index, skin = 0) {
 }
 
 // Aksesuar geometrisi (kemik-yerel, paylaşılan) ve kemik adı: { geo, bone } ya da null.
-export function accGeometry(index, skin = 0) {
+export function accGeometry(index, skin = 0, top = 0) {
   const i = index | 0;
   const fitDef = ACC_FIT_BUILD[i];
   if (fitDef) {
     // gövdeye oturan yeni aksesuarlar (outfits.js): deri başına ölçülür
     const s = clamp(skin | 0, 0, 11);
-    const F = fitDef.fit ? bodyFit(s) : null;
+    const F = fitDef.fit ? padFit(bodyFit(s), top) : null;
     if (fitDef.fit && !F) return null;
-    const g = geoFor('a' + i + (fitDef.fit ? '|' + s : ''), () => fitDef.build(F));
+    const g = geoFor('a' + i + (fitDef.fit ? '|' + s + '|' + topPad(top) : ''), () => fitDef.build(F));
     return g ? { geo: g, bone: fitDef.bone } : null;
   }
   const def = ACC_DEFS[i];

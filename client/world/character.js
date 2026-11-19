@@ -6,7 +6,7 @@ import * as A from './assets.js';
 import { addOutlines } from './style.js';
 import { COLOR_HEX, clamp, damp, wrapAngle } from './constants.js';
 import { makeHat, makeAcc, fitHair, accOnHand } from './hats.js';
-import { attachOutfit, legPaint, gearTop } from './outfits.js';
+import { attachOutfit, legPaint, gearTop, coverMode } from './outfits.js';
 import { resolveLook } from '../../public/ui/cosmetics.js';
 
 export const SCALE = 1.12;
@@ -79,7 +79,7 @@ export class Character {
     model.traverse((o) => {
       if (!o.isMesh) return;
       if (o.material.name === 'cloth' && cloth) o.material = cloth;
-      else if (o.isSkinnedMesh && o.userData.clothMerged && o.material.name === 'villager') { const vm = A.villagerTinted(COLOR_HEX[clamp(look.color | 0, 0, 19)], legPaint(look.bottom)); if (vm) o.material = vm; }
+      else if (o.isSkinnedMesh && o.userData.clothMerged && o.material.name === 'villager') { const vm = A.villagerTinted(COLOR_HEX[clamp(look.color | 0, 0, 19)], legPaint(look.bottom), coverMode(look)); if (vm) o.material = vm; }
       o.castShadow = true;
       o.receiveShadow = false;
       if (o.isSkinnedMesh) {
