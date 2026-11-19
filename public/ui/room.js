@@ -3,7 +3,7 @@
 import { ctx, send, playerById, iAmHost, emitLocal, on, serverNow } from './ctx.js';
 import { Api } from './api.js';
 import { $, esc, sfx, fmtClock, vibrate, audioScene, audioWeather, reducedMotion } from './util.js';
-import { icon, emblem, logoMark } from './icons.js';
+import { icon, emblem } from './icons.js';
 import { ROLES, ABILITIES, COLORS, inkOn, isEvil, WIN_TITLE, levelOf, countRoles, MIN_PLAYERS, EVENTS } from './data.js';
 import { W } from './world-host.js';
 import { openSheet, confirmBox, toast } from './kit.js';
@@ -12,6 +12,7 @@ import { openRoomSettings, distChips, poolNote } from './roomform.js';
 import { renderChatState, isDocked } from './chat.js';
 import { isAnnouncing } from './announce.js';
 import { openChronicle } from './chronicle.js';
+import { letterHTML, envelopeHTML, openEnvelope } from './rolecard.js';
 
 const SEL_COLOR = { vampir: '#ff4b5f', doktor: '#4fe0a8', kahin: '#a898ff', gozcu: '#ffc062', hirsiz: '#5fd0de' };
 const SEL_LABEL = { vampir: 'Hedef', doktor: 'Koruma', kahin: 'Bakılacak', gozcu: 'Gözetle', hirsiz: 'Soyulacak' };
@@ -276,14 +277,19 @@ async function copy(text, msg = 'Davet linki kopyalandı!') {
 }
 
 function onOverlayClick(e) {
-  const fl = e.target.closest('.flip');
-  if (fl) {
-    if (fl.classList.contains('turning')) return;
-    flipped = !flipped;
-    fl.classList.add('turning');
-    sfx(flipped ? 'whoosh' : 'click');
-    if (flipped) vibrate(30);   // rol kartı açılırken kısa titreşim (CSS pop: .flip.on .rolecard)
-    setTimeout(() => { fl.classList.toggle('on', !!flipped); fl.classList.remove('turning'); }, 220);
+  const env = e.target.closest('[data-env]');
+  if (env) {
+    const stage = env.closest('.rv-stage');
+    if (!stage || stage.classList.contains('opening')) return;
+    flipped = true;
+    if (reducedMotion() || !stage.animate) {
+      sfx('whoosh'); vibrate(30);
+      env.remove(); const l = stage.querySelector('.letter'); l.hidden = false; stage.classList.add('open'); syncRevealBtns(); l.focus({ preventScroll: true });
+      return;
+    }
+    // mühür kırılınca kısa titreşim; kapak açılırken hışırtı (CSS/WAAPI aşamaları rolecard.js'de)
+    openEnvelope(stage, { onCrack: () => { vibrate(30); sfx('click'); }, onFlap: () => sfx('whoosh') }).then(syncRevealBtns);
+    syncRevealBtns();
     return;
   }
   const b = e.target.closest('[data-e]');
@@ -296,6 +302,7 @@ function onOverlayClick(e) {
   if (a === 'leave') leaveRoom();
   if (a === 'chron') openChronicle();
   if (a === 'closecard') { flipped = 'closed'; renderOverlay(ctx.state); }
+  if (a === 'fold') { flipped = false; $('#overlay').innerHTML = ''; renderOverlay(ctx.state); }
 }
 
 // ---------- çizim ----------
@@ -890,25 +897,32 @@ function popVotes(rail, now) {
 // ---------- rol kartı ----------
 function roleCardHTML(s) {
   const role = s.me.role;
-  const r = ROLES[role];
   const mates = isEvil(role)
-    ? s.players.filter((p) => p.id !== s.me.id && isEvil(p.role)).map((p) => `${esc(p.name)} <small class="muted">(${ROLES[p.role].name}${p.ability && ABILITIES[p.ability] ? ` · ${ABILITIES[p.ability].name}` : ''})</small>`)
+    ? s.players.filter((p) => p.id !== s.me.id && isEvil(p.role)).map((p) => `${esc(p.name)} <small>(${ROLES[p.role].name}${p.ability && ABILITIES[p.ability] ? ` · ${ABILITIES[p.ability].name}` : ''})</small>`)
     : [];
-  const ability = role === 'vampir' && s.me.ability ? ABILITIES[s.me.ability] : null;
-  const notes = s.me.notes || [];
   const job = s.me.job || (playerById(s.me.id) || {}).job;
-  return `<div class="rolecard" style="--rc:${r.color}">
-    <span class="eyebrow">Rolün</span>
-    ${emblem(role, 'xl')}
-    <h2>${r.name}</h2>
-    <span class="team-tag team-${r.team}">${r.teamName}</span>
-    <p>${r.desc}</p>
-    ${ability ? `<div class="mates"><b>Yeteneğin · ${ability.name}</b>${ability.desc}<small>Takım arkadaşların da bilir; köy bilmez.</small></div>` : ''}
-    ${mates.length ? `<div class="mates"><b>Takım arkadaşların</b>${mates.join(', ')}</div>` : isEvil(role) ? '<div class="mates"><b>Takım arkadaşların</b>Takımında senden başka kimse yok.</div>' : ''}
-    ${job && job.label ? `<div class="job"><b>Köydeki işin</b>${esc(job.label)}<small>Sadece hikâye için; rolün hakkında hiçbir şey söylemez.</small></div>` : ''}
-    ${s.room.scenario && s.room.scenario.name ? `<div class="scenario"><b>Bu oyunun hikâyesi · ${esc(s.room.scenario.name)}</b>${s.room.scenario.intro ? `<p>${esc(s.room.scenario.intro)}</p>` : ''}</div>` : ''}
-    ${notes.length ? `<div class="notes"><b class="eyebrow">Notların</b><ul>${notes.map((n) => `<li>${esc(String(n.text).replace(/^[\p{Extended_Pictographic}‍️\s]+/u, ''))}${Array.isArray(n.roles) ? `<span class="note-roles">${n.roles.filter((r) => ROLES[r]).map((r) => emblem(r, 's')).join('')}</span>` : ''}</li>`).join('')}</ul></div>` : ''}
-  </div>`;
+  const sc = s.room.scenario;
+  return letterHTML({
+    role,
+    ability: role === 'vampir' && s.me.ability ? ABILITIES[s.me.ability] || null : null,
+    mates,
+    job: job && job.label ? job.label : '',
+    scenario: sc && sc.name ? { name: sc.name, intro: sc.intro || '' } : null,
+    notes: (s.me.notes || []).map((n) => ({
+      text: String(n.text).replace(/^[p{Extended_Pictographic}‍️s]+/u, ''),
+      rolesHtml: Array.isArray(n.roles) ? n.roles.filter((r) => ROLES[r]).map((r) => emblem(r, 's')).join('') : '',
+    })),
+  });
+}
+
+// Reveal altındaki düğmeler: mektup açıkken "Katla" (yeniden gizle) görünür.
+function syncRevealBtns() {
+  const st = document.querySelector('#overlay .rv-stage');
+  const fold = document.querySelector('#overlay [data-e="fold"]');
+  const hint = document.querySelector('#overlay .rv-hint');
+  const open = !!st && st.classList.contains('open');
+  if (fold) fold.hidden = !open;
+  if (hint) hint.hidden = !!st && (open || st.classList.contains('opening'));
 }
 
 function openRoleSheet() {
@@ -916,7 +930,7 @@ function openRoleSheet() {
   if (!s || !s.me.role || roleSheet) return;
   roleSheet = openSheet({
     title: 'Rol kartın', cls: 'sheet-small',
-    body: `<div data-rolecard style="height:min(560px,calc(var(--app-h) - 200px));min-height:380px">${roleCardHTML(s)}</div>`,
+    body: `<div data-rolecard class="rolecard-box">${roleCardHTML(s)}</div>`,
     footer: '<button type="button" class="btn btn-primary" data-close>Kapat</button>',
     onClose: () => { unsub(); roleSheet = null; },
   });
@@ -930,12 +944,11 @@ function renderOverlay(s) {
   const host = $('#overlay');
   const ph = s.room.phase;
   if (ph === 'reveal' && flipped !== 'closed') {
-    if (!host.querySelector('.flip')) {
-      host.innerHTML = `<div class="ov"><div class="reveal-stack">
-        <button type="button" class="flip${flipped ? ' on' : ''}" aria-label="Rol kartını çevir"><span class="flip-in">
-          <span class="flip-face flip-back">${logoMark()}<p>Kartını çevirmek için dokun</p><p class="muted small">Rolünü kimseye gösterme!</p></span>
-          <span class="flip-face flip-front">${roleCardHTML(s)}</span></span></button>
-        <p class="reveal-hint"><button type="button" class="btn btn-ghost btn-s" data-e="closecard">${icon('check')}Tamam, köye dön</button></p>
+    if (!host.querySelector('.rv-stage')) {
+      const open = flipped === true;
+      host.innerHTML = `<div class="ov ov-reveal"><div class="reveal-stack">
+        <div class="rv-stage${open ? ' open' : ''}">${open ? '' : envelopeHTML()}${roleCardHTML(s).replace('<article ', open ? '<article ' : '<article hidden ')}</div>
+        <p class="reveal-hint"><button type="button" class="btn btn-ghost btn-s" data-e="fold"${open ? '' : ' hidden'}>${icon('eyeOff')}Katla</button><button type="button" class="btn btn-ghost btn-s" data-e="closecard">${icon('check')}Tamam, köye dön</button></p>
       </div></div>`;
     }
     return;
