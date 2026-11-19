@@ -2,7 +2,7 @@
 // sağ üstte "Geç", sahne geçiş perdesi ve sondaki "Vampir Köylü" başlığı. Görüntü 3B köyde (VKWorld 'intro'
 // sinematiği) oynar; 3B yoksa (2B yedek / WebGL yok / dünya hazır değil) gökyüzü renk geçişli basit CSS sahnesi.
 // Ses tarayıcı kuralı gereği ancak dokunuştan sonra çalabildiği için ilk açılışta kapı ekranı gösterilir.
-import { STORY, DURS, TITLE_S, wordDelay, markSeen, readSeen, shouldAutoplay } from './intro-story.js';
+import { STORY, DURS, TITLE_S, wordDelay, markSeen, readSeen, shouldAutoplay, shouldShowGate } from './intro-story.js';
 import { W } from './world-host.js';
 import { audioScene, sfx } from './util.js';
 
@@ -16,6 +16,9 @@ const owl = (v) => { try { if (window.VKAudio && window.VKAudio.owl) window.VKAu
 
 export function introAutoplay(o) { return shouldAutoplay({ ...o, seen: readSeen(storage()) }); }
 export function markIntroSeen() { markSeen(storage()); }
+export function introLocalSeen() { return readSeen(storage()); }
+// Giriş yapmış kullanıcı için kapı kararı (sunucudaki hesap bayrağı + davet + oda + bu cihaz)
+export function introGate(o) { return shouldShowGate({ ...o, localSeen: readSeen(storage()) }); }
 
 let active = false;
 let cancelFn = null;
@@ -104,9 +107,11 @@ function setCaption(el, text) {
 /**
  * Hikâyeyi oynatır. opts.gate: önce kapı ekranı; opts.enter(): oynatma başlarken (arayüz 'intro' görünümüne geçer).
  * Döner: reveal() — çağıran altındaki ekranı (giriş/menü) hazırladıktan sonra çağırır; perde ve başlık yumuşakça kalkar.
+ * opts.onSeen(): "izlendi" sayıldığı an (kapıda başlat/geç ya da tekrar izle); giriş yapmışsa sunucuya işaretlemek için.
  * Kapıda "Geç" seçilirse enter() çağrılmaz; reveal() yine güvenle çağrılabilir.
  */
-export async function runIntro({ gate = false, enter } = {}) {
+export async function runIntro({ gate = false, enter, onSeen } = {}) {
+  const seen = () => { markIntroSeen(); try { if (onSeen) onSeen(); } catch (e) { console.warn('[intro]', e); } };
   if (active) return async () => {};
   active = true;
   const host = document.getElementById('app') || document.body;
@@ -119,7 +124,7 @@ export async function runIntro({ gate = false, enter } = {}) {
     if (splash) splash.hidden = true;
     prefetchVoice();
     const v = await gateChoice(el);
-    markIntroSeen();
+    seen();
     if (v !== 'start') {
       el.classList.add('fade-out');
       await sleep(320);
@@ -128,7 +133,7 @@ export async function runIntro({ gate = false, enter } = {}) {
       return async () => {};
     }
     sfx('click');
-  } else { markIntroSeen(); prefetchVoice(); }
+  } else { seen(); prefetchVoice(); }
 
   el.querySelector('.intro-gate').hidden = true;
   el.dataset.stage = 'play';

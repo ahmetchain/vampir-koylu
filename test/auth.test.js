@@ -33,7 +33,7 @@ test('kayıt: doğrulama kuralları ve kullanıcı bilgisi', async (t) => {
   assert.equal(res.json.ok, true);
   assert.equal(typeof res.json.token, 'string');
   const { user } = res.json;
-  assert.deepEqual(Object.keys(user).sort(), ['createdAt', 'id', 'look', 'stats', 'username']);
+  assert.deepEqual(Object.keys(user).sort(), ['createdAt', 'id', 'introSeen', 'look', 'stats', 'username']);
   assert.equal(user.username, 'Şule Nur', 'boşluklar sadeleşir');
   assert.ok(!Number.isNaN(Date.parse(user.createdAt)));
   assert.deepEqual(Object.keys(user.look).sort(), ['color', 'hat', 'skin']);

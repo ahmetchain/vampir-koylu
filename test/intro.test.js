@@ -22,6 +22,16 @@ test('ilk ziyarette kendiliğinden oynar; davet, oturum, oda ya da izlenmişse o
   assert.equal(S.shouldAutoplay({ room: true }), false);
 });
 
+test('giriş yapmış kullanıcı: hesapta izlenmemişse kapı çıkar; davet, oda, cihazda izlenmiş ya da introSeen true ise çıkmaz', async () => {
+  const S = await load();
+  assert.equal(S.shouldShowGate({ introSeen: false }), true);
+  assert.equal(S.shouldShowGate({ introSeen: false, invite: true }), false);
+  assert.equal(S.shouldShowGate({ introSeen: false, room: true }), false);
+  assert.equal(S.shouldShowGate({ introSeen: false, localSeen: true }), false);
+  assert.equal(S.shouldShowGate({ introSeen: true }), false);
+  assert.equal(S.shouldShowGate({}), false, 'bilinmeyen (eski sunucu) göstermez');
+});
+
 test('bayrak localStorage\'a yazılır; erişim hata verirse bellekte tutulur', async () => {
   const S = await load();
   S._resetMem();

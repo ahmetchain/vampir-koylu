@@ -340,6 +340,12 @@ Error codes:
 field must be given, otherwise 400 `invalid_look`. This changes the **profile** only; a seat already
 in a room keeps its look (use `player:look` in a room – that also saves to the profile).
 
+**`POST /api/me/intro-seen`** (Bearer, no body) → 200 `{ ok: true }`. Marks the opening story as watched
+(or skipped) for this account. Idempotent: the first call stores the time (`vk_users.intro_seen_at`), later
+calls change nothing. Errors: 401 `unauthorized`. The own-user object (`/api/me`, register/login
+responses) carries `introSeen: boolean` (accounts that existed before the story are `false`, so they see
+the story gate once); it is never part of `/api/leaderboard`.
+
 **`GET /api/leaderboard?limit=20`** (no auth) → 200
 `{ ok: true, players: [{ username, look, stats }] }`. Only accounts with at least one game. Order:
 wins desc, then games asc, then name. `limit` 1–100, default 20 (invalid → 20).

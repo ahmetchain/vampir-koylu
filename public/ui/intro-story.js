@@ -19,6 +19,13 @@ export function shouldAutoplay({ seen = false, invite = false, token = false, ro
   return !seen && !invite && !token && !room;
 }
 
+// Giriş yapmış kullanıcıya kapı gösterilsin mi? Sunucudaki hesap bayrağı (user.introSeen) esas: yalnızca açıkça false
+// ise (hikâyeden önce açılmış hesaplar dahil), davetle gelmediyse, bir oda oturumu sürdürülmüyorsa ve bu cihazda
+// zaten izlenmediyse (öyleyse yalnızca sunucuya işaretlenir) gösterilir. Misafir için shouldAutoplay kullanılır.
+export function shouldShowGate({ introSeen, invite = false, room = false, localSeen = false } = {}) {
+  return introSeen === false && !invite && !room && !localSeen;
+}
+
 // localStorage erişimi hata verebilir (özel sekme, engellenmiş site verisi): hata olursa "izlendi" sayılmaz ama
 // yazılamıyorsa her açılışta göstermemek için oturum boyunca bellekte de tutulur.
 let memSeen = false;

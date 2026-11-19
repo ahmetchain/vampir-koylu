@@ -17,7 +17,7 @@ import { openLookEditor } from './ui/look.js';
 import { initSoundButtons, closeSoundPopover } from './ui/sound.js';
 import { initPwa } from './ui/pwa.js';
 import { syncFps } from './ui/fps.js';
-import { runIntro, introAutoplay, introActive, cancelIntro } from './ui/intro.js';
+import { runIntro, introAutoplay, introActive, cancelIntro, introGate, introLocalSeen } from './ui/intro.js';
 
 const ROOM_KEY = 'vk.room';
 const INVITE_KEY = 'vk.invite';
@@ -222,10 +222,30 @@ on('logout', async () => {
   toast('Çıkış yaptın. Görüşmek üzere!', 'ok');
 });
 
+// Hikâye "izlendi" sayıldı (başlat / geç / tekrar izle): giriş yapmışsa hesaba da işlenir (hata sessiz; cihaz bayrağı yine yazılır).
+function syncIntroSeen() {
+  if (!auth.token || !ctx.user) return;
+  ctx.user.introSeen = true;
+  Api.introSeen().catch(() => {});
+}
+
+// Giriş sonrası (kayıt/giriş formu ya da açılışta oturumdan): hesapta hikâye izlenmemişse kapıyı BİR KEZ göster.
+// Davetle ya da oda oturumuyla geldiyse gösterilmez (sonraki normal menü açılışında gösterilir). Bu cihazda zaten
+// izlenmişse (misafirken) kapı çıkmaz, yalnızca hesaba işlenir. Döner: perdeyi kaldıran reveal() ya da null.
 async function afterLogin() {
-  show('menu');
+  let reveal = null;
+  const u = ctx.user;
+  if (u && u.introSeen === false) {
+    if (introLocalSeen()) syncIntroSeen();
+    else if (introGate({ introSeen: u.introSeen, invite: !!session.get(INVITE_KEY), room: !!store.get(ROOM_KEY) }) && !introActive()) {
+      try { reveal = await runIntro({ gate: true, enter: () => show('intro'), onSeen: syncIntroSeen }); } catch (e) { console.warn('[intro]', e); }
+    }
+  }
+  if (!auth.token) return reveal;   // kapı beklenirken oturum kapandıysa devam etme
+  if (ctx.view !== 'room' && ctx.view !== 'menu') show('menu');
   renderProfile();
   connectSocket();
+  return reveal;
 }
 
 // ---------- açılış ----------
@@ -247,7 +267,7 @@ async function boot() {
 
   initSoundButtons();
   initPwa();
-  initAuth(afterLogin);
+  initAuth(async () => { const r = await afterLogin(); if (r) r(); });
   initMenu();
   initChat();
   initAnnounce();
@@ -293,7 +313,8 @@ async function boot() {
   try {
     const res = await Api.me();
     ctx.user = res.user;
-    afterLogin();
+    const r2 = await afterLogin();   // hesapta hikâye izlenmemişse kapı burada çıkar (davet/oda yoksa)
+    if (r2) reveal = r2;
   } catch (e) {
     if (e.status === 401) { auth.token = null; show('auth'); toast('Oturumun sona erdi, tekrar giriş yap.', 'error'); }
     else { $('#down-text').textContent = e.message; show('down'); }
@@ -307,7 +328,7 @@ async function replayIntro() {
   const prev = ctx.view;
   closeAllSheets();
   closeSoundPopover();
-  const reveal = await runIntro({ gate: false, enter: () => show('intro') });
+  const reveal = await runIntro({ gate: false, enter: () => show('intro'), onSeen: syncIntroSeen });
   if (ctx.view === 'intro') show(prev);   // bu arada odaya alındıysa (oturum devamı) dokunma
   reveal();
 }

@@ -51,6 +51,7 @@ export const Api = {
   login: (username, password) => api('/auth/login', { method: 'POST', body: { username, password }, token: null }),
   logout: () => api('/auth/logout', { method: 'POST', body: {} }),
   me: () => api('/me'),
+  introSeen: () => api('/me/intro-seen', { method: 'POST', body: {} }),
   saveLook: (look) => api('/me', { method: 'PATCH', body: { look } }),
   leaderboard: (limit = 20) => api(`/leaderboard?limit=${limit}`, { token: null }),
 };
