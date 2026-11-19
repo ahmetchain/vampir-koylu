@@ -866,7 +866,8 @@ export function createVillage(scene, q, fx, terrain) {
     };
     // eski mezarlar (arka sıralar)
     const R = rng(66);
-    const old = ['gravestone-cross', 'gravestone-round', 'gravestone-broken', 'cross-wood', 'gravestone-roof', 'gravestone-bevel'];
+    // Dini sembol yok: paketteki haçlı taşlar (gravestone-cross, cross-wood, cross) kullanılmaz; düz taş biçimleri yeter.
+    const old = ['gravestone-wide', 'gravestone-round', 'gravestone-broken', 'gravestone-decorative', 'gravestone-roof', 'gravestone-bevel'];
     for (let i = 0; i < 6; i++) put(old[i], -3.2 + i * 1.3 + (R() - 0.5) * 0.3, -2.6 + (R() - 0.5) * 0.4, (R() - 0.5) * 0.3, 0.85);
     put('crypt', 3.6, -3.4, -0.3, 1);
     put('trunk-dead', -4.6, 0.6, 1.1, 1);
@@ -889,7 +890,7 @@ export function createVillage(scene, q, fx, terrain) {
   }
 
   // ---------- Mezarlar ----------
-  const TOMB_TYPES = ['gravestone-round', 'gravestone-cross', 'gravestone-bevel', 'gravestone-roof', 'gravestone-decorative'];
+  const TOMB_TYPES = ['gravestone-round', 'gravestone-wide', 'gravestone-bevel', 'gravestone-roof', 'gravestone-decorative'];
   function setDead(id, dead, colorIdx, drop) {
     const has = tombs.has(id);
     if (dead && !has) {
