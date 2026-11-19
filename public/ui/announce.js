@@ -78,6 +78,9 @@ export function pushAnnounce(a) {
   // Özel duyurular (kahin, gözcü, dönüşüm) sadece bu oyuncuya gelir; akışta da öyle olduğu açıkça yazsın.
   appendSystem(`${PRIVATE[a.kind] ? 'Sadece sen görüyorsun · ' : ''}${a.title}: ${a.text}`, a.kind === 'night' ? 'moon' : a.kind === 'death' || a.kind === 'hanged' || a.kind === 'shot' ? 'tomb' : PRIVATE[a.kind] ? 'eye' : 'scroll');
   if (a.kind === 'night') nightBanner(a);
+  // "Roller dağıtıldı": mühürlü zarf ekranı zaten "rolünü kimseye gösterme" der; alt kart zarfın önünü kapatmasın.
+  // 3B açılış sahnesi arkada yine oynar.
+  else if (a.kind === 'start') { queue.pop(); sfx('start'); W.announce(a, 12000).catch(() => {}); }
   else if (!playing) next(gen);
 }
 

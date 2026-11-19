@@ -87,7 +87,8 @@ export function letterHTML(d) {
       ${d.ability ? `<div class="lr-ab"><b>${esc(d.ability.name)}</b><p>${d.ability.desc}</p><small>Takım arkadaşların da bilir; köy bilmez.</small></div>` : ''}
       <div class="lr-mates"><b>Takım arkadaşların</b>${d.mates.length ? `<p>${d.mates.join(', ')}</p>` : '<p>Takımında senden başka kimse yok.</p>'}</div>
     </section>` : '';
-  const job = d.job ? `<section class="lr-box" data-st><b class="lr-label">Köydeki işin</b><p>${esc(d.job)}</p><small>Sadece hikâye için; rolün hakkında hiçbir şey söylemez.</small></section>` : '';
+  // Köydeki iş tek satır: kart telefonda kaydırmadan sığsın (iş rol hakkında bilgi vermez, yalnızca hikâye).
+  const job = d.job ? `<p class="lr-job" data-st><b>Köydeki işin:</b> ${esc(d.job)} <small>(yalnızca hikâye için)</small></p>` : '';
   const scen = d.scenario ? `<section class="lr-box lr-scen" data-st><b class="lr-label">Bu oyunun hikâyesi · ${esc(d.scenario.name)}</b>${d.scenario.intro ? `<p>${esc(d.scenario.intro)}</p>` : ''}</section>` : '';
   const notes = d.notes.length ? `<section class="lr-box lr-notes" data-st><b class="lr-label">Notların</b><ul>${d.notes.map((n) => `<li>${esc(n.text)}${n.rolesHtml ? `<span class="note-roles">${n.rolesHtml}</span>` : ''}</li>`).join('')}</ul></section>` : '';
   return `<article class="letter lr-${fam} rolecard" style="--rc:${r.color}" data-role="${esc(d.role)}" tabindex="-1" aria-label="Rol kartın: ${esc(r.name)}">
@@ -104,10 +105,27 @@ export function letterHTML(d) {
         <span data-st>${divider(evil)}</span>
       </header>
       ${sealed}
-      <p class="lr-desc" data-st>${r.desc}</p>
+      <p class="lr-desc${String(r.desc).length > 230 ? ' lr-long' : ''}" data-st>${r.desc}</p>
       ${job}${scen}${notes}
     </div>
+    <span class="lr-more" aria-hidden="true">▾ Aşağı kaydır</span>
   </article>`;
+}
+
+// Kartta görünmeyen içerik varsa altta "Aşağı kaydır" işareti çıkar; sona gelince kaybolur.
+// Mektup DOM'a eklenince ve boyutu değişince (açılış animasyonu) kendiliğinden yeniden ölçülür.
+function updateMore(sc) {
+  const letter = sc.closest('.letter');
+  if (letter) letter.classList.toggle('lr-has-more', sc.scrollHeight - sc.clientHeight - sc.scrollTop > 10);
+}
+if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+  document.addEventListener('scroll', (e) => { const t = e.target; if (t && t.classList && t.classList.contains('lr-scroll')) updateMore(t); }, true);
+  const ro = typeof ResizeObserver === 'function' ? new ResizeObserver((es) => { for (const e of es) updateMore(e.target); }) : null;
+  const watch = (root) => { if (root.querySelectorAll) root.querySelectorAll('.lr-scroll').forEach((sc) => { if (ro) ro.observe(sc); requestAnimationFrame(() => updateMore(sc)); }); };
+  if (typeof MutationObserver === 'function') {
+    new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.classList.contains('lr-scroll')) watch(n.parentNode); else watch(n); } })
+      .observe(document.documentElement, { childList: true, subtree: true });
+  }
 }
 
 // Zarfın tarafsız mührü: fener sarısı mum, ortasında köy feneri (tek başına hilal kullanılmaz: dini sembol gibi okunabilir).
