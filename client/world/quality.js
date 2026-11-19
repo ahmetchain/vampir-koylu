@@ -2,9 +2,9 @@
 // pxMobile: telefonlarda piksel oranı tavanı (yüksek DPR'li ekranlarda dolgu maliyeti belirleyici).
 export const TIERS = {
   saver: { name: 'saver', px: 0.85, pxMobile: 0.75, shadows: 0, fps: 30, sparks: 10, fireflies: 0, clouds: false, blob: true, charShadow: false, shadowSize: 0, weather: 120, rain: 0, animLod: 2, labelHz: 15, glows: 0.6 },
-  low: { name: 'low', px: 1.0, pxMobile: 1.0, shadows: 0, fps: 60, sparks: 20, fireflies: 12, clouds: false, blob: true, charShadow: false, shadowSize: 0, weather: 220, rain: 350, animLod: 1, labelHz: 30, glows: 1 },
-  medium: { name: 'medium', px: 1.5, pxMobile: 1.3, shadows: 1, fps: 60, sparks: 44, fireflies: 32, clouds: true, blob: true, charShadow: false, shadowSize: 1024, weather: 480, rain: 900, animLod: 1, labelHz: 60, glows: 1 },
-  high: { name: 'high', px: 2.0, pxMobile: 1.75, shadows: 2, fps: 60, sparks: 70, fireflies: 56, clouds: true, blob: false, charShadow: true, shadowSize: 2048, weather: 900, rain: 1800, animLod: 1, labelHz: 60, glows: 1 },
+  low: { name: 'low', px: 1.0, pxMobile: 1.0, shadows: 0, fps: 60, sparks: 20, fireflies: 12, clouds: false, blob: true, charShadow: false, shadowSize: 0, weather: 220, rain: 150, animLod: 1, labelHz: 30, glows: 1 },
+  medium: { name: 'medium', px: 1.5, pxMobile: 1.3, shadows: 1, fps: 60, sparks: 44, fireflies: 32, clouds: true, blob: true, charShadow: false, shadowSize: 1024, weather: 480, rain: 500, animLod: 1, labelHz: 60, glows: 1 },
+  high: { name: 'high', px: 2.0, pxMobile: 1.75, shadows: 2, fps: 60, sparks: 70, fireflies: 56, clouds: true, blob: false, charShadow: true, shadowSize: 2048, weather: 900, rain: 1200, animLod: 1, labelHz: 60, glows: 1 },
 };
 export const ORDER = ['saver', 'low', 'medium', 'high'];
 
