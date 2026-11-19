@@ -23,7 +23,7 @@ export function toWorld(h, lx, lz) {
   return { x: h.x + lx * c + lz * s, z: h.z - lx * s + lz * c };
 }
 
-// entries: [{ id, seat, skin }] (skin: look.house, 0 = varsayılan ev) ; viewerId: izleyicinin oyuncu kimliği (yoksa kapı kuzeyde)
+// entries: [{ id, seat, skin, mat }] (skin: look.house, 0 = varsayılan ev; mat: look.houseMat, 0 = evin kendi duvarı) ; viewerId: izleyicinin oyuncu kimliği (yoksa kapı kuzeyde)
 export function computeLayout(entries, viewerId) {
   let list = entries.slice().sort((a, b) => a.seat - b.seat);
   const n = list.length;
@@ -44,7 +44,7 @@ export function computeLayout(entries, viewerId) {
     const ang = wrapAngle(alpha(i) + shift + Math.PI * 0); // dünya açısı: konum = (sin a, cos a) * R
     const st = houseStyle(e.seat);
     const info = HOUSE_INFO[st.type];
-    const h = { id: e.id, seat: e.seat, angle: ang, x: Math.sin(ang) * R, z: Math.cos(ang) * R, rotY: ang + Math.PI, type: st.type, variant: st.variant, skin: e.skin | 0, size: info.size };
+    const h = { id: e.id, seat: e.seat, angle: ang, x: Math.sin(ang) * R, z: Math.cos(ang) * R, rotY: ang + Math.PI, type: st.type, variant: st.variant, skin: e.skin | 0, mat: e.mat | 0, size: info.size };
     const d = toWorld(h, info.door[0], info.door[1]);
     const a = toWorld(h, info.approach[0], info.approach[1]);
     h.door = { dx: d.x, dz: d.z, ax: a.x, az: a.z };

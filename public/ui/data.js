@@ -10,13 +10,14 @@ export const COLOR_NAMES = [
   'Camgöbeği', 'Fıstık', 'Bordo', 'Gül', 'Lacivert', 'Gri', 'Bej', 'Mercan', 'Zeytin', 'Lavanta',
 ];
 // Şapka/aksesuar/üst/alt öğeleri, yuvaları (slot) ve kilitleri tek tabloda: ./cosmetics.js (sunucu kopyası lib/cosmetics.js).
-export { HAT_ITEMS, ACC_ITEMS, TOP_ITEMS, BOTTOM_ITEMS, SKIN_FEATURES, resolveLook, skinBlock, lockOf, conflictNote, skinBlockNote } from './cosmetics.js';
-import { HAT_ITEMS, ACC_ITEMS, TOP_ITEMS, BOTTOM_ITEMS } from './cosmetics.js';
+export { HAT_ITEMS, ACC_ITEMS, TOP_ITEMS, BOTTOM_ITEMS, GEAR_ITEMS, SKIN_FEATURES, resolveLook, skinBlock, lockOf, conflictNote, skinBlockNote } from './cosmetics.js';
+import { HAT_ITEMS, ACC_ITEMS, TOP_ITEMS, BOTTOM_ITEMS, GEAR_ITEMS } from './cosmetics.js';
 export const HAT_NAMES = HAT_ITEMS.map((it) => it.name);
 // look.acc / look.top / look.bottom (isteğe bağlı; yoksa 0)
 export const ACC_NAMES = ACC_ITEMS.map((it) => it.name);
 export const TOP_NAMES = TOP_ITEMS.map((it) => it.name);
 export const BOTTOM_NAMES = BOTTOM_ITEMS.map((it) => it.name);
+export const GEAR_NAMES = GEAR_ITEMS.map((it) => it.name);   // look.gear: sırt/bel teçhizatı (isteğe bağlı; yoksa 0)
 // Ev görünümleri (look.house; 0 = klasik). Eşikler lib/houses.js ile aynı olmalı (test/housesel.test.js kontrol eder);
 // kilidi sunucu doğrular, buradaki tablo yalnızca gösterim içindir. Puan = oynanan oyun + 2 x galibiyet.
 // roof/wall: önizleme kartındaki renkler. owner: yalnızca sahip hesap seçebilir.
@@ -35,6 +36,18 @@ export const HOUSES = [
   { name: 'Taç kapılı taş ev', min: 200, roof: '#6d4b3a', wall: '#d9b98c' },
 ];
 export const HOUSE_NAMES = HOUSES.map((h) => h.name);
+// Ev malzemesi (look.houseMat; 0 = evin kendi malzemesi). Eşikler lib/houses.js HOUSE_MATS ile aynı (test/housemat.test.js);
+// kilidi sunucu doğrular. sw: seçicideki küçük örnek karenin CSS arka planı (gerçek duvar deseni client/world/village.js).
+export const HOUSE_MATS = [
+  { name: 'Kendi malzemesi', min: 0, sw: 'linear-gradient(135deg,#f0c9a0 0 50%,#9c3b32 50%)' },
+  { name: 'Taş', min: 5, sw: 'repeating-linear-gradient(0deg,#6b665e 0 2px,transparent 2px 9px),repeating-linear-gradient(90deg,#8f897e 0 7px,#a39d91 7px 15px,#7e786e 15px 20px,#6b665e 20px 22px)' },
+  { name: 'Kesme taş', min: 12, sw: 'repeating-linear-gradient(0deg,#b2a68f 0 1px,transparent 1px 12px),repeating-linear-gradient(90deg,#dccfb6 0 22px,#b2a68f 22px 23px)' },
+  { name: 'Kerpiç sıva', min: 18, sw: 'linear-gradient(0deg,#d9cfbd 0 22%,#f2ede2 22%)' },
+  { name: 'Koyu ahşap', min: 25, sw: 'repeating-linear-gradient(0deg,#3a2416 0 1.5px,#5a3a26 1.5px 7px,#4f3220 7px 8px)' },
+  { name: 'Tuğla', min: 40, sw: 'repeating-linear-gradient(0deg,#e0d3bd 0 1.5px,transparent 1.5px 6px),repeating-linear-gradient(90deg,#a5482f 0 10px,#8f3c26 10px 11px,#b55538 11px 21px,#e0d3bd 21px 22px)' },
+  { name: 'Mermer', min: 80, sw: 'linear-gradient(120deg,#efece6 0 40%,#c9c4ba 41%,#efece6 43% 70%,#d6d1c8 71%,#efece6 73%)' },
+  { name: 'Altın süslemeli mermer', owner: true, sw: 'linear-gradient(0deg,#efece6 0 20%,#e2b23c 20% 30%,#efece6 30% 75%,#e2b23c 75% 82%,#efece6 82%)' },
+];
 export const KING_ACC = 6;   // look.acc: kral tacı (yalnızca sahip)
 export const pointsOf = (stats) => ((stats && stats.games) | 0) + 2 * ((stats && stats.wins) | 0);
 

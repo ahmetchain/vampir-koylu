@@ -1,6 +1,6 @@
 // Ortak sabitler: oyuncu renkleri, şapkalar, karakter modelleri ve sanat yönetimi paleti.
 // Sıra ve indeksler docs/V2-PLAN.md §4 ile birebir aynıdır (look.color / look.hat / look.skin).
-import { HAT_ITEMS, ACC_ITEMS, TOP_ITEMS, BOTTOM_ITEMS } from '../../public/ui/cosmetics.js';
+import { HAT_ITEMS, ACC_ITEMS, TOP_ITEMS, BOTTOM_ITEMS, GEAR_ITEMS } from '../../public/ui/cosmetics.js';
 
 export const COLOR_HEX = [
   '#d7263d', '#2b59c3', '#2f9e44', '#f06595', '#f76707', '#f2c12e', '#3b3b46', '#e9ecef', '#7048e8', '#8d5a3b',
@@ -20,6 +20,7 @@ export const HAT_NAMES = HAT_ITEMS.map((it) => it.name);
 export const ACC_NAMES = ACC_ITEMS.map((it) => it.name);
 export const TOP_NAMES = TOP_ITEMS.map((it) => it.name);
 export const BOTTOM_NAMES = BOTTOM_ITEMS.map((it) => it.name);
+export const GEAR_NAMES = GEAR_ITEMS.map((it) => it.name);   // look.gear: sırt/bel teçhizatı
 
 // look.skin 0..11 (manifest.characters.skins sırası)
 export const SKIN_NAMES = [
@@ -39,6 +40,7 @@ export const HATS = HAT_NAMES.map((name, i) => ({ id: i, name, node: HAT_NODES[i
 export const ACCS = ACC_NAMES.map((name, i) => ({ id: i, name }));
 export const TOPS = TOP_NAMES.map((name, i) => ({ id: i, name }));
 export const BOTTOMS = BOTTOM_NAMES.map((name, i) => ({ id: i, name }));
+export const GEARS = GEAR_NAMES.map((name, i) => ({ id: i, name }));
 export const SKINS = SKIN_NAMES.map((name, i) => ({ id: i, name, desc: SKIN_DESC[i] }));
 
 // Sanat yönetimi paleti (§4)

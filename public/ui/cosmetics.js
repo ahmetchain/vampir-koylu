@@ -1,4 +1,4 @@
-// Kozmetik kataloğu ve YUVA (slot) kuralları: şapka, aksesuar, üst giysi, alt giysi.
+// Kozmetik kataloğu ve YUVA (slot) kuralları: şapka, aksesuar, üst giysi, alt giysi, teçhizat (sırt/bel).
 // TEK doğruluk kaynağı: istemci (public/ui, client/world) bu dosyayı içe aktarır; sunucu lib/cosmetics.js kopyasını
 // kullanır ve test/cosmetics.test.js iki tablonun birebir aynı olduğunu denetler.
 //
@@ -39,6 +39,13 @@ export const HAT_ITEMS = [
   { name: 'Sorguçlu kavuk', slots: ['head'], min: 20 },
   { name: 'Selçuklu börkü', slots: ['head'], min: 10 },
   { name: 'Yeniçeri börkü', slots: ['head'], min: 30 },
+  // Ortaçağ savaşçı başlıkları (prosedürel, kendi tasarımımız): miğfer bir başlıktır (şapka/taç ile birlikte takılmaz).
+  { name: 'Burun korumalı miğfer', slots: ['head'], min: 20 },
+  { name: 'Zincir başlık', slots: ['head', 'neck'], min: 25 },          // başı ve boynu saran zincir örgü
+  { name: 'Sivri tolga', slots: ['head'], min: 35 },                     // Osmanlı sivri miğferi: yanaklık + ense zinciri
+  { name: 'Üsküf', slots: ['head'], min: 40 },                           // yeniçeri subay börkü: sırmalı bant + uzun tüy
+  { name: 'Sarıklı tolga', slots: ['head'], min: 50 },                   // miğferin dibine sarılmış sarık
+  { name: 'Kapalı miğfer', slots: ['head', 'eyes', 'mouth'], min: 70 },  // yüzü örter: gözlük/bıyık/sakal ile takılmaz
 ];
 
 // look.acc (0 = yok; isteğe bağlı alan).
@@ -67,6 +74,15 @@ export const TOP_ITEMS = [
   { name: 'Kaftan', slots: ['torso', 'back'], min: 10 },
   { name: 'Kürklü kapaniçe', slots: ['back', 'neck', 'collar', 'shoulder'], min: 25 },
   { name: 'Kraliyet kaftanı', slots: ['torso', 'back', 'neck', 'collar'], owner: true },
+  // Ortaçağ savaşçı giysileri (prosedürel): zırh gövdeyi, omuzluklu olanlar omzu da doldurur.
+  { name: 'Kapitone gambeson', slots: ['torso'], min: 20 },
+  { name: 'Zincir zırh', slots: ['torso'], min: 30 },
+  { name: 'Akıncı kürk yeleği', slots: ['torso'], min: 40 },
+  { name: 'Arma cüppesi', slots: ['torso'], min: 50 },
+  { name: 'Mehter cübbesi', slots: ['torso'], min: 60 },
+  { name: 'Plakalı göğüslük', slots: ['torso', 'shoulder'], min: 75 },
+  { name: 'Sipahi zırhı', slots: ['torso', 'shoulder'], min: 100 },     // zincir-plaka karışık, omuzluklu
+  { name: 'Mor kaftanlı sipahi zırhı', slots: ['torso', 'shoulder'], owner: true },
 ];
 
 // look.bottom (0 = modelin kendi altı; isteğe bağlı alan).
@@ -79,6 +95,27 @@ export const BOTTOM_ITEMS = [
   { name: 'Çarık', slots: ['feet'] },
   { name: 'Mest', slots: ['feet'], min: 8 },
   { name: 'Sarı çizme', slots: ['feet'], min: 18 },
+  { name: 'Nalın', slots: ['feet'], min: 10 },
+  { name: 'Deri çizme', slots: ['feet'], min: 20 },
+  { name: 'Zincir etek', slots: ['legs'], min: 35 },
+  { name: 'Zırhlı bacaklık', slots: ['legs', 'feet'], min: 55 },        // dizlik + baldırlık + demir ayakkabı
+];
+
+// look.gear (0 = yok; isteğe bağlı alan): sırtta ya da belde taşınan teçhizat. Sırtta tek nesne (kalkan, sadak, sancak...);
+// sırtı dolduran üst giysiyle (kaftan, kapaniçe) ve beli dolduran öğeyle (hançer, kese, kuşaklı entari) birlikte takılmaz.
+export const GEAR_ITEMS = [
+  { name: 'Teçhizatsız', slots: [] },
+  { name: 'Kılıç ve kın', slots: ['waist'] },
+  { name: 'Yuvarlak kalkan', slots: ['back'] },
+  { name: 'Çini kuşak ve hançer', slots: ['waist'], min: 12 },
+  { name: 'Pala', slots: ['waist'], min: 18 },
+  { name: 'Damla kalkan', slots: ['back'], min: 25 },
+  { name: 'Sadak ve yay', slots: ['back'], min: 35 },
+  { name: 'Spiral kalkan', slots: ['back'], min: 45 },
+  { name: 'Kargı', slots: ['back'], min: 60 },
+  { name: 'Sancak', slots: ['back'], min: 90 },
+  { name: 'Tuğ', slots: ['back'], min: 120 },
+  { name: 'Altın sancak', slots: ['back'], owner: true },
 ];
 
 // Karakter modellerinin (look.skin 0..11, villager-00..11) KENDİ parçaları: bu yuvalara öğe takılamaz.
@@ -98,11 +135,11 @@ export const SKIN_FEATURES = [
   [],
 ];
 
-export const LOOK_ITEMS = { hat: HAT_ITEMS, acc: ACC_ITEMS, top: TOP_ITEMS, bottom: BOTTOM_ITEMS };
+export const LOOK_ITEMS = { hat: HAT_ITEMS, acc: ACC_ITEMS, top: TOP_ITEMS, bottom: BOTTOM_ITEMS, gear: GEAR_ITEMS };
 // Eski/çakışmalı kayıtlar düzeltilirken öncelik: önce gelen alan kalır, sonrakinin çakışan öğesi çıkar.
-export const FIELD_ORDER = ['acc', 'hat', 'top', 'bottom'];
+export const FIELD_ORDER = ['acc', 'hat', 'top', 'bottom', 'gear'];
 // look'ta 0 ise hiç tutulmayan isteğe bağlı alanlar (hat her zaman vardır).
-export const OPTIONAL_FIELDS = ['acc', 'top', 'bottom'];
+export const OPTIONAL_FIELDS = ['acc', 'top', 'bottom', 'gear'];
 
 export function itemOf(field, v) {
   const list = LOOK_ITEMS[field];

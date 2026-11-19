@@ -19,8 +19,8 @@ try {
 } catch (err) { /* düz isimle devam */ }
 
 const { BotBrain, botName } = require('./lib/bots');
-const { HOUSES, HOUSE_COUNT, canUseHouse, canUseItem, lockMessage } = require('./lib/houses');   // ev görünümleri (look.house) ve kilitli öğeler
-const { HAT_ITEMS, ACC_ITEMS, TOP_ITEMS, BOTTOM_ITEMS, resolveLook, skinBlock, OPTIONAL_FIELDS } = require('./lib/cosmetics');   // yuva (slot) kuralları
+const { HOUSES, HOUSE_COUNT, HOUSE_MATS, HOUSE_MAT_COUNT, canUseHouse, canUseHouseMat, houseMatLockMessage, canUseItem, lockMessage } = require('./lib/houses');   // ev görünümleri (look.house), ev malzemeleri (look.houseMat) ve kilitli öğeler
+const { HAT_ITEMS, ACC_ITEMS, TOP_ITEMS, BOTTOM_ITEMS, GEAR_ITEMS, resolveLook, skinBlock, OPTIONAL_FIELDS } = require('./lib/cosmetics');   // yuva (slot) kuralları
 const { Banter, isOwnerName } = require('./lib/banter');   // lobi/oyun sonu muhabbeti (şablonlu, modelsiz)
 const Weather = require('./public/weather-core');   // hava durumu (yalnızca görsel/ses): seçim ve şimşek tohumu
 const { GameRecorder } = require('./lib/ai/gamerec');   // oyun geçmişi kaydı (docs/GAME-LOGS.md)
@@ -120,7 +120,9 @@ const SKIN_COUNT = 12;
 const ACC_COUNT = ACC_ITEMS.length;   // 6 = kral tacı: yalnızca sahip hesap (lib/houses.js KING_ACC)
 const TOP_COUNT = TOP_ITEMS.length;
 const BOTTOM_COUNT = BOTTOM_ITEMS.length;
-const ITEM_COUNTS = { hat: HAT_COUNT, acc: ACC_COUNT, top: TOP_COUNT, bottom: BOTTOM_COUNT };
+const GEAR_COUNT = GEAR_ITEMS.length;   // teçhizat (sırt/bel: kalkan, kılıç, sadak, sancak...)
+const ITEM_COUNTS = { hat: HAT_COUNT, acc: ACC_COUNT, top: TOP_COUNT, bottom: BOTTOM_COUNT, gear: GEAR_COUNT };
+const ITEM_FIELDS = Object.keys(ITEM_COUNTS);
 // Puan/sahiplik istemeyen öğeler (botlar ve rastgele görünüm bunlardan seçer).
 const freeItems = (list) => list.map((it, i) => i).filter((i) => i > 0 && !list[i].min && !list[i].owner);
 
@@ -664,8 +666,9 @@ class Room {
       if (validIndex(v, ITEM_COUNTS[f]) && v > 0 && canUseItem(f, v, who)) opt[f] = v;
     }
     const house = validIndex(want.house, HOUSE_COUNT) && canUseHouse(want.house, who) ? want.house : 0;
+    const houseMat = validIndex(want.houseMat, HOUSE_MAT_COUNT) && canUseHouseMat(want.houseMat, who) ? want.houseMat : 0;
     // Yuva çakışmaları (ör. şapka + kral tacı, sakallı karakter + sakal) eski kayıtlarda da burada giderilir.
-    const fixed = resolveLook({ color, hat, skin, ...opt, ...(house ? { house } : {}) }).look;
+    const fixed = resolveLook({ color, hat, skin, ...opt, ...(house ? { house } : {}), ...(houseMat ? { houseMat } : {}) }).look;
     this.players.set(id, {
       id, name, userId, bot: Boolean(bot), seat: this.freeSeat(), role: null, job: null, alive: true, connected: true, left: false,
       socketId: null, graceTimer: null, notes: [],
@@ -692,9 +695,12 @@ class Room {
     const openHouses = HOUSES.map((h, i) => i).filter((i) => !HOUSES[i].owner && HOUSES[i].min <= 8);
     // Botlar puansız (açık) öğelerden rastgele giyinir: yarı yarıya aksesuar, üst ve alt giysi. Çakışan öğe addPlayer'da düşer.
     const look = { house: openHouses[crypto.randomInt(openHouses.length)] };
-    for (const [f, list] of [['acc', ACC_ITEMS], ['top', TOP_ITEMS], ['bottom', BOTTOM_ITEMS]]) {
+    // ev malzemesi: üçte bir olasılıkla ucuz bir malzeme (taş / kesme taş); sahibe özel asla
+    const openMats = HOUSE_MATS.map((m, i) => i).filter((i) => i > 0 && !HOUSE_MATS[i].owner && HOUSE_MATS[i].min <= 12);
+    if (openMats.length && crypto.randomInt(3) === 0) look.houseMat = openMats[crypto.randomInt(openMats.length)];
+    for (const [f, list] of [['acc', ACC_ITEMS], ['top', TOP_ITEMS], ['bottom', BOTTOM_ITEMS], ['gear', GEAR_ITEMS]]) {
       const free = freeItems(list);
-      if (free.length && crypto.randomInt(2)) look[f] = free[crypto.randomInt(free.length)];
+      if (free.length && crypto.randomInt(f === 'gear' ? 3 : 2) === 1) look[f] = free[crypto.randomInt(free.length)];
     }
     const error = this.addPlayer(id, name, { bot: true, look });
     if (error) return { error };
@@ -882,8 +888,8 @@ class Room {
     }
     const changed = [];
     if (look.skin !== undefined) next.skin = clampInt(look.skin, 0, SKIN_COUNT - 1, p.look.skin);
-    // Şapka/aksesuar/üst/alt: aralığa sıkıştırılır; kilitli (puan/sahip) değer reddedilir.
-    for (const f of ['hat', 'acc', 'top', 'bottom']) {
+    // Şapka/aksesuar/üst/alt/teçhizat: aralığa sıkıştırılır; kilitli (puan/sahip) değer reddedilir.
+    for (const f of ITEM_FIELDS) {
       if (look[f] === undefined) continue;
       const v = clampInt(look[f], 0, ITEM_COUNTS[f] - 1, p.look[f] || 0);
       if (v !== (p.look[f] || 0) && !canUseItem(f, v, who)) {
@@ -902,6 +908,12 @@ class Room {
       if (!Number.isInteger(look.house) || look.house < 0 || look.house >= HOUSE_COUNT) return 'Geçersiz ev görünümü.';
       if (!canUseHouse(look.house, who)) return HOUSES[look.house].owner ? 'Bu ev yalnızca sahibine özel.' : 'Bu ev görünümü henüz kilitli.';
       if (look.house) next.house = look.house; else delete next.house;
+    }
+    // Ev malzemesi (look.houseMat): ev görünümüyle aynı kural (puan eşiği / sahibe özel), 0 = evin kendi malzemesi.
+    if (look.houseMat !== undefined) {
+      if (!Number.isInteger(look.houseMat) || look.houseMat < 0 || look.houseMat >= HOUSE_MAT_COUNT) return 'Geçersiz ev malzemesi.';
+      if (look.houseMat !== (p.look.houseMat | 0) && !canUseHouseMat(look.houseMat, who)) return houseMatLockMessage(look.houseMat);
+      if (look.houseMat) next.houseMat = look.houseMat; else delete next.houseMat;
     }
     // Yuva çakışması: yeni seçilen öğe aynı yuvadaki eskisini çıkarır (ör. kral tacı -> şapka 0); karakter değişince
     // yeni karakterin kendi parçasıyla çakışan öğe çıkar.
@@ -2749,7 +2761,7 @@ class Room {
 
 module.exports = {
   Room, ROLE, SLEEP, MIN_PLAYERS, MAX_PLAYERS, ABILITY_MIN_PLAYERS, ABILITY, ABILITIES, ABILITY_TOGGLE, SPECIAL_ROLES, OPTIONAL_ROLES,
-  DEFAULT_ROLES, ROLE_LABEL, COLOR_COUNT, HAT_COUNT, SKIN_COUNT, ACC_COUNT, TOP_COUNT, BOTTOM_COUNT, HOUSE_COUNT, PLAZA, MOVE_PHASES,
+  DEFAULT_ROLES, ROLE_LABEL, COLOR_COUNT, HAT_COUNT, SKIN_COUNT, ACC_COUNT, TOP_COUNT, BOTTOM_COUNT, GEAR_COUNT, HOUSE_COUNT, HOUSE_MAT_COUNT, PLAZA, MOVE_PHASES,
   HOST_GRACE_MS, REVEAL_MS, ALL_VOTED_MS, HUNTER_MS, NIGHT_WALK_MS, NIGHT_SHOW_MS, NIGHT_RESULT_MS, PICK_GRACE_MS, ROLE_MODES, TRIAL_TURN_MS, TRIAL_VOTE_MS, TRIAL_ALL_VOTED_MS,
   Weather, EVENTS, EVENT_MODES, EVENT_GAP, EVENT_CHANCE, chooseEvent, LOBBY_GRACE_MS, EMPTY_ROOM_MS,
   LOG_MAX, SCENES,

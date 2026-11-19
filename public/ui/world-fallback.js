@@ -10,11 +10,17 @@
     'Camgöbeği', 'Fıstık', 'Bordo', 'Gül', 'Lacivert', 'Gri', 'Bej', 'Mercan', 'Zeytin', 'Lavanta'];
   var HAT_NAMES = ['Şapkasız', 'Hasır şapka', 'Bere', 'Çiçek', 'Silindir', 'Bandana', 'Filiz', 'Kasket', 'Kulaklık',
     'Takke', 'Örgü takke', 'Fes', 'Yemeni', 'Keçe külah', 'Kalpak', 'Ponponlu bere', 'Çiçek tacı', 'Aşçı başlığı', 'Taç',
-    'Kavuk', 'Sorguçlu kavuk', 'Selçuklu börkü', 'Yeniçeri börkü'];
+    'Kavuk', 'Sorguçlu kavuk', 'Selçuklu börkü', 'Yeniçeri börkü',
+    'Burun korumalı miğfer', 'Zincir başlık', 'Sivri tolga', 'Üsküf', 'Sarıklı tolga', 'Kapalı miğfer'];
   var ACC_NAMES = ['Yok', 'Bıyık', 'Gözlük', 'Sakal', 'Atkı', 'Papyon', 'Kral tacı', 'Hançer', 'Kese', 'Tesbih', 'Madalyon', 'Doğan'];
-  // üst/alt giysiler 2B köyde çizilmez (adlar görünüm düzenleyici için; public/ui/cosmetics.js ile aynı)
-  var TOP_NAMES = ['Kendi giysisi', 'Cepken', 'Kuşaklı entari', 'Çintemani yelek', 'Kaftan', 'Kürklü kapaniçe', 'Kraliyet kaftanı'];
-  var BOTTOM_NAMES = ['Kendi altı', 'Şalvar', 'Potur', 'Çakşır', 'Lale desenli şalvar', 'Çarık', 'Mest', 'Sarı çizme'];
+  // üst/alt giysiler ve teçhizat 2B köyde çizilmez (adlar görünüm düzenleyici için; public/ui/cosmetics.js ile aynı)
+  var TOP_NAMES = ['Kendi giysisi', 'Cepken', 'Kuşaklı entari', 'Çintemani yelek', 'Kaftan', 'Kürklü kapaniçe', 'Kraliyet kaftanı',
+    'Kapitone gambeson', 'Zincir zırh', 'Akıncı kürk yeleği', 'Arma cüppesi', 'Mehter cübbesi', 'Plakalı göğüslük', 'Sipahi zırhı',
+    'Mor kaftanlı sipahi zırhı'];
+  var BOTTOM_NAMES = ['Kendi altı', 'Şalvar', 'Potur', 'Çakşır', 'Lale desenli şalvar', 'Çarık', 'Mest', 'Sarı çizme',
+    'Nalın', 'Deri çizme', 'Zincir etek', 'Zırhlı bacaklık'];
+  var GEAR_NAMES = ['Teçhizatsız', 'Kılıç ve kın', 'Yuvarlak kalkan', 'Çini kuşak ve hançer', 'Pala', 'Damla kalkan', 'Sadak ve yay',
+    'Spiral kalkan', 'Kargı', 'Sancak', 'Tuğ', 'Altın sancak'];
   // [ten rengi, saç rengi, saç biçimi]
   var SKINS = [
     ['Pamuk', '#f5cfa8', '#5a3a22', 0], ['Fındık', '#e8b48a', '#2b1d14', 1], ['Kestane', '#c98d5e', '#1d1512', 3],
@@ -181,6 +187,32 @@
         rr(ctx, hx - hr * 0.85, hy - hr * 2.3, hr * 1.7, hr * 1.55, hr * 0.3); ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#e2b23c'; ctx.fillRect(hx - hr * 0.85, hy - hr * 0.95, hr * 1.7, hr * 0.18);
         ctx.fillRect(hx - hr * 0.1, hy - hr * 1.6, hr * 0.2, hr * 0.65);
+        break;
+      case 23: case 25: case 27: // burun korumalı miğfer, sivri tolga, sarıklı tolga
+        ctx.fillStyle = '#a9b2bb';
+        ctx.beginPath(); ctx.moveTo(hx - hr * 1.02, hy - hr * 0.55); ctx.quadraticCurveTo(hx - hr * 0.95, hy - hr * (hat === 23 ? 1.75 : 2.0), hx, hy - hr * (hat === 23 ? 1.95 : 2.45));
+        ctx.quadraticCurveTo(hx + hr * 0.95, hy - hr * (hat === 23 ? 1.75 : 2.0), hx + hr * 1.02, hy - hr * 0.55); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = hat === 27 ? '#f7f3ea' : hat === 25 ? '#e2b23c' : '#c49a3e';
+        rr(ctx, hx - hr * (hat === 27 ? 1.2 : 1.04), hy - hr * (hat === 27 ? 0.95 : 0.72), hr * (hat === 27 ? 2.4 : 2.08), hr * (hat === 27 ? 0.48 : 0.2), hr * 0.1); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#8b949e'; ctx.fillRect(hx - hr * 0.08, hy - hr * 0.6, hr * 0.16, hr * 0.62);
+        break;
+      case 24: // zincir başlık
+        ctx.fillStyle = '#8f979f';
+        ctx.beginPath(); ctx.ellipse(hx, hy - hr * 0.2, hr * 1.18, hr * 1.25, 0, Math.PI * 0.85, Math.PI * 2.15); ctx.lineTo(hx + hr * 1.2, hy + hr * 1.0); ctx.lineTo(hx - hr * 1.2, hy + hr * 1.0); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = 'rgba(40,44,52,.35)';
+        for (var mz = 0; mz < 10; mz++) ctx.fillRect(hx - hr + (mz % 5) * hr * 0.45, hy - hr * (1.2 - Math.floor(mz / 5) * 0.35), hr * 0.18, hr * 0.12);
+        break;
+      case 26: // üsküf
+        ctx.fillStyle = '#f4f1ea';
+        rr(ctx, hx - hr * 0.85, hy - hr * 2.2, hr * 1.7, hr * 1.5, hr * 0.3); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#e2b23c'; rr(ctx, hx - hr * 0.95, hy - hr * 0.98, hr * 1.9, hr * 0.32, hr * 0.1); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#fbfaf5'; ctx.beginPath(); ctx.ellipse(hx + hr * 0.1, hy - hr * 2.6, hr * 0.16, hr * 0.7, 0.2, 0, TAU); ctx.fill(); ctx.stroke();
+        break;
+      case 28: // kapalı miğfer
+        ctx.fillStyle = '#a9b2bb';
+        rr(ctx, hx - hr * 1.1, hy - hr * 1.65, hr * 2.2, hr * 2.3, hr * 0.45); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#17141c'; ctx.fillRect(hx - hr * 0.8, hy - hr * 0.35, hr * 1.6, hr * 0.16);
+        ctx.fillStyle = '#c49a3e'; ctx.fillRect(hx - hr * 1.1, hy - hr * 1.0, hr * 2.2, hr * 0.14);
         break;
       default: break;
     }
@@ -1096,6 +1128,7 @@
     ACCS: ACC_NAMES.map(function (name) { return { name: name }; }),
     TOPS: TOP_NAMES.map(function (name) { return { name: name }; }),
     BOTTOMS: BOTTOM_NAMES.map(function (name) { return { name: name }; }),
+    GEARS: GEAR_NAMES.map(function (name) { return { name: name }; }),
     SKINS: SKINS.map(function (s) { return { name: s[0] }; }),
   };
 })();

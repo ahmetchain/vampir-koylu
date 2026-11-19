@@ -1,8 +1,8 @@
 // window.VKWorld giriş noktası (esbuild --global-name=VKWorld). Sözleşme: docs/V2-PLAN.md §7.
 import { create, supported } from './world.js';
-import { preview, houseSnapshots } from './preview.js';
+import { preview, houseSnapshots, houseSnapshot } from './preview.js';
 import { setBase } from './assets.js';
-import { COLORS, HATS, SKINS, ACCS, TOPS, BOTTOMS } from './constants.js';
+import { COLORS, HATS, SKINS, ACCS, TOPS, BOTTOMS, GEARS } from './constants.js';
 
 // Varlık yolunu betiğin konumuna göre çöz (build/world.js -> ../assets/models/)
 try {
@@ -18,5 +18,5 @@ export const QUALITIES = [
   { id: 'medium', label: 'Orta', desc: 'Gölgeler ve bulutlar' },
   { id: 'high', label: 'Yüksek', desc: 'Tam çözünürlük, karakter gölgeleri' },
 ];
-export { create, supported, preview, houseSnapshots, COLORS, HATS, SKINS, ACCS, TOPS, BOTTOMS };
+export { create, supported, preview, houseSnapshots, houseSnapshot, COLORS, HATS, SKINS, ACCS, TOPS, BOTTOMS, GEARS };
 export function setAssetBase(url) { setBase(url); }

@@ -6,7 +6,7 @@ import * as A from './assets.js';
 import { addOutlines } from './style.js';
 import { COLOR_HEX, clamp, damp, wrapAngle } from './constants.js';
 import { makeHat, makeAcc, fitHair, accOnHand } from './hats.js';
-import { attachOutfit, legPaint } from './outfits.js';
+import { attachOutfit, legPaint, gearTop } from './outfits.js';
 import { resolveLook } from '../../public/ui/cosmetics.js';
 
 export const SCALE = 1.12;
@@ -57,7 +57,7 @@ export class Character {
   setLook(look) {
     // yuva çakışmaları (ör. şapka + kral tacı) çizimden önce de giderilir: sunucu zaten düzeltir, bu yalnızca güvence
     if (!this.isGhost) look = resolveLook(look).look;
-    const key = this.isGhost ? 'ghost|' + look.color : `${look.skin}|${look.color}|${look.hat}|${look.acc | 0}|${look.top | 0}|${look.bottom | 0}`;
+    const key = this.isGhost ? 'ghost|' + look.color : `${look.skin}|${look.color}|${look.hat}|${look.acc | 0}|${look.top | 0}|${look.bottom | 0}|${look.gear | 0}`;
     if (this.lookKey === key) return;
     this.lookKey = key;
     this.look = { ...look };
@@ -98,9 +98,9 @@ export class Character {
     // Prosedürel şapka (köşe renkli, kıyafetle aynı malzeme türü) kıyafet ağına kafa kemiğine bağlı parça olarak katılır:
     // karakter başına bir çizim çağrısı (çizim görünümünde bir dış çizgi kabuğu daha) az. glb şapkalar ayrı ağ kalır.
     const mergeHat = !!(hat && hat.isMesh && hat.material && hat.material.name === 'vkw-hat');
-    let outfit = attachOutfit(model, skin, look.top, look.bottom, handAcc ? 0 : look.acc, mergeHat ? look.hat : 0);
+    let outfit = attachOutfit(model, skin, look.top, look.bottom, handAcc ? 0 : look.acc, mergeHat ? look.hat : 0, look.gear);
     const hatMerged = mergeHat && !!outfit;
-    if (mergeHat && !outfit) outfit = attachOutfit(model, skin, look.top, look.bottom, handAcc ? 0 : look.acc);   // birleşmezse eski yol
+    if (mergeHat && !outfit) outfit = attachOutfit(model, skin, look.top, look.bottom, handAcc ? 0 : look.acc, 0, look.gear);   // birleşmezse eski yol
     if (outfit && skel && outfit.skeleton !== skel) outfit.skeleton = skel;
     if (hat) {
       if (hat.userData.cap) fitHair(model, look.hat, skin); // başa oturan şapka: saç şapkanın içinde kalsın
@@ -129,7 +129,9 @@ export class Character {
     this.armR = model.getObjectByName('arm-right');
     this.armL = model.getObjectByName('arm-left');
     // ad etiketi / balon yüksekliği: şapkanın tepesine göre (kafa kemiği bind pozunda ≈0.86 m, kafa-yerel birim ×2.5)
-    this.headY = Math.max(1.72, hat ? 0.86 + 2.5 * hat.userData.top : 0) * SCALE;
+    // sırtta uzun teçhizat (sancak, tuğ) başın üstüne taşıyorsa etiket onun da üstünde (gövde kemiği bind y≈0.176)
+    const gt = look.gear ? gearTop(look.gear, skin) : -Infinity;
+    this.headY = Math.max(1.72, hat ? 0.86 + 2.5 * hat.userData.top : 0, gt > 0 ? 2.5 * (0.176 + gt) + 0.04 : 0) * SCALE;
   }
 
   buildGhost(look) {

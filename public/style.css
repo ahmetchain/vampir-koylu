@@ -753,6 +753,12 @@ input[type="range"] { width: 100%; accent-color: var(--fire); height: 28px; }
 .house-thumb { width: 88px; height: 72px; object-fit: contain; }
 .house-card.locked .house-thumb { filter: brightness(.45) saturate(.6); }
 .house-card.on small { color: var(--fire); }
+/* ev malzemesi (look.houseMat): desen örneği + büyük ev önizlemesi (Evim sekmesinde karakterin yerine) */
+.mat-sw { width: 46px; height: 32px; border-radius: 7px; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .25), 0 0 0 2px rgba(255, 255, 255, .22); }
+.mat-card.locked .mat-sw { filter: brightness(.5) saturate(.5); }
+.look-house { position: absolute; left: 0; right: 0; top: 0; bottom: 26px; width: 100%; height: calc(100% - 26px); object-fit: contain; display: none; }
+.look.house-tab .look-house { display: block; }
+.look.house-tab .look-fig { visibility: hidden; }
 
 /* ---------- oda kurma / ayarlar formu ---------- */
 .stepper { display: flex; align-items: center; gap: 8px; }

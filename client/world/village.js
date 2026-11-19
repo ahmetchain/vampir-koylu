@@ -138,6 +138,174 @@ function outlineGeometry(geometry) {
   return g;
 }
 
+// ---------- Ev malzemesi (look.houseMat) ----------
+// Yüzeyler, ev dokusu atlasındaki HÜCREDEN (16 sütun x 4 satır renk paleti; her yüz tek hücreyi örnekler) tanınır
+// (house-0..3.glb incelenerek): fantasy-town: (sütun 3, satır 2) sıvalı duvar, (11, 3) tahta duvar, (9, 3) ahşap çatkı/
+// köşe dikmeleri/pencere-kapı çerçeveleri, (15, 3) baca; holiday (kütük ev): (3, 2) kütük duvar, (11, 3) baca. Çatı, saçak,
+// pencere camı, kapı ve flama başka hücrelerde ya da başka örneklerde: kendi görünümünde kalır.
+//  - duvar: seçilen malzemenin deseni;
+//  - çatkı/çerçeve: taş türlerinde (taş, kesme taş, tuğla, mermer) iri yontma taş köşe/çerçeve taşları ("komple taş ev"),
+//    sıva ve koyu ahşapta ahşap kalır (sıvada kendi ahşabı, koyu ahşapta daha koyu kiriş), altın süslü mermerde altın;
+//  - baca: taş türlerinde kendi malzemesi, sıva/ahşapta moloz taş;
+//  - dipte (y < ~0.45 m) taş türlerinde daha koyu, iri taşlı subasman (temel).
+// Malzeme örnek başınadır: gövde örneğinin toplu ağ rengi alfa kanalı = 1 + houseMat (rgb 1 kalır, renk çarpımı nötr);
+// diğer örnekler (kapı, flama) 1 => kendi dokusu. Böylece yeni malzeme/toplu ağ/çizim çağrısı EKLENMEZ: desen ev-yerel
+// konumdan gölgelendiricide üretilir; aydınlatma (gece dahil) dokulu duvarla aynıdır. Önizleme (preview.js) düz ağ
+// kullanır: HM_UNIFORM ile tek tip değer.
+export const HOUSE_MAT_GLSL = /* glsl */`
+varying vec3 vHmP;
+varying vec3 vHmN;
+#ifdef HM_UNIFORM
+uniform float uHouseMat;
+#endif
+float hmH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+vec2 hmH2(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+float hmN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hmH(i), hmH(i + vec2(1.0, 0.0)), f.x), mix(hmH(i + vec2(0.0, 1.0)), hmH(i + vec2(1.0, 1.0)), f.x), f.y); }
+// derz: blok içinde 1, derzde 0 (kenar yumuşatmalı; uzakta fwidth ile genişler, titreşmez)
+float hmJ(float d, float w) { float aa = fwidth(d) * 1.2 + 1e-4; return smoothstep(w, w + aa, d); }
+// sıralı blok örgüsü: rh sıra yüksekliği, bw blok genişliği, sh sıra kayması (bw oranı); xy = (hücre, sıra), z = derze uzaklık
+vec3 hmBond(vec2 q, float rh, float bw, float sh, float jit) {
+  float row = floor(q.y / rh);
+  float off = (sh > 0.0 ? mod(row, 2.0) * sh : hmH(vec2(row, 3.1)) * jit) * bw;
+  float x = q.x + off;
+  float cx = floor(x / bw);
+  float fx = fract(x / bw) * bw, fy = fract(q.y / rh) * rh;
+  return vec3(cx, row, min(min(fx, bw - fx), min(fy, rh - fy)));
+}
+// moloz taş: yassı Voronoi hücreleri (yatay uzun, düzensiz); xy = hücre kimliği, z = harca uzaklık (≈ d2 - d1)
+vec3 hmRubble(vec2 q) {
+  q *= vec2(2.3, 3.4);
+  vec2 i = floor(q), f = fract(q);
+  float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0.0);
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 g = vec2(float(x), float(y));
+    vec2 o = 0.15 + 0.7 * hmH2(i + g);
+    float d = length(g + o - f);
+    if (d < d1) { d2 = d1; d1 = d; id = i + g; } else if (d < d2) d2 = d;
+  }
+  return vec3(id, (d2 - d1) * 0.17);
+}
+vec3 hmRubbleCol(vec2 q, float dark) {
+  vec3 r = hmRubble(q);
+  float v = hmH(r.xy);
+  vec3 c = mix(vec3(0.66, 0.63, 0.57), vec3(0.86, 0.81, 0.72), v);
+  c = mix(c, vec3(0.62, 0.64, 0.66), step(0.72, hmH(r.xy + 9.1)) * 0.7);   // seyrek mavimsi taş
+  c = mix(c, vec3(0.74, 0.64, 0.5), step(0.86, hmH(r.xy + 4.7)) * 0.6);    // seyrek sıcak taş
+  c *= (1.0 - dark) * (0.9 + 0.12 * hmN(q * 11.0)) * (0.8 + 0.2 * smoothstep(0.0, 0.05, r.z));   // taş kenarı yuvarlak
+  return mix(vec3(0.5, 0.48, 0.44) * (1.0 - dark * 0.6), c, hmJ(r.z, 0.008));
+}
+// iri yontma taş (köşe taşları, çerçeveler, subasman): düzgün büyük bloklar
+vec3 hmAshlar(vec2 q, vec3 a, vec3 b, vec3 joint) {
+  vec3 k = hmBond(q, 0.36, 0.52, 0.5, 0.0);
+  vec3 c = mix(a, b, hmH(k.xy)) * (0.93 + 0.08 * hmN(q * 7.0)) * (0.9 + 0.1 * smoothstep(0.0, 0.04, k.z));
+  return mix(joint, c, hmJ(k.z, 0.011));
+}
+// m: houseMat (1..7), p/n: ev-yerel konum ve normal, kind: 0 duvar, 1 çatkı/çerçeve, 2 baca
+vec3 hmWall(float m, vec3 p, vec3 n, float kind, vec3 orig) {
+  vec3 an = abs(n);
+  vec2 q = an.x > an.z ? vec2(p.z, p.y) : vec2(p.x, p.y);
+  if (an.y > 0.75) q = p.xz;
+  bool stoneKind = m < 2.5 || m > 4.5;     // taş, kesme taş, tuğla, mermer
+  // tek çıkış noktası (bazı sürücüler erken dönüşlü dallarda uyarı verir): col sRGB tutulur, sonda doğrusala çevrilir
+  vec3 col = pow(orig, vec3(0.4545));
+  float plinth = 0.0;
+  if (kind > 0.5 && kind < 1.5) {          // çatkı / pencere-kapı çerçevesi / köşe dikmesi
+    if (m > 6.5) col = vec3(0.9, 0.7, 0.26) * (0.88 + 0.2 * hmN(q * 9.0));
+    else if (m > 5.5) col = hmAshlar(q, vec3(0.9, 0.89, 0.86), vec3(0.97, 0.96, 0.93), vec3(0.72, 0.7, 0.66));
+    else if (m > 4.5) col = hmAshlar(q, vec3(0.8, 0.75, 0.66), vec3(0.88, 0.83, 0.74), vec3(0.6, 0.55, 0.48));
+    else if (m > 3.5) col *= vec3(0.75, 0.72, 0.7);                   // koyu ahşapta daha koyu kiriş
+    else if (m > 2.5) col *= 1.0;                                      // sıvada kendi ahşabı (çatkılı badanalı ev)
+    else if (m > 1.5) col = hmAshlar(q, vec3(0.72, 0.66, 0.55), vec3(0.78, 0.72, 0.6), vec3(0.5, 0.46, 0.4));
+    else col = hmAshlar(q, vec3(0.7, 0.68, 0.64), vec3(0.8, 0.78, 0.73), vec3(0.42, 0.4, 0.37));
+  } else if (kind > 1.5 && !stoneKind) {
+    col = hmRubbleCol(q, 0.08);            // baca: sıva/ahşapta taş baca
+  } else {
+  plinth = stoneKind && kind < 0.5 ? 1.0 - smoothstep(0.43, 0.46, p.y) : 0.0;
+  if (m < 1.5) {          // 1 taş: düzensiz moloz taş, açık harç
+    col = hmRubbleCol(q, 0.0);
+  } else if (m < 2.5) {   // 2 kesme taş: düzgün iri bloklar, ince derz
+    vec3 b = hmBond(q, 0.4, 0.78, 0.5, 0.0);
+    col = mix(vec3(0.8, 0.74, 0.62), vec3(0.9, 0.85, 0.74), hmH(b.xy)) * (0.95 + 0.07 * hmN(q * 6.0)) * (0.9 + 0.1 * smoothstep(0.0, 0.035, b.z));
+    col = mix(vec3(0.58, 0.53, 0.45), col, hmJ(b.z, 0.012));
+  } else if (m < 3.5) {   // 3 kerpiç sıva: beyaz badana, altta toprak rengi süpürgelik
+    col = vec3(0.95, 0.93, 0.88) * (0.95 + 0.05 * hmN(q * 3.0) + 0.03 * hmN(q * 17.0));
+    col = mix(col, vec3(0.77, 0.7, 0.6) * (0.92 + 0.1 * hmN(q * 8.0)), 1.0 - smoothstep(0.42, 0.46, p.y));
+  } else if (m < 4.5) {   // 4 koyu ahşap: yatay tahtalar, damar, ek yerleri
+    vec3 b = hmBond(q, 0.2, 2.6, 0.0, 1.0);
+    col = mix(vec3(0.27, 0.17, 0.11), vec3(0.37, 0.24, 0.15), hmH(vec2(b.y, 1.3)));
+    col *= 0.86 + 0.18 * hmN(vec2(q.x * 2.5, q.y * 40.0));
+    col = mix(vec3(0.12, 0.075, 0.05), col, hmJ(b.z, 0.012));
+  } else if (m < 5.5) {   // 5 tuğla: şaşırtmalı örgü, açık harç
+    vec3 b = hmBond(q, 0.15, 0.32, 0.5, 0.0);
+    col = mix(vec3(0.57, 0.25, 0.17), vec3(0.7, 0.33, 0.21), hmH(b.xy));
+    col = mix(col, vec3(0.42, 0.18, 0.13), step(0.85, hmH(b.xy + 3.3)) * 0.7);
+    col = mix(vec3(0.83, 0.78, 0.69), col, hmJ(b.z, 0.014));
+  } else {                // 6 mermer / 7 altın süslemeli mermer: iri levhalar, yumuşak damarlar
+    vec3 b = hmBond(q, 0.9, 1.1, 0.5, 0.0);
+    float vein = abs(sin((q.x * 1.3 + q.y * 0.8) * 3.0 + hmN(q * 2.2 + b.xy) * 6.0));
+    col = vec3(0.95, 0.94, 0.91) - vec3(0.18, 0.18, 0.16) * (1.0 - smoothstep(0.0, 0.06, vein)) * hmN(q * 1.7 + 3.0);
+    col *= 0.97 + 0.04 * hmN(q * 5.0);
+    col = mix(vec3(0.76, 0.74, 0.7), col, hmJ(b.z, 0.006));
+    if (m > 6.5) {        // altın kuşaklar (subasman üstü ve pencere üstü hizası) ve altın derzler
+      vec3 gold = vec3(0.92, 0.72, 0.26) * (0.9 + 0.2 * hmN(q * 12.0));
+      float band = (step(0.46, p.y) - step(0.56, p.y)) + (step(2.62, p.y) - step(2.72, p.y));
+      // altın derzler uzakta incelir (küçük resimde ev altın sarısına boğulmasın)
+      float gj = (1.0 - hmJ(b.z, 0.012)) * (1.0 - smoothstep(0.008, 0.03, fwidth(b.z)));
+      col = mix(col, gold, clamp(band + gj, 0.0, 1.0));
+    }
+  }
+  // subasman (temel): taş türlerinde dipte daha koyu iri taş sırası
+  if (plinth > 0.0) {
+    vec3 pl = m > 5.5 ? hmAshlar(q, vec3(0.72, 0.71, 0.68), vec3(0.8, 0.79, 0.76), vec3(0.55, 0.54, 0.51))
+      : hmAshlar(q * vec2(0.8, 1.0), vec3(0.46, 0.44, 0.41), vec3(0.56, 0.53, 0.49), vec3(0.3, 0.29, 0.27));
+    col = mix(col, pl, plinth);
+  }
+  col *= 0.86 + 0.14 * smoothstep(0.0, 0.6, p.y);   // dipte hafif nem/gölge
+  }
+  return pow(col, vec3(2.2));                        // sRGB -> doğrusal (doku örnekleri de doğrusal)
+}`;
+export function applyHouseMat(m, kit, uniform = null) {
+  m.defines = { ...(m.defines || {}), ...(kit === 'holiday' ? {} : { HM_FT: '' }), ...(uniform ? { HM_UNIFORM: '' } : {}) };
+  const prev = m.onBeforeCompile;
+  m.onBeforeCompile = (sh, r) => {
+    if (prev) prev(sh, r);
+    if (uniform) sh.uniforms.uHouseMat = uniform;
+    sh.vertexShader = 'varying vec3 vHmP;\nvarying vec3 vHmN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vHmP = transformed; vHmN = objectNormal;');
+    sh.fragmentShader = HOUSE_MAT_GLSL + '\n' + sh.fragmentShader
+      .replace('#include <map_fragment>', `#include <map_fragment>
+  {
+    float hm = 0.0;
+    #ifdef HM_UNIFORM
+      hm = uHouseMat;
+    #elif defined( USE_COLOR_ALPHA )
+      hm = floor(vColor.a + 0.5) - 1.0;
+    #endif
+    #ifdef USE_MAP
+    if (hm > 0.5) {
+      vec2 sw = floor(vMapUv * vec2(16.0, 4.0));
+      float kind = -1.0;
+      #ifdef HM_FT
+        if ((sw.y == 2.0 && sw.x == 3.0) || (sw.y == 3.0 && sw.x == 11.0)) kind = 0.0;
+        else if (sw.y == 3.0 && sw.x == 9.0) kind = 1.0;
+        else if (sw.y == 3.0 && sw.x == 15.0) kind = 2.0;
+      #else
+        if (sw.y == 2.0 && sw.x == 3.0) kind = 0.0;
+        else if (sw.y == 3.0 && sw.x == 11.0) kind = 2.0;
+      #endif
+      if (kind > -0.5) diffuseColor.rgb = hmWall(hm, vHmP, normalize(vHmN), kind, diffuseColor.rgb);
+    }
+    #endif
+  }`)
+      .replace('#include <color_fragment>', '#if defined( USE_COLOR ) || defined( USE_COLOR_ALPHA )\n  diffuseColor.rgb *= vColor.rgb;\n#endif');
+  };
+  m.customProgramCacheKey = () => 'vkw-housemat2|' + kit + (uniform ? '|u' : '|b');
+  return m;
+}
+export const isHouseWallMat = (name) => /^(fantasy-town|holiday)/.test(name || '');
+const HM_COL = new THREE.Vector4(1, 1, 1, 1);
+const hmVec = (m) => HM_COL.set(1, 1, 1, 1 + (m | 0));
+
 // Evler: malzeme başına TEK çizim (BatchedMesh) - tüm ev türleri ve kapılar aynı toplu ağda, örnek başına matris ve renk.
 // Toplu ağ desteklenmezse (öznitelikler uyuşmazsa) parça kendi InstancedMesh'ine düşer.
 // Malzemeler kopyalanır: aynı malzemeyi düz Mesh ile paylaşmak her çizimde program değişimine yol açar.
@@ -152,6 +320,7 @@ class HouseBatches {
       const m = mat.clone();
       m.name = mat.name;
       m.userData = { ...mat.userData, houseBatch: true };
+      if (isHouseWallMat(mat.name)) applyHouseMat(m, mat.name.startsWith('holiday') ? 'holiday' : 'ft');   // ev malzemesi (örnek başına)
       const mesh = new THREE.BatchedMesh(64, 16384, 32768, m);
       mesh.sortObjects = false;          // opak: sıralamaya gerek yok
       mesh.perObjectFrustumCulled = true;
@@ -262,6 +431,7 @@ class HouseGroup {
         else if (skin && (mat.name === 'fantasy-town' || mat.name === 'holiday')) mat = A.houseSkinMaterial(skin, mat.name) || mat;   // ev görünümü (look.house)
         else if (variant === 1 && mat.name === 'fantasy-town') mat = A.altKitMaterial();
         const part = { kind: nodeName, nodeM, local, colorMode, nodePos: new THREE.Vector3().setFromMatrixPosition(nodeM), nodeQ: new THREE.Quaternion().setFromRotationMatrix(nodeM), ids: [] };
+        part.hm = nodeName === 'body' && !colorMode && isHouseWallMat(mat.name);   // ev malzemesi bu parçanın duvarlarına uygulanır
         try {
           const b = batches.batchFor(mat, colorMode === 'window');
           part.batch = b; part.batches = batches;
@@ -354,6 +524,7 @@ class HouseGroup {
         this.setM(p, i, m);
         if (p.colorMode === 'owner') this.setC(p, i, h.ownerColor);
         else if (p.colorMode === 'window') this.setC(p, i, h.winColor);
+        else if (p.hm && p.batch) this.setC(p, i, hmVec(h.mat));   // alfa = 1 + houseMat (hep yazılır: program baştan aynı)
       }
     }
     for (const p of this.parts) {
@@ -466,6 +637,7 @@ export function createVillage(scene, q, fx, terrain) {
       }
       h.seat = t.seat;
       h.skin = t.skin | 0;
+      h.mat = t.mat | 0;   // ev malzemesi (look.houseMat): gövde örneğinin toplu ağ renginde (alfa)
       h.sx = h.cx; h.sz = h.cz; h.srot = h.crot;
       h.tx = t.x; h.tz = t.z; h.trot = t.rotY; h.angle = t.angle;
       h.info = HOUSE_INFO[t.type];
@@ -485,12 +657,15 @@ export function createVillage(scene, q, fx, terrain) {
     else { pendingLayout = true; pendingGrow = true; }
   }
 
-  // Yalnızca ev görünümü (look.house) değiştiyse: düzene dokunmadan evleri ilgili gruba taşır
+  // Yalnızca ev görünümü (look.house) değiştiyse: düzene dokunmadan evleri ilgili gruba taşır.
+  // Yalnızca ev malzemesi (look.houseMat) değiştiyse grup değişmez: örnek renkleri yeniden yazılır.
   function setSkins(entries) {
     let changed = false;
     for (const e of entries) {
       const h = houses.get(e.id);
-      if (h && (h.skin | 0) !== (e.skin | 0)) { h.skin = e.skin | 0; changed = true; }
+      if (!h) continue;
+      if ((h.skin | 0) !== (e.skin | 0)) { h.skin = e.skin | 0; changed = true; }
+      if ((h.mat | 0) !== (e.mat | 0)) { h.mat = e.mat | 0; dirty = true; }
     }
     if (changed) regroup();
   }

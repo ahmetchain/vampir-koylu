@@ -189,10 +189,17 @@ export function lookNames(kind, fallbackNames) {
   return fallbackNames;
 }
 
-// "Evim" seçici için gerçek 3B ev küçük resimleri (dataURL listesi); 3B yoksa null.
-export async function houseThumbs(count) {
+// "Evim" seçici için gerçek 3B ev küçük resimleri (dataURL listesi; mat: look.houseMat duvar malzemesi); 3B yoksa null.
+export async function houseThumbs(count, mat = 0) {
   try {
-    if (lib && !usingFallback && typeof lib.houseSnapshots === 'function') return await lib.houseSnapshots(count);
+    if (lib && !usingFallback && typeof lib.houseSnapshots === 'function') return await lib.houseSnapshots(count, mat);
   } catch (e) { /* 3B çizilemedi: kartlar yedek çizimle kalır */ }
+  return null;
+}
+// Seçili evin büyük önizlemesi (Evim sekmesinde sahnede): dataURL ya da null
+export async function houseThumb(skin, mat = 0) {
+  try {
+    if (lib && !usingFallback && typeof lib.houseSnapshot === 'function') return await lib.houseSnapshot(skin, mat);
+  } catch (e) { /* yedek: karakter önizlemesi kalır */ }
   return null;
 }

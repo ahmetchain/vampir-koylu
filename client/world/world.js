@@ -490,12 +490,13 @@ export function create(container, handlers = {}) {
     if (!st || view === 'menu') entries = MENU_ENTRIES;
     else {
       const inLobby = st.room.phase === 'lobby';
-      entries = st.players.filter((p) => !(inLobby && p.left)).map((p) => ({ id: p.id, seat: p.seat ?? 0, skin: (p.look && p.look.house) | 0 }));
+      entries = st.players.filter((p) => !(inLobby && p.left)).map((p) => ({ id: p.id, seat: p.seat ?? 0, skin: (p.look && p.look.house) | 0, mat: (p.look && p.look.houseMat) | 0 }));
       viewer = st.me ? st.me.id : null;
       if (!entries.length) entries = MENU_ENTRIES;
     }
     const sig = entries.map((e) => e.id + '@' + e.seat).join(',') + '|' + viewer;
-    // Ev görünümü (look.house) değişince düzen ve oyuncular yerinde kalır; yalnızca evin malzemesi değişir.
+    // Ev görünümü (look.house) ya da ev malzemesi (look.houseMat) değişince düzen ve oyuncular yerinde kalır; yalnızca
+    // evin dokusu/duvar malzemesi değişir.
     if (sig === layoutSig) { village.setSkins(entries); return false; }
     const animate = !!layoutSig && st && st.room.phase === 'lobby' && view === 'game' && !layoutSig.startsWith('menu-');
     layoutSig = sig;

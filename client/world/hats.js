@@ -292,6 +292,101 @@ function yeniceriBorku() {
   return merge(parts);
 }
 
+// ---------- ortaçağ savaşçı başlıkları (prosedürel, oyunun kendi tasarımı) ----------
+// Çelik tonları köşe rengiyle (Lambert, tek paylaşılan malzeme); zincir örgüde hafif ton oynaması (halkalar kıyafet
+// malzemesinin gölgelendiricisinde: outfits.js outfitMaterial, metal kodu renkten çıkarılır).
+const STEEL = '#a9b2bb', STEEL2 = '#8b949e', STEEL3 = '#6f7883', BRASS = '#c49a3e', GOLD_H = '#e2b23c';
+const mail = (i, j) => { const h = hash(i * 3 + 1, j * 7 + 2); return h < 0.3 ? '#8a929b' : h < 0.65 ? '#949ca5' : '#a0a8b1'; };
+
+// Burun korumalı miğfer: dilimli (pirinç kaburgalı) konik başlık, alt kenarda perçinli bant, önde burunluk
+function nasalHelm() {
+  const prof = [[0.206, 0.182], [0.218, 0.192], [0.219, 0.228], [0.215, 0.238], [0.208, 0.3], [0.182, 0.37], [0.14, 0.43], [0.08, 0.475], [0, 0.5]];
+  const parts = [lathe(prof, {
+    seg: 16, p: 3.2,
+    color: (i, j) => (j <= 2 ? (j === 1 && i % 2 ? BRASS : STEEL3) : i % 4 === 0 ? BRASS : shadeHex(j % 2 ? STEEL : STEEL2, -0.04 * (j - 3))),
+  })];
+  parts.push(stick([0, 0.236, 0.222], [0, 0.098, 0.214], 0.042, 0.016, STEEL2));
+  parts.push(part(new THREE.OctahedronGeometry(0.012, 0), BRASS, { pos: [0, 0.505, 0] }));
+  return merge(parts);
+}
+
+// Zincir başlık: başı, kulakları, enseyi ve omuzları saran zincir örgü (yüz açık), alında deri bağ
+function mailCoif() {
+  const P = 2.6, SZ = 0.92, a0 = 0.95;
+  // yuvarlak kubbe (kutu gibi düz tepe değil): başın üstünde yumuşak bir kubbe
+  const top = lathe([[0.262, 0.235], [0.258, 0.29], [0.24, 0.345], [0.206, 0.392], [0.15, 0.428], [0.08, 0.446], [0, 0.45]], { seg: 16, p: P, sz: SZ, color: (i, j) => (j === 0 ? '#6b4528' : mail(i, j)) });
+  // yanlar ve ense: başı saran başlık gibi çene hizasına (y≈0) iner; baş gövdeden geniş olduğundan aşağı sarkmaz
+  const skirt = lathe([[0.25, -0.02], [0.262, 0.03], [0.266, 0.12], [0.262, 0.235]], { seg: 12, p: P, sz: SZ, from: a0 - 0.15, to: TAU - a0 + 0.15, color: (i, j) => (j === 0 && i % 2 ? '#8a929b' : mail(i + 5, j)) });
+  // yüz açıklığının iki kenarında deri şerit (alın bağı ile birleşir)
+  const rimL = lathe([[0.254, -0.02], [0.27, 0.12], [0.266, 0.235]], { seg: 1, p: P, sz: SZ, from: a0 - 0.15, to: a0 - 0.06, color: '#6b4528' });
+  const rimR = lathe([[0.254, -0.02], [0.27, 0.12], [0.266, 0.235]], { seg: 1, p: P, sz: SZ, from: TAU - a0 + 0.06, to: TAU - a0 + 0.15, color: '#6b4528' });
+  return merge([top, skirt, rimL, rimR]);
+}
+
+// Sivri tolga (Osmanlı): yivli sivri kubbe, altın alın bandı, sürgülü burunluk, yanaklıklar ve ensede zincir perde
+function sivriTolga() {
+  const prof = [[0.206, 0.182], [0.222, 0.196], [0.224, 0.245], [0.214, 0.262], [0.198, 0.33], [0.16, 0.42], [0.1, 0.5], [0.04, 0.575], [0, 0.63]];
+  const parts = [lathe(prof, { seg: 12, p: 2.6, color: (i, j) => (j <= 1 ? (j === 1 && i % 2 ? '#f0c75a' : GOLD_H) : j === 2 ? STEEL3 : i % 2 ? STEEL : STEEL2) })];
+  parts.push(part(new THREE.OctahedronGeometry(0.018, 0), GOLD_H, { pos: [0, 0.645, 0], scale: [1, 1.6, 1] }));
+  parts.push(stick([0, 0.31, 0.222], [0, 0.105, 0.216], 0.032, 0.014, STEEL2));
+  parts.push(part(new THREE.OctahedronGeometry(0.022, 0), GOLD_H, { pos: [0, 0.322, 0.224], scale: [1, 1.3, 0.5] }));
+  // yanaklıklar: başı saran ince kavisli levhalar (yanakların önünde, kulakların önünde biter)
+  for (const [a, b] of [[0.5, 1.12], [-1.12, -0.5]]) {
+    parts.push(lathe([[0.232, 0.03], [0.236, 0.11], [0.228, 0.19]], { seg: 3, p: 2.6, from: a, to: b, color: (i, j) => (j === 0 ? GOLD_H : STEEL2) }));
+  }
+  // ense zinciri (aventail): kulak arkasından enseyi örter, altta hafif açılır
+  parts.push(lathe([[0.262, -0.0], [0.248, 0.09], [0.228, 0.19]], { seg: 8, p: 2.6, from: Math.PI - 1.25, to: Math.PI + 1.25, color: (i, j) => (j === 0 && i % 2 ? '#8a929b' : mail(i, j)) }));
+  return merge(parts);
+}
+
+// Üsküf: yeniçeri subay börkü — sırmalı (altın işlemeli) geniş bant, uzun beyaz keçe, arkaya sarkan yatırtma,
+// önde kaşıklık ve ondan yükselen uzun balıkçıl tüyü (var olan Yeniçeri börkünün subay çeşidi)
+function uskuf() {
+  const felt = '#f4f1ea', shade = '#ddd7cb';
+  const prof = [[0.2, 0.194], [0.214, 0.21], [0.216, 0.29], [0.198, 0.42], [0.172, 0.54], [0.12, 0.6], [0, 0.61]];
+  const parts = [lathe(prof, { seg: 12, p: 3.4, color: (i, j) => (j <= 1 ? (i % 2 ? GOLD_H : '#b8862a') : j === 2 ? shade : felt) })];
+  const pts = [[0, 0.59, -0.06], [0, 0.6, -0.17], [0, 0.5, -0.24], [0, 0.32, -0.262], [0, 0.14, -0.255]];
+  for (let k = 0; k < pts.length - 1; k++) parts.push(stick(pts[k], pts[k + 1], 0.16 - k * 0.01, 0.024, k % 2 ? shade : felt));
+  parts.push(part(new THREE.CylinderGeometry(0.036, 0.024, 0.17, 6), GOLD_H, { pos: [0, 0.33, 0.214], rot: [-0.1, 0, 0], scale: [1, 1, 0.35] }));
+  parts.push(part(new THREE.OctahedronGeometry(0.02, 0), '#1f8fa0', { pos: [0, 0.35, 0.228], scale: [1, 1.3, 0.5] }));
+  // tüyler (sorguç): kaşıklığın tepesinden başın üstüne yükselen uzun beyaz tüy demeti, hafif arkaya yatık ve yelpaze
+  for (const [h, rz, rx] of [[0.46, 0, -0.32], [0.38, 0.22, -0.4], [0.38, -0.22, -0.4], [0.3, 0.42, -0.5], [0.3, -0.42, -0.5]]) {
+    const cx = Math.sin(-rz) * h * 0.5, cy = 0.41 + Math.cos(rz) * Math.cos(rx) * h * 0.5, cz = 0.232 + Math.sin(rx) * h * 0.5;
+    parts.push(part(new THREE.ConeGeometry(0.03, h, 4), rz === 0 ? '#fbfaf5' : '#efe9dc', { pos: [cx, cy, cz], rot: [rx, 0, rz], scale: [1, 1, 0.45] }));
+  }
+  return merge(parts);
+}
+
+// Sarıklı tolga (Osmanlı): miğfer kubbesinin dibine sarılmış beyaz sarık (çapraz sargı izleri), tepede sivri çivi, burunluk
+function sarikliTolga() {
+  const w1 = '#f7f3ea', w2 = '#e2d9c6';
+  const dome = lathe([[0.2, 0.31], [0.196, 0.37], [0.172, 0.45], [0.126, 0.52], [0.066, 0.575], [0, 0.6]], { seg: 12, p: 2.6, color: (i, j) => (j === 0 ? GOLD_H : i % 2 ? STEEL : STEEL2) });
+  const turban = lathe([[0.204, 0.184], [0.236, 0.2], [0.256, 0.24], [0.26, 0.28], [0.244, 0.314], [0.2, 0.33]], { seg: 12, p: 3, color: (i, j) => ((i + j * 2) % 4 < 2 ? w1 : w2) });
+  return merge([dome, turban,
+    part(new THREE.ConeGeometry(0.016, 0.1, 5), GOLD_H, { pos: [0, 0.645, 0] }),
+    stick([0, 0.3, 0.262], [0, 0.11, 0.222], 0.034, 0.014, STEEL2),
+    part(new THREE.OctahedronGeometry(0.02, 0), '#c0283a', { pos: [0, 0.27, 0.262], scale: [1, 1.2, 0.5] }),
+  ]);
+}
+
+// Kapalı miğfer: başı ve yüzü tümden örten fıçı biçimli miğfer; önde yatay göz yarığı, sağ altta hava delikleri,
+// tepe kenarında pirinç bant. Yuvalar: baş + gözler + bıyık yeri (gözlük/bıyık/sakal ile takılmaz).
+// Baş ölçüsü (kafa kemiği yerel): x ±0.237 (kulak dahil), y 0..0.38, z ±0.21 -> miğfer başı sarar, yüzü örter; profil
+// yukarıda kubbeleşir (kutu gibi durmaz), ön-arka biraz basık (sz). Göz yarığı yatay bir bant; dikey sırt YOK (haç
+// biçimi oluşmasın).
+function kapaliMigfer() {
+  const prof = [[0.226, -0.012], [0.244, 0.004], [0.248, 0.09], [0.249, 0.152], [0.249, 0.188], [0.246, 0.27], [0.232, 0.33], [0.196, 0.38], [0.13, 0.41], [0, 0.42]];
+  const front = (i, seg) => { const t = (i + 0.5) / seg * TAU; return Math.abs(Math.atan2(Math.sin(t), Math.cos(t))) < 0.9; };
+  const parts = [lathe(prof, {
+    seg: 16, p: 3.6, sz: 0.92,
+    color: (i, j) => (j === 3 && front(i, 16) ? '#17141c' : j === 0 ? BRASS : j === 6 ? BRASS : j >= 7 ? STEEL2 : j === 1 ? STEEL3 : STEEL),
+  })];
+  // nefes delikleri (sağ alt yanak) ve tepede küçük pirinç topuz
+  for (let k = 0; k < 3; k++) for (let r = 0; r < 2; r++) parts.push(part(new THREE.BoxGeometry(0.014, 0.024, 0.01), '#17141c', { pos: [0.06 + k * 0.032, 0.05 + r * 0.04, 0.228], rot: [0, 0.22, 0] }));
+  parts.push(part(new THREE.OctahedronGeometry(0.022, 0), BRASS, { pos: [0, 0.425, 0], scale: [1, 0.7, 1] }));
+  return merge(parts);
+}
+
 // ---------- aksesuarlar ----------
 // bone: hangi kemiğe takılır ('head' kafa-yerel, 'torso' gövde-yerel: gövde üstü y≈0.167, ön z≈0.134)
 
@@ -390,6 +485,12 @@ const HAT_BUILD = [
   { kind: 'cap', build: () => kavuk(true) },           // 20 Sorguçlu kavuk
   { kind: 'cap', build: selcukluBorku },               // 21 Selçuklu börkü
   { kind: 'cap', hair: 'scarf', build: yeniceriBorku }, // 22 Yeniçeri börkü (yatırtma enseye sarkar: arka saç içeri)
+  { kind: 'cap', build: nasalHelm },                    // 23 Burun korumalı miğfer
+  { kind: 'cap', hair: 'scarf', build: mailCoif },      // 24 Zincir başlık (kulak, ense ve yanlar örtülü)
+  { kind: 'cap', build: sivriTolga },                   // 25 Sivri tolga
+  { kind: 'cap', hair: 'scarf', build: uskuf },         // 26 Üsküf (yatırtma enseye sarkar)
+  { kind: 'cap', build: sarikliTolga },                 // 27 Sarıklı tolga
+  { kind: 'cap', hair: 'scarf', build: kapaliMigfer },  // 28 Kapalı miğfer (yüz dahil tüm baş örtülü)
 ];
 export const HAT_DEFS = HAT_NAMES.map((name, i) => ({ name, node: HAT_NODES[i] || null, ...(HAT_BUILD[i] || {}) }));
 export const HAT_COUNT = HAT_DEFS.length;

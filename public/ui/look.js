@@ -1,4 +1,4 @@
-// Görünüm düzenleyici: karakter (12), renk (20), şapka, aksesuar, kıyafet (üst + alt), ev. Öğe tabloları, yuva (slot)
+// Görünüm düzenleyici: karakter (12), renk (20), şapka, aksesuar, kıyafet (üst + alt + teçhizat), ev (görünüm + malzeme). Öğe tabloları, yuva (slot)
 // kuralları ve kilitler tek tabloda: ./cosmetics.js (sunucu kopyası lib/cosmetics.js).
 //  - Aynı yuvadaki iki öğe birlikte takılamaz: yeni seçilen eskisini çıkarır ve kısa bir not gösterilir
 //    (ör. "Kral tacı takıldı, Takke çıkarıldı.").
@@ -10,15 +10,15 @@ import { ctx, send, on, emitLocal } from './ctx.js';
 import { Api } from './api.js';
 import { openSheet, toast } from './kit.js';
 import { esc, sfx } from './util.js';
-import { icon, hatIcon, accIcon, topIcon, bottomIcon } from './icons.js';
+import { icon, hatIcon, accIcon, topIcon, bottomIcon, gearIcon } from './icons.js';
 import {
-  COLORS, COLOR_NAMES, HAT_NAMES, SKIN_NAMES, ACC_NAMES, TOP_NAMES, BOTTOM_NAMES, HOUSES, pointsOf,
+  COLORS, COLOR_NAMES, HAT_NAMES, SKIN_NAMES, ACC_NAMES, TOP_NAMES, BOTTOM_NAMES, GEAR_NAMES, GEAR_ITEMS, HOUSES, HOUSE_MATS, pointsOf,
   resolveLook, skinBlock, lockOf, conflictNote, skinBlockNote,
 } from './data.js';
-import { preview, isFallback, lookNames, houseThumbs } from './world-host.js';
+import { preview, isFallback, lookNames, houseThumbs, houseThumb as houseBig } from './world-host.js';
 
 let open = null;
-const ITEM_FIELDS = ['hat', 'acc', 'top', 'bottom'];
+const ITEM_FIELDS = ['hat', 'acc', 'top', 'bottom', 'gear'];
 
 function inRoom() {
   const s = ctx.state;
@@ -32,8 +32,8 @@ export function openLookEditor() {
     toast('Oyun sırasında görünüm değiştirilemez.', 'error');
     return;
   }
-  // eski kayıtlarda acc/top/bottom/house yok: 0 sayılır
-  const full = (l) => ({ acc: 0, top: 0, bottom: 0, house: 0, ...l });
+  // eski kayıtlarda acc/top/bottom/gear/house/houseMat yok: 0 sayılır
+  const full = (l) => ({ acc: 0, top: 0, bottom: 0, gear: 0, house: 0, houseMat: 0, ...l });
   let look = full(roomMode ? ctx.state.me.look : ctx.user.look);
   let tab = 'skin';
   let note = '';
@@ -42,13 +42,14 @@ export function openLookEditor() {
   const accs = lookNames('ACCS', ACC_NAMES);
   const tops = lookNames('TOPS', TOP_NAMES);
   const bottoms = lookNames('BOTTOMS', BOTTOM_NAMES);
-  const names = { hat: hats, acc: accs, top: tops, bottom: bottoms };
-  const icons = { hat: hatIcon, acc: accIcon, top: topIcon, bottom: bottomIcon };
+  const gears = lookNames('GEARS', GEAR_NAMES);
+  const names = { hat: hats, acc: accs, top: tops, bottom: bottoms, gear: gears };
+  const icons = { hat: hatIcon, acc: accIcon, top: topIcon, bottom: bottomIcon, gear: gearIcon };
 
   const body = document.createElement('div');
   body.className = 'look';
   body.innerHTML = `
-    <div class="look-stage"><div class="look-fig" style="position:absolute;inset:0 0 26px"></div><div class="look-name"></div></div>
+    <div class="look-stage"><div class="look-fig" style="position:absolute;inset:0 0 26px"></div><img class="look-house" alt="" draggable="false" hidden><div class="look-name"></div></div>
     <div class="seg look-tabs" role="tablist">
       <button type="button" class="seg-btn" data-tab="skin">Karakter</button>
       <button type="button" class="seg-btn" data-tab="color">Renk</button>
@@ -68,11 +69,31 @@ export function openLookEditor() {
   const points = () => (ctx.user && ctx.user.admin ? Infinity : pointsOf(ctx.user && ctx.user.stats));
   const who = () => ({ owner, points: points() });
 
-  // Küçük ev önizlemesi: gerçek 3B modelden alınmış görüntü; 3B yoksa/hazır değilse basit SVG yedeği
-  let thumbs3d = null;
-  houseThumbs(HOUSES.length).then((t) => { thumbs3d = t; if (open && tab === 'house') render(); });
+  // Küçük ev önizlemesi: gerçek 3B modelden alınmış görüntü (seçili duvar malzemesiyle); 3B yoksa/hazır değilse basit SVG
+  // yedeği. Malzeme değişince küçük resimler o malzemeyle yeniden alınır (malzeme başına önbellekli).
+  const thumbs3d = new Map();   // houseMat -> dataURL listesi
+  const thumbWait = new Set();
+  function needThumbs(m) {
+    if (thumbs3d.has(m) || thumbWait.has(m)) return;
+    thumbWait.add(m);
+    houseThumbs(HOUSES.length, m).then((t) => { thumbWait.delete(m); if (t) thumbs3d.set(m, t); if (open && tab === 'house') render(); });
+  }
+  // Büyük önizleme (Evim sekmesinde karakterin yerinde): seçili ev görünümü + malzeme
+  const bigEl = body.querySelector('.look-house');
+  let bigKey = '';
+  function updateBig() {
+    const key = (look.house | 0) + '|' + (look.houseMat | 0);
+    if (key === bigKey) return;
+    bigKey = key;
+    houseBig(look.house | 0, look.houseMat | 0).then((url) => {
+      if (bigKey !== key) return;
+      bigEl.hidden = !url;
+      if (url) bigEl.src = url;
+    });
+  }
   function houseThumb(h, i) {
-    if (thumbs3d && thumbs3d[i]) return `<img class="house-thumb" src="${thumbs3d[i]}" alt="" width="88" height="72" draggable="false">`;
+    const thumbs = thumbs3d.get(look.houseMat | 0) || thumbs3d.get(0);
+    if (thumbs && thumbs[i]) return `<img class="house-thumb" src="${thumbs[i]}" alt="" width="88" height="72" draggable="false">`;
     return `<svg class="house-thumb" viewBox="0 0 64 52" aria-hidden="true">
       <rect x="0" y="46" width="64" height="6" rx="3" fill="rgba(255,255,255,.08)"/>
       <rect x="12" y="22" width="40" height="25" rx="2" fill="${h.wall}"/>
@@ -85,6 +106,15 @@ export function openLookEditor() {
   function houseLock(h) {
     if (h.owner) return owner ? null : 'Yalnızca sahibine özel';
     return points() >= h.min ? null : `${h.min} puan gerek`;
+  }
+  // Ev malzemesi kartı: desen örneği (CSS), ad, kilit
+  function matButton(m, i) {
+    const lock = houseLock(m);
+    const cur = (look.houseMat | 0) === i;
+    return `<button type="button" class="opt mat-card${cur ? ' on' : ''}${lock ? ' locked' : ''}" data-f="houseMat" data-v="${i}"
+      aria-selected="${cur}" ${lock ? `aria-disabled="true" data-lock="${esc(lock)}"` : ''}>
+      <span class="mat-sw" style="background:${m.sw}"></span>${esc(m.name)}
+      ${lock ? `${icon('lock', 'taken')}<small class="lock-note">${esc(lock)}</small>` : ''}</button>`;
   }
 
   function taken() {
@@ -116,8 +146,13 @@ export function openLookEditor() {
     const bits = [skins[look.skin], COLOR_NAMES[look.color]];
     for (const f of ITEM_FIELDS) if (look[f]) bits.push(names[f][look[f]]);
     nameEl.textContent = bits.join(' · ');
-    // Ev görünümü karakter önizlemesinde değil, köyde görünür: sekme adı bunu söyler
-    if (tab === 'house') nameEl.textContent = `Evim: ${HOUSES[look.house | 0].name}`;
+    // Ev görünümü karakter önizlemesinde değil, köyde görünür: Evim sekmesinde sahnede seçili evin büyük önizlemesi
+    body.classList.toggle('house-tab', tab === 'house');
+    if (tab === 'house') {
+      nameEl.textContent = `Evim: ${HOUSES[look.house | 0].name}${look.houseMat ? ' · ' + HOUSE_MATS[look.houseMat].name : ''}`;
+      needThumbs(look.houseMat | 0);
+      updateBig();
+    }
     // şapka ve aksesuar seçerken önizleme yüze yaklaşır; kıyafette gövdeye yarı yakın plan
     if (pv.setFocus) pv.setFocus(tab === 'hat' || tab === 'acc' ? 'head' : tab === 'wear' ? 'wear' : 'body');
     if (tab === 'color') {
@@ -137,10 +172,12 @@ export function openLookEditor() {
             aria-selected="${(look.house | 0) === i}" ${lock ? `aria-disabled="true" data-lock="${esc(lock)}"` : ''}>
             ${houseThumb(h, i)}<span>${esc(h.name)}</span>
             ${lock ? `${icon('lock', 'taken')}<small class="lock-note">${esc(lock)}</small>` : (look.house | 0) === i ? '<small>Seçili</small>' : ''}</button>`;
-        }).join('');
+        }).join('')
+        + '<h3 class="opt-head">Duvar malzemesi</h3>' + HOUSE_MATS.map(matButton).join('');
     } else if (tab === 'wear') {
       grid.innerHTML = '<h3 class="opt-head">Üst giysi</h3>' + tops.map((n, i) => itemButton('top', i, n)).join('')
-        + '<h3 class="opt-head">Alt giysi ve ayakkabı</h3>' + bottoms.map((n, i) => itemButton('bottom', i, n)).join('');
+        + '<h3 class="opt-head">Alt giysi ve ayakkabı</h3>' + bottoms.map((n, i) => itemButton('bottom', i, n)).join('')
+        + '<h3 class="opt-head">Teçhizat (sırt ve bel)</h3>' + gears.map((n, i) => itemButton('gear', i, n)).join('');
     } else if (tab === 'acc' || tab === 'hat') {
       grid.innerHTML = names[tab].map((n, i) => itemButton(tab, i, n)).join('');
     } else {
@@ -167,6 +204,8 @@ export function openLookEditor() {
     showNote(res.removed.map(conflictNote).join(' '));
     if (res.removed.length) toast(note, 'info', 2600);
     pv.setLook(look);
+    // sırta takılan teçhizat (kalkan, sadak, sancak...) seçilince önizleme bir an arkasını gösterir
+    if (field === 'gear' && v && GEAR_ITEMS[v] && GEAR_ITEMS[v].slots.includes('back') && pv.peekBack) pv.peekBack();
     sfx('click');
     render();
     if (roomMode) {

@@ -21,7 +21,7 @@ function namesIn(file, name) {
 }
 
 test('şapka ve aksesuar sayıları istemci listeleriyle aynı', async () => {
-  assert.equal(HAT_COUNT, 23);
+  assert.equal(HAT_COUNT, 29);
   assert.equal(ACC_COUNT, 12);
   const lists = {};
   for (const file of ['client/world/constants.js', 'public/ui/data.js']) {
@@ -59,8 +59,9 @@ test('eski kayıtlı görünüm (acc yok) aynen yüklenir; yeni alanlar sınır 
   assert.equal(r.players.get('a').look.acc, 5, 'sayı olmayan değer görünümü değiştirmez');
   assert.equal(r.setLook('a', { acc: 0 }), null);
   assert.deepEqual(r.players.get('a').look, { color: 3, hat: 18, skin: 7 }, 'acc 0 -> alan silinir');
-  assert.match(r.setLook('a', { hat: 99 }), /kilitli/, 'aralık dışı şapka en üst şapkaya (Yeniçeri börkü, 30 puan) sıkışır');
-  assert.equal(r.setLook('a', { hat: 99 }, { points: 30 }), null);
+  assert.match(r.setLook('a', { hat: 99 }), /kilitli/, 'aralık dışı şapka en üst şapkaya (Kapalı miğfer, 70 puan) sıkışır');
+  assert.match(r.setLook('a', { hat: 99 }, { points: 69 }), /70 puan/);
+  assert.equal(r.setLook('a', { hat: 99 }, { points: 70 }), null);
   assert.equal(r.players.get('a').look.hat, HAT_COUNT - 1);
   assert.ok(r.viewFor('a').players.every((p) => p.look.skin < SKIN_COUNT && p.look.color < COLOR_COUNT));
   r.destroy();

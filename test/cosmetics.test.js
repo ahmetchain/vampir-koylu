@@ -13,18 +13,19 @@ const { PgStore } = require('../lib/store-pg');
 const C = require('../lib/cosmetics');
 const { canUseItem, sanitizeLook, KING_ACC } = require('../lib/houses');
 const { mergeLook } = require('../lib/auth');
-const { Room, HAT_COUNT, ACC_COUNT, TOP_COUNT, BOTTOM_COUNT } = require('../game');
+const { Room, HAT_COUNT, ACC_COUNT, TOP_COUNT, BOTTOM_COUNT, GEAR_COUNT } = require('../game');
 
 const OWNER = 'ahmetchain';
 const HAT = (n) => C.HAT_ITEMS.findIndex((h) => h.name === n);
 const ACC = (n) => C.ACC_ITEMS.findIndex((h) => h.name === n);
 const TOP = (n) => C.TOP_ITEMS.findIndex((h) => h.name === n);
 const BOT = (n) => C.BOTTOM_ITEMS.findIndex((h) => h.name === n);
+const GEAR = (n) => C.GEAR_ITEMS.findIndex((h) => h.name === n);
 const room = () => new Room({ id: 'KOZ1', name: 'T', settings: { events: 'off' }, hooks: { update() {}, announce() {}, empty() {} } });
 
 test('istemci ve sunucu yuva tablosu birebir aynı (public/ui/cosmetics.js = lib/cosmetics.js)', async () => {
   const cli = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'ui', 'cosmetics.js')).href);
-  for (const k of ['SLOT_NAMES', 'HAT_ITEMS', 'ACC_ITEMS', 'TOP_ITEMS', 'BOTTOM_ITEMS', 'SKIN_FEATURES', 'FIELD_ORDER', 'OPTIONAL_FIELDS']) {
+  for (const k of ['SLOT_NAMES', 'HAT_ITEMS', 'ACC_ITEMS', 'TOP_ITEMS', 'BOTTOM_ITEMS', 'GEAR_ITEMS', 'SKIN_FEATURES', 'FIELD_ORDER', 'OPTIONAL_FIELDS']) {
     assert.deepEqual(cli[k], C[k], k);
   }
   // kod da aynı: ESM dosyasındaki gövde, sunucu kopyasında 'export' anahtarları çıkarılmış hâliyle bulunur
@@ -41,12 +42,13 @@ test('istemci ve sunucu yuva tablosu birebir aynı (public/ui/cosmetics.js = lib
   }
   assert.equal(C.SKIN_FEATURES.length, 12);
   // sunucu sayıları tablodan gelir; istemci adları da
-  assert.deepEqual([HAT_COUNT, ACC_COUNT, TOP_COUNT, BOTTOM_COUNT], [C.HAT_ITEMS.length, C.ACC_ITEMS.length, C.TOP_ITEMS.length, C.BOTTOM_ITEMS.length]);
+  assert.deepEqual([HAT_COUNT, ACC_COUNT, TOP_COUNT, BOTTOM_COUNT, GEAR_COUNT], [C.HAT_ITEMS.length, C.ACC_ITEMS.length, C.TOP_ITEMS.length, C.BOTTOM_ITEMS.length, C.GEAR_ITEMS.length]);
   const data = await import(pathToFileURL(path.join(__dirname, '..', 'public', 'ui', 'data.js')).href);
   assert.deepEqual(data.TOP_NAMES, C.TOP_ITEMS.map((i) => i.name));
   assert.deepEqual(data.BOTTOM_NAMES, C.BOTTOM_ITEMS.map((i) => i.name));
+  assert.deepEqual(data.GEAR_NAMES, C.GEAR_ITEMS.map((i) => i.name));
   const fb = fs.readFileSync(path.join(__dirname, '..', 'public', 'ui', 'world-fallback.js'), 'utf8');
-  for (const n of [...C.TOP_ITEMS, ...C.BOTTOM_ITEMS, ...C.ACC_ITEMS].map((i) => i.name)) assert.ok(fb.includes(`'${n}'`), `2B yedek köy adı: ${n}`);
+  for (const n of [...C.HAT_ITEMS, ...C.TOP_ITEMS, ...C.BOTTOM_ITEMS, ...C.ACC_ITEMS, ...C.GEAR_ITEMS].map((i) => i.name)) assert.ok(fb.includes(`'${n}'`), `2B yedek köy adı: ${n}`);
 });
 
 test('yuva kuralı: taç ile takke/şapka aynı anda takılamaz; yeni seçilen eskisini çıkarır', () => {
@@ -140,7 +142,7 @@ test('sunucu: botlar yalnızca açık (puansız) öğelerle giyinir, çakışma 
   let dressed = 0;
   for (const p of r.players.values()) {
     if (!p.bot) continue;
-    for (const f of ['hat', 'acc', 'top', 'bottom']) {
+    for (const f of ['hat', 'acc', 'top', 'bottom', 'gear']) {
       const it = C.itemOf(f, p.look[f] | 0);
       if (!it) continue;
       if (f !== 'hat') dressed++;
@@ -251,4 +253,105 @@ test('HTTP + soket: giysi profile kaydedilir, odada herkese gider; kilit ve çak
   assert.equal(me().top, undefined, 'kese beli doldurur: kuşaklı entari çıkar');
   await waitFor(async () => (await store.getUser(ali.user.id)).look.acc === ACC('Kese'));
   assert.equal((await store.getUser(ali.user.id)).look.top, undefined, 'profile de çakışmasız kaydedilir');
+});
+
+test('savaşçı öğeleri: miğfer şapka/taç ile, kapalı miğfer gözlük/bıyık/sakal ile, sırtta tek nesne; eşikler artan, sahibe özeller', () => {
+  // tablo: yeni öğeler eski eşikleri değiştirmez, sona eklenir; sahibe özel olanlar puanla açılmaz
+  assert.deepEqual(C.HAT_ITEMS.slice(23).map((h) => h.name), ['Burun korumalı miğfer', 'Zincir başlık', 'Sivri tolga', 'Üsküf', 'Sarıklı tolga', 'Kapalı miğfer']);
+  assert.equal(C.HAT_ITEMS[22].name, 'Yeniçeri börkü');
+  assert.equal(C.TOP_ITEMS[6].name, 'Kraliyet kaftanı');
+  assert.equal(C.BOTTOM_ITEMS[7].name, 'Sarı çizme');
+  for (const list of [C.HAT_ITEMS.slice(23), C.TOP_ITEMS.slice(7, 14)]) {
+    const mins = list.map((i) => i.min);
+    assert.deepEqual([...mins].sort((a, b) => a - b), mins, 'eşikler artan');
+  }
+  assert.ok(C.TOP_ITEMS[TOP('Mor kaftanlı sipahi zırhı')].owner);
+  assert.ok(C.GEAR_ITEMS[GEAR('Altın sancak')].owner);
+  const ali = { username: 'Ali', points: 1e9 };
+  assert.equal(canUseItem('top', TOP('Mor kaftanlı sipahi zırhı'), ali), false);
+  assert.equal(canUseItem('gear', GEAR('Altın sancak'), ali), false);
+  assert.equal(canUseItem('gear', GEAR('Altın sancak'), { username: OWNER, points: 0 }), true);
+  assert.equal(canUseItem('hat', HAT('Kapalı miğfer'), { username: 'Ali', points: 69 }), false);
+  assert.equal(canUseItem('hat', HAT('Kapalı miğfer'), { username: 'Ali', points: 70 }), true);
+  assert.equal(canUseItem('gear', GEAR('Kılıç ve kın'), { username: null, points: 0 }), true, 'puansız teçhizat misafire açık');
+
+  // miğfer bir başlıktır: kral tacı seçilince miğfer çıkar
+  let r = C.resolveLook({ skin: 1, hat: HAT('Sivri tolga'), acc: KING_ACC }, ['acc']);
+  assert.equal(r.look.hat, 0);
+  assert.equal(C.conflictNote(r.removed[0]), 'Kral tacı takıldı, Sivri tolga çıkarıldı.');
+  // kapalı miğfer yüzü örter: gözlük ve bıyık çıkar; sonradan sakal takılınca miğfer çıkar
+  r = C.resolveLook({ skin: 1, hat: HAT('Kapalı miğfer'), acc: ACC('Gözlük') }, ['hat']);
+  assert.equal(r.look.acc, undefined);
+  r = C.resolveLook({ skin: 1, hat: HAT('Kapalı miğfer'), acc: ACC('Bıyık') }, ['hat']);
+  assert.equal(r.look.acc, undefined);
+  r = C.resolveLook({ skin: 1, hat: HAT('Kapalı miğfer'), acc: ACC('Sakal') }, ['acc']);
+  assert.equal(r.look.hat, 0);
+  assert.equal(r.look.acc, ACC('Sakal'));
+  // gözlüklü (0) ve sakallı (2) karaktere kapalı miğfer takılamaz; açık miğferler takılır
+  assert.deepEqual(C.skinBlock(0, 'hat', HAT('Kapalı miğfer')), { what: 'gözlüğü', slot: 'eyes' });
+  assert.ok(C.skinBlock(2, 'hat', HAT('Kapalı miğfer')));
+  assert.equal(C.skinBlock(2, 'hat', HAT('Burun korumalı miğfer')), null);
+  // zincir başlık boynu da örter: atkı ile birlikte olmaz
+  r = C.resolveLook({ skin: 1, hat: HAT('Zincir başlık'), acc: ACC('Atkı') }, ['hat']);
+  assert.equal(r.look.acc, undefined);
+  // sırtta tek nesne: kalkan seçilince kaftan (sırt) çıkar; kapaniçe seçilince sancak çıkar
+  r = C.resolveLook({ skin: 1, hat: 0, top: TOP('Kaftan'), gear: GEAR('Yuvarlak kalkan') }, ['gear']);
+  assert.equal(r.look.top, undefined);
+  assert.equal(r.look.gear, GEAR('Yuvarlak kalkan'));
+  r = C.resolveLook({ skin: 1, hat: 0, top: TOP('Kürklü kapaniçe'), gear: GEAR('Sancak') }, ['top']);
+  assert.equal(r.look.gear, undefined);
+  // belde tek nesne: hançer ile pala olmaz; kuşaklı entari ile çini kuşak olmaz
+  r = C.resolveLook({ skin: 1, hat: 0, acc: ACC('Hançer'), gear: GEAR('Pala') }, ['gear']);
+  assert.equal(r.look.acc, undefined);
+  r = C.resolveLook({ skin: 1, hat: 0, top: TOP('Kuşaklı entari'), gear: GEAR('Çini kuşak ve hançer') }, ['top']);
+  assert.equal(r.look.gear, undefined);
+  // omuzluklu zırh ile doğan olmaz; zırh + miğfer + bacaklık + kalkan + madalyon birlikte olur
+  r = C.resolveLook({ skin: 1, hat: 0, top: TOP('Plakalı göğüslük'), acc: ACC('Doğan') }, ['top']);
+  assert.equal(r.look.acc, undefined);
+  r = C.resolveLook({ skin: 4, hat: HAT('Sivri tolga'), top: TOP('Sipahi zırhı'), bottom: BOT('Zırhlı bacaklık'), gear: GEAR('Spiral kalkan'), acc: ACC('Madalyon') });
+  assert.equal(r.removed.length, 0);
+  assert.deepEqual(C.BOTTOM_ITEMS[BOT('Zırhlı bacaklık')].slots, ['legs', 'feet']);
+});
+
+test('teçhizat: sunucu (setLook, addPlayer, mergeLook, sanitizeLook) kilit ve yuva kuralını uygular; pg göçü', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const r = room();
+  assert.equal(r.addPlayer('a', 'Ali', { userId: 'u1', look: { color: 1, hat: 0, skin: 1, top: TOP('Kaftan') } }), null);
+  assert.match(r.setLook('a', { gear: GEAR('Sancak') }, { points: 89 }), /kilitli \(90 puan/);
+  assert.equal(r.setLook('a', { gear: GEAR('Sancak') }, { points: 90 }), null);
+  assert.equal(r.players.get('a').look.gear, GEAR('Sancak'));
+  assert.equal(r.players.get('a').look.top, undefined, 'sancak sırtı doldurur: kaftan çıkar');
+  assert.equal(r.setLook('a', { gear: GEAR('Altın sancak') }, { points: 1e9 }), 'Bu öğe yalnızca sahibine özel.');
+  assert.equal(r.setLook('a', { gear: 0 }), null);
+  assert.equal('gear' in r.players.get('a').look, false);
+  // sahibin kayıtlı altın sancağı odaya gelir; başkasının düşer
+  assert.equal(r.addPlayer('o', OWNER, { userId: 'u2', look: { color: 2, hat: 0, skin: 1, gear: GEAR('Altın sancak') } }), null);
+  assert.equal(r.players.get('o').look.gear, GEAR('Altın sancak'));
+  assert.equal(r.addPlayer('b', 'Bora', { userId: 'u3', look: { color: 3, hat: 0, skin: 1, gear: GEAR('Altın sancak') } }), null);
+  assert.equal(r.players.get('b').look.gear, undefined);
+  r.destroy();
+  // profil yolu
+  assert.throws(() => mergeLook({ color: 1, hat: 0, skin: 1 }, { gear: GEAR('Tuğ') }, { username: 'Ali', points: 119 }), (e) => e.status === 403);
+  assert.equal(mergeLook({ color: 1, hat: 0, skin: 1 }, { gear: GEAR('Tuğ') }, { username: 'Ali', points: 120 }).gear, GEAR('Tuğ'));
+  assert.throws(() => mergeLook({ color: 1, hat: 0, skin: 1 }, { gear: GEAR_COUNT }, { username: 'Ali', points: 0 }), (e) => e.status === 400);
+  assert.deepEqual(sanitizeLook({ color: 1, hat: 0, skin: 1, gear: GEAR('Altın sancak') }, { username: 'Ali', points: 5 }), { color: 1, hat: 0, skin: 1 });
+  // pg: eski tabloya look_gear göçü, yazma/okuma
+  const mem = newDb();
+  const { Pool } = mem.adapters.createPg();
+  const pool = new Pool();
+  await pool.query(`CREATE TABLE vk_users (
+    id TEXT PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE, pass_hash TEXT NOT NULL, created_at BIGINT NOT NULL,
+    look_color INTEGER NOT NULL DEFAULT 0, look_hat INTEGER NOT NULL DEFAULT 0, look_skin INTEGER NOT NULL DEFAULT 0,
+    look_acc INTEGER NOT NULL DEFAULT 0, look_house INTEGER NOT NULL DEFAULT 0, look_top INTEGER NOT NULL DEFAULT 0, look_bottom INTEGER NOT NULL DEFAULT 0,
+    games INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0,
+    koylu_games INTEGER NOT NULL DEFAULT 0, koylu_wins INTEGER NOT NULL DEFAULT 0, vampir_games INTEGER NOT NULL DEFAULT 0,
+    vampir_wins INTEGER NOT NULL DEFAULT 0, soytari_games INTEGER NOT NULL DEFAULT 0, soytari_wins INTEGER NOT NULL DEFAULT 0)`);
+  await pool.query(`INSERT INTO vk_users (id, username, username_key, pass_hash, created_at, look_color, look_hat, look_skin, look_top)
+    VALUES ('old', 'Eski', 'eski', 'x', 1, 2, 3, 4, 8)`);
+  const store = new PgStore({ pool });
+  await store.init();
+  assert.deepEqual((await store.getUser('old')).look, { color: 2, hat: 3, skin: 4, top: 8 }, 'eski kayıt: teçhizat yok = 0');
+  await store.updateLook('old', { color: 2, hat: 25, skin: 4, top: 13, bottom: 11, gear: 7 });
+  assert.deepEqual((await store.getUser('old')).look, { color: 2, hat: 25, skin: 4, top: 13, bottom: 11, gear: 7 });
+  await store.close();
 });
