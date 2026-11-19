@@ -901,14 +901,6 @@ details.box[open] summary { margin-bottom: 8px; }
 }
 .intro.titled .intro-title, .intro.ending .intro-title { opacity: 1; transform: translateY(-50%) scale(1); }
 .intro.reduced .intro-title { transition-duration: .8s !important; }
-/* kapanış: yapımcı satırı (seslendirmeyle birlikte) */
-.intro-credit {
-  position: absolute; left: 0; right: 0; top: calc(46% + clamp(78px, 23vw, 100px)); z-index: 5; margin: 0; padding: 0 20px; text-align: center; pointer-events: none;
-  font-family: var(--font-display, Georgia, serif); font-size: clamp(15px, 4.2vw, 20px); color: #f4e4c1; text-shadow: 0 2px 10px rgba(0, 0, 0, .8);
-  opacity: 0; transform: translateY(6px); transition: opacity 1s ease .9s, transform 1.4s ease .9s;
-}
-.intro-credit b { color: #ffd27a; font-weight: 700; }
-.intro.titled .intro-credit, .intro.ending .intro-credit { opacity: 1; transform: none; }
 
 /* kapı ekranı: ilk açılışta sesi açan dokunuş */
 .intro-gate {

@@ -9,7 +9,7 @@ export const STORY = [
   { id: 'night', text: 'O gün her şey değişti. Aranızda vampirler var.', dur: 4.6 },
   { id: 'dark', text: 'Artık köylüler gerçek rollerini kullanmak zorunda. Vampirleri kısa sürede köyden kovmazlarsa, köy bir daha asla eskisi gibi olamayacak.', dur: 10.4 },
 ];
-export const TITLE_S = 5.6;   // başlık + kapanış satırı ("Bu oyun Değer Halkaları Buca ekibi tarafından yapılmıştır.", seslendirme ~4,2 sn)
+export const TITLE_S = 2.8;
 export const DURS = [...STORY.map((s) => s.dur), TITLE_S];
 export const TOTAL_S = DURS.reduce((a, b) => a + b, 0);
 

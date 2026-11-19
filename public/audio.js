@@ -87,7 +87,6 @@
     'voice-3': { files: ['voice/intro-3.mp3'], vol: 1.0, max: 1, gap: 400, party: 0.45, prio: 3, lazy: true, late: 2500 },
     'voice-4': { files: ['voice/intro-4.mp3'], vol: 1.0, max: 1, gap: 400, party: 0.45, prio: 3, lazy: true, late: 2500 },
     'voice-5': { files: ['voice/intro-5.mp3'], vol: 1.0, max: 1, gap: 400, party: 0.45, prio: 3, lazy: true, late: 2500 },
-    'voice-6': { files: ['voice/intro-6.mp3'], vol: 1.0, max: 1, gap: 400, party: 0.45, prio: 3, lazy: true, late: 2500 },
     entrance: { files: takes('entrance', 1), vol: 0.95, max: 1, gap: 31000, party: 0.22, prio: 3, fade: 3, lazy: true, late: 4000 }
   };
   // gece rastgele baykuş (iç efekt, genel sfx listesinde değil)

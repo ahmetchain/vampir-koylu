@@ -9,7 +9,7 @@ import { audioScene, sfx } from './util.js';
 const storage = () => { try { return window.localStorage; } catch { return null; } };
 const reducedMotion = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch { return false; } };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const VOICES = ['voice-1', 'voice-2', 'voice-3', 'voice-4', 'voice-5', 'voice-6'];
+const VOICES = ['voice-1', 'voice-2', 'voice-3', 'voice-4', 'voice-5'];
 const prefetchVoice = () => { try { if (window.VKAudio && window.VKAudio.prefetch) window.VKAudio.prefetch(VOICES); } catch { /* ses yok */ } };
 // Seslendirme: telefonda ilk dokunuştan sonra ses bağlamı birkaç yüz ms içinde açılır; ilk cümle o ana denk gelirse
 // sessizce düşmesin diye ses hazır olana kadar kısa aralıklarla (en çok ~2 sn) tekrar denenir.
@@ -54,7 +54,6 @@ function build() {
     <div class="intro-veil" aria-hidden="true"></div>
     <div class="intro-cap" aria-live="polite"><p class="intro-text"></p></div>
     <h1 class="intro-title auth-title" aria-hidden="true"><span class="at-v">Vampir</span> <span class="at-k">Köylü</span></h1>
-    <p class="intro-credit">Bu oyun <b>Değer Halkaları Buca</b> ekibi tarafından yapılmıştır.</p>
     <button type="button" class="intro-skip" aria-label="Hikâyeyi geç">Geç${CHEV}</button>
     <section class="intro-gate" role="dialog" aria-modal="true" aria-labelledby="intro-gate-h" hidden>
       <div class="ig-card">
@@ -200,7 +199,7 @@ export async function runIntro({ gate = false, enter, onSeen } = {}) {
         if (i === 5) sfx('zzGong', { volume: 0.7 });
       }
       if (i < STORY.length) { setCaption(el, STORY[i].text); playVoice(i + 1); }
-      else { el.querySelector('.intro-cap').classList.remove('on'); el.classList.add('titled'); setTimeout(() => { if (!skipped) playVoice(6); }, 900); }
+      else { el.querySelector('.intro-cap').classList.remove('on'); el.classList.add('titled'); }
     },
   };
 

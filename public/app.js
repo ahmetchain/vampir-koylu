@@ -103,6 +103,8 @@ function connectSocket() {
       if (!socket.connected || res.error === 'offline' || res.error === 'Sunucu cevap vermedi.') return;
       store.set(ROOM_KEY, null);
       if (ctx.view === 'room') { exitRoom(); toast('Oda artık yok ya da oyundaki yerin kalmadı.', 'error'); }
+      // Kayıtlı oda eskiymiş (oyun bitmiş/oda kapanmış): girişte "odaya dönüyor" diye ertelenen hikâye şimdi açılır.
+      else if (!session.get(INVITE_KEY)) setTimeout(introAfterStaleRoom, 0);
     }
     const invite = session.get(INVITE_KEY);
     if (invite) {
@@ -246,6 +248,21 @@ async function afterLogin() {
   renderProfile();
   connectSocket();
   return reveal;
+}
+
+// Girişte kayıtlı bir oda vardı (hikâye ertelendi) ama odaya dönülemedi: hesap hikâyeyi hiç izlemediyse kapı şimdi
+// bir kez açılır (ilk açılıştaki gibi zorunlu); bitince menüye dönülür.
+async function introAfterStaleRoom() {
+  const u = ctx.user;
+  if (!u || u.introSeen !== false || introActive() || ctx.view !== 'menu') return;
+  if (introLocalSeen()) { syncIntroSeen(); return; }
+  if (!introGate({ introSeen: u.introSeen, invite: !!session.get(INVITE_KEY), room: !!store.get(ROOM_KEY) })) return;
+  closeAllSheets();
+  closeSoundPopover();
+  let reveal = null;
+  try { reveal = await runIntro({ gate: true, enter: () => show('intro'), onSeen: syncIntroSeen }); } catch (e) { console.warn('[intro]', e); }
+  if (ctx.view === 'intro') show('menu');
+  if (reveal) reveal();
 }
 
 // ---------- açılış ----------
