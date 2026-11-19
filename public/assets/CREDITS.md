@@ -48,7 +48,7 @@ Sources:
 
 | File | Source | Details |
 |------|--------|---------|
-| `voice/intro-1.mp3` … `voice/intro-5.mp3` | Generated (Higgsfield, ElevenLabs v4 text-to-speech, preset voice "Arthur", 2026-11-19) | Turkish narration of the opening story (5 lines, text by the project owner). Re-encoded to mono 64 kbps. Loaded only when the player starts the story |
+| `voice/intro-1.mp3` … `voice/intro-6.mp3` | Generated (Higgsfield, ElevenLabs v4 text-to-speech, preset voice "Arthur", 2026-11-19) | Turkish narration of the opening story (5 story lines + closing credit line, text by the project owner). Re-encoded to mono 64 kbps. Loaded only when the player starts the story |
 | `music/menu-lobi.mp3` | Provided by the project owner (2026-11-19) | Main theme since 2026-11-19: main menu, room creation, lobby and end screen. Re-encoded 2026-11-19 for size (LAME VBR V5, ~88 kbps stereo, 2.01 MB -> 1.39 MB; original kept outside the repo), 125.9 s, loops whole track. The owner supplied this file for the game and is responsible for its rights |
 | `music/menu-harp.mp3` | Generated (ElevenLabs Music v2, 2026-11-13) | Former default menu/lobby theme (still selectable in code): calm, sparse harp over a soft string pad. No percussion. Loop 52.0 s |
 | `music/menu-lute.mp3` | Generated (ElevenLabs Music v2, 2026-11-13) | Alternative menu theme: slow solo fingerpicked lute over a soft drone. Loop 59.1 s |

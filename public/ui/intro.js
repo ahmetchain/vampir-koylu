@@ -9,9 +9,24 @@ import { audioScene, sfx } from './util.js';
 const storage = () => { try { return window.localStorage; } catch { return null; } };
 const reducedMotion = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch { return false; } };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const VOICES = ['voice-1', 'voice-2', 'voice-3', 'voice-4', 'voice-5'];
+const VOICES = ['voice-1', 'voice-2', 'voice-3', 'voice-4', 'voice-5', 'voice-6'];
 const prefetchVoice = () => { try { if (window.VKAudio && window.VKAudio.prefetch) window.VKAudio.prefetch(VOICES); } catch { /* ses yok */ } };
-const stopVoice = () => { try { if (window.VKAudio && window.VKAudio.stopSfx) VOICES.forEach((v) => window.VKAudio.stopSfx(v, 0.35)); } catch { /* ses yok */ } };
+// Seslendirme: telefonda ilk dokunuştan sonra ses bağlamı birkaç yüz ms içinde açılır; ilk cümle o ana denk gelirse
+// sessizce düşmesin diye ses hazır olana kadar kısa aralıklarla (en çok ~2 sn) tekrar denenir.
+let voiceTok = 0;
+const playVoice = (n) => {
+  const my = ++voiceTok;
+  const t0 = Date.now();
+  const tryPlay = () => {
+    if (my !== voiceTok) return;
+    const A = window.VKAudio;
+    if (!A) return;
+    if (!A.ready || A.ready()) { try { A.sfx('voice-' + n); } catch { /* ses yok */ } return; }
+    if (Date.now() - t0 < 2000) setTimeout(tryPlay, 120);
+  };
+  tryPlay();
+};
+const stopVoice = () => { voiceTok++; try { if (window.VKAudio && window.VKAudio.stopSfx) VOICES.forEach((v) => window.VKAudio.stopSfx(v, 0.35)); } catch { /* ses yok */ } };
 const owl = (v) => { try { if (window.VKAudio && window.VKAudio.owl) window.VKAudio.owl(v); } catch { /* ses yok */ } };
 
 export function introAutoplay(o) { return shouldAutoplay({ ...o, seen: readSeen(storage()) }); }
@@ -39,6 +54,7 @@ function build() {
     <div class="intro-veil" aria-hidden="true"></div>
     <div class="intro-cap" aria-live="polite"><p class="intro-text"></p></div>
     <h1 class="intro-title auth-title" aria-hidden="true"><span class="at-v">Vampir</span> <span class="at-k">Köylü</span></h1>
+    <p class="intro-credit">Bu oyun <b>Değer Halkaları Buca</b> ekibi tarafından yapılmıştır.</p>
     <button type="button" class="intro-skip" aria-label="Hikâyeyi geç">Geç${CHEV}</button>
     <section class="intro-gate" role="dialog" aria-modal="true" aria-labelledby="intro-gate-h" hidden>
       <div class="ig-card">
@@ -59,9 +75,11 @@ function build() {
 }
 
 // Kapı ekranı: kullanıcı seçene kadar bekler ('start' | 'skip')
-function gateChoice(el) {
+function gateChoice(el, mandatory = false) {
   const g = el.querySelector('.intro-gate');
   g.hidden = false;
+  // İlk açılış (zorunlu izleme): kapıda "Geç" yok; tek seçenek "Hikâyeyi başlat" (dokunuş sesi de açar).
+  if (mandatory) { const sk = g.querySelector('.ig-skip'); if (sk) sk.hidden = true; }
   el.dataset.stage = 'gate';
   const start = g.querySelector('.ig-start');
   setTimeout(() => { try { start.focus({ preventScroll: true }); } catch { /* yok */ } }, 60);
@@ -69,7 +87,7 @@ function gateChoice(el) {
     const done = (v) => { g.removeEventListener('click', onClick); window.removeEventListener('keydown', onKey, true); resolve(v); };
     const onClick = (e) => { const b = e.target.closest('[data-intro]'); if (b) done(b.dataset.intro); };
     const onKey = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); done('skip'); }
+      if (e.key === 'Escape') { e.preventDefault(); if (!mandatory) done('skip'); }
       else if (e.key === 'Tab') {
         // odak kapıdan dışarı kaçmasın
         const f = [...g.querySelectorAll('button')];
@@ -110,7 +128,10 @@ function setCaption(el, text) {
  * opts.onSeen(): "izlendi" sayıldığı an (kapıda başlat/geç ya da tekrar izle); giriş yapmışsa sunucuya işaretlemek için.
  * Kapıda "Geç" seçilirse enter() çağrılmaz; reveal() yine güvenle çağrılabilir.
  */
+// gate: ilk açılış kapısı. İlk açılışta hikâye ZORUNLU izlenir (kapıda ve oynarken "Geç" yok, Esc/Enter geçmez);
+// menüden/ayarlardan tekrar izlemede (gate=false) geçilebilir. Dış iptal (davet/oturum devamı → odaya alındı) her zaman çalışır.
 export async function runIntro({ gate = false, enter, onSeen } = {}) {
+  const mandatory = gate;
   const seen = () => { markIntroSeen(); try { if (onSeen) onSeen(); } catch (e) { console.warn('[intro]', e); } };
   if (active) return async () => {};
   active = true;
@@ -123,7 +144,7 @@ export async function runIntro({ gate = false, enter, onSeen } = {}) {
     const splash = document.getElementById('splash');
     if (splash) splash.hidden = true;
     prefetchVoice();
-    const v = await gateChoice(el);
+    const v = await gateChoice(el, mandatory);
     seen();
     if (v !== 'start') {
       el.classList.add('fade-out');
@@ -157,9 +178,12 @@ export async function runIntro({ gate = false, enter, onSeen } = {}) {
   let cancelled = false;
   cancelFn = () => { cancelled = true; W.skip(); doSkip(); };
   const skipBtn = el.querySelector('.intro-skip');
-  skipBtn.addEventListener('click', doSkip);
   const onKey = (e) => { if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); doSkip(); } };
-  window.addEventListener('keydown', onKey, true);
+  if (mandatory) skipBtn.hidden = true;
+  else {
+    skipBtn.addEventListener('click', doSkip);
+    window.addEventListener('keydown', onKey, true);
+  }
 
   const css = () => { el.dataset.mode = 'css'; };
   let dipped = true;
@@ -175,8 +199,8 @@ export async function runIntro({ gate = false, enter, onSeen } = {}) {
         if (i === 3) owl(0.75);
         if (i === 5) sfx('zzGong', { volume: 0.7 });
       }
-      if (i < STORY.length) { setCaption(el, STORY[i].text); sfx('voice-' + (i + 1)); }
-      else { el.querySelector('.intro-cap').classList.remove('on'); el.classList.add('titled'); }
+      if (i < STORY.length) { setCaption(el, STORY[i].text); playVoice(i + 1); }
+      else { el.querySelector('.intro-cap').classList.remove('on'); el.classList.add('titled'); setTimeout(() => { if (!skipped) playVoice(6); }, 900); }
     },
   };
 

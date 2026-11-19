@@ -310,6 +310,7 @@ export function initMenu() {
     leaderboard: `${icon('trophy')}Liderlik`,
     howto: `${icon('book')}Nasıl Oynanır`,
     settings: `${icon('gear')}Ayarlar`,
+    story: `${icon('play')}Hikâye`,
   };
   $$('#screen-menu [data-act]').forEach((b) => {
     if (b.classList.contains('iconbtn')) b.innerHTML = icon('gear');
@@ -319,7 +320,7 @@ export function initMenu() {
     const a = e.target.closest('[data-act]');
     if (a) {
       sfx('click');
-      ({ create: openCreateRoom, leaderboard: openLeaderboard, howto: openHowto, settings: openSettings, look: openLookEditor })[a.dataset.act]();
+      ({ create: openCreateRoom, leaderboard: openLeaderboard, howto: openHowto, settings: openSettings, look: openLookEditor, story: () => emitLocal('intro:play') })[a.dataset.act]();
       return;
     }
     const j = e.target.closest('[data-join]');
